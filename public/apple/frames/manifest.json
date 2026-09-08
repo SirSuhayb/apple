@@ -1,0 +1,67 @@
+{
+  "source": "https://sketchfab.com/3d-models/apple-stop-motion-animation-a3e40e1540ed41fc95a9d6278b06c06b",
+  "author": "Eydeet",
+  "license": "CC BY",
+  "mapping": [
+    {
+      "uiFrame": 0,
+      "sketchfabFrame": 0,
+      "path": "/apple/frames/0.glb",
+      "meaning": "whole apple"
+    },
+    {
+      "uiFrame": 1,
+      "sketchfabFrame": 1,
+      "path": "/apple/frames/1.glb",
+      "meaning": "bite stage 1"
+    },
+    {
+      "uiFrame": 2,
+      "sketchfabFrame": 2,
+      "path": "/apple/frames/2.glb",
+      "meaning": "bite stage 2"
+    },
+    {
+      "uiFrame": 3,
+      "sketchfabFrame": 3,
+      "path": "/apple/frames/3.glb",
+      "meaning": "bite stage 3"
+    },
+    {
+      "uiFrame": 4,
+      "sketchfabFrame": 4,
+      "path": "/apple/frames/4.glb",
+      "meaning": "bite stage 4"
+    },
+    {
+      "uiFrame": 5,
+      "sketchfabFrame": 5,
+      "path": "/apple/frames/5.glb",
+      "meaning": "bite stage 5"
+    },
+    {
+      "uiFrame": 6,
+      "sketchfabFrame": 6,
+      "path": "/apple/frames/6.glb",
+      "meaning": "bite stage 6"
+    },
+    {
+      "uiFrame": 7,
+      "sketchfabFrame": 7,
+      "path": "/apple/frames/7.glb",
+      "meaning": "bite stage 7"
+    },
+    {
+      "uiFrame": 8,
+      "sketchfabFrame": 8,
+      "path": "/apple/frames/8.glb",
+      "meaning": "bite stage 8"
+    },
+    {
+      "uiFrame": 9,
+      "sketchfabFrame": 9,
+      "path": "/apple/frames/9.glb",
+      "meaning": "mostly core"
+    }
+  ]
+}

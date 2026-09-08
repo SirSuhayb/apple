@@ -1,0 +1,48 @@
+# BITE — Eat it to the core.
+
+Timed race on Robinhood Chain: burn **50% of burnable** `$BITE` before the deadline.
+
+- **Core** → prize pays qualified eaters (**not** the farmer).
+- **Rot** → apple freezes and only the farmer gets paid.
+
+Launch the token on [pons](https://www.ponsfamily.com/launchpad) vs AAPL. This repo is the race site + AppleKitchen.
+
+## Order of operations
+
+1. **Site** — `npm run dev` works in preview mode with no token.
+2. **You launch** on pons vs AAPL (`buybackEnabled` off, website = this site, fees to your wallet).
+3. Drop addresses into `.env.local` (see `.env.example`).
+4. `npm run reserved-math` → deploy AppleKitchen with that `CORE_TARGET`.
+5. At ~$500–1k fees: Dexscreener + verify, then point fees at the kitchen ([scripts/POINT_FEES.md](scripts/POINT_FEES.md)).
+
+## Site
+
+```bash
+npm install
+npm run dev
+```
+
+Apple product-page layout: hero brand + full-bleed stop-motion apple, then wager / how / core / eaters / tap / footer.
+
+Eydeet CC-BY frames live in `public/apple/frames/0.glb`…`9.glb` (UI frame *i* → Sketchfab `frame_i`). Rebake with `npm run bake-apple`.
+
+## Contracts
+
+`AppleKitchen` lives in `contracts/src/AppleKitchen.sol` — `bite`, `digest` (50/50), `revealCore` (swarm minus deployer), `revealRot` (pot to deployer). Deploy **after** mint; see [scripts/POINT_FEES.md](scripts/POINT_FEES.md).
+
+```bash
+cd contracts
+forge test
+```
+
+Deploy:
+
+```bash
+npm run reserved-math
+cd contracts
+forge script script/DeployKitchen.s.sol:DeployKitchen --rpc-url https://rpc.mainnet.chain.robinhood.com --broadcast
+```
+
+## Disclaimer
+
+Not affiliated with Apple Inc. or Robinhood. AAPL tokens are not shares. Experimental memecoin — you can lose everything. Write **pons** lowercase; no implied partnership.
