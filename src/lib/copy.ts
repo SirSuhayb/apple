@@ -188,9 +188,6 @@ export const copy = {
     },
     dayOne: {
       note: "Day one — watch the apple eaten to the core. Burns unlock when the kitchen is live.",
-      play: "Play",
-      replay: "Replay",
-      pause: "Pause",
     },
   },
 

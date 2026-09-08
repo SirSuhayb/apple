@@ -233,7 +233,6 @@ export function RaceApp({ initial }: { initial: RaceState }) {
   const [swapOpen, setSwapOpen] = useState(false);
 
   const [playFrame, setPlayFrame] = useState(0);
-  const [playing, setPlaying] = useState(DAY_ONE_PLAYTHROUGH);
 
   const refresh = useCallback(async () => {
     try {
@@ -253,12 +252,12 @@ export function RaceApp({ initial }: { initial: RaceState }) {
 
   // Act I: looping stop-motion 0→9→0…
   useEffect(() => {
-    if (!DAY_ONE_PLAYTHROUGH || !playing) return;
+    if (!DAY_ONE_PLAYTHROUGH) return;
     const id = window.setInterval(() => {
       setPlayFrame((prev) => (prev >= FRAME_COUNT - 1 ? 0 : prev + 1));
     }, FRAME_MS);
     return () => window.clearInterval(id);
-  }, [playing]);
+  }, []);
 
   const onBiteComplete = (result: BiteResult) => {
     setJuicePulse(Date.now());
@@ -273,11 +272,6 @@ export function RaceApp({ initial }: { initial: RaceState }) {
       ),
     }));
     if (!result.demo) void refresh();
-  };
-
-  const restartPlaythrough = () => {
-    setPlayFrame(0);
-    setPlaying(true);
   };
 
   const flags = useMemo(
@@ -426,21 +420,9 @@ export function RaceApp({ initial }: { initial: RaceState }) {
         </div>
 
         {DAY_ONE_PLAYTHROUGH && (
-          <div className="mt-4 flex flex-col items-center gap-2">
-            <p className="max-w-sm text-center text-xs leading-relaxed text-[#86868b]">
-              {copy.tap.dayOne.note}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                if (!playing) restartPlaythrough();
-                else setPlaying(false);
-              }}
-              className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-xs font-medium text-[#6e6e73] transition hover:text-[#1d1d1f]"
-            >
-              {playing ? copy.tap.dayOne.pause : copy.tap.dayOne.play}
-            </button>
-          </div>
+          <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-relaxed text-[#86868b]">
+            {copy.tap.dayOne.note}
+          </p>
         )}
       </section>
 
