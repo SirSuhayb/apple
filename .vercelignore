@@ -1,0 +1,17 @@
+# Local deps / build (Vercel installs & builds remotely)
+node_modules
+.next
+.turbo
+
+# Heavy Sketchfab raw assets (baked frames/ only needed at runtime)
+public/apple/apple_stop_motion_animation.zip
+public/apple/source
+
+# Foundry / nested contracts workspace
+contracts
+
+# Local previews / env
+.cursor-bite-preview.png
+.env
+.env.*
+!.env.example
