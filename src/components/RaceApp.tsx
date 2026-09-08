@@ -565,19 +565,19 @@ export function RaceApp({ initial }: { initial: RaceState }) {
 
       {/* Why AAPL */}
       <section id="pairing" className="page-gutter bg-[#fbfbfd] py-20">
-        <div className="mx-auto max-w-[580px]">
+        <div className="@container mx-auto max-w-[680px]">
           <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
             {copy.pairing.eyebrow}
           </p>
-          <h2 className="text-[clamp(24px,5vw,36px)] font-bold leading-[1.12] tracking-[-0.02em]">
+          <h2 className="text-[clamp(14px,5.4cqi,36px)] font-bold leading-[1.12] tracking-[-0.02em]">
             {copy.pairing.headline[0]}
             <br />
             {copy.pairing.headline[1]}
           </h2>
-          <p className="mt-3.5 text-[15px] leading-relaxed text-[#86868b]">
+          <p className="mt-3.5 max-w-[580px] text-[15px] leading-relaxed text-[#86868b]">
             {copy.pairing.body}
           </p>
-          <p className="mt-2.5 text-[15px] leading-relaxed text-[#86868b]">
+          <p className="mt-2.5 max-w-[580px] text-[15px] leading-relaxed text-[#86868b]">
             {copy.pairing.then}
           </p>
         </div>
