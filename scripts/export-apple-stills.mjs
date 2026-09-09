@@ -23,15 +23,15 @@ const APPLE_FACE_PITCH = 0.05;
 const TARGET_RADIUS = 0.92;
 const BG = "#fbfbfd";
 
-/** Keep in sync with AppleScene.tsx tunables. */
-const SATURATION_BOOST = 1.2;
-const ROUGHNESS_SCALE = 0.28;
-const METALNESS_BOOST = 0.08;
-const ENV_INTENSITY = 1.55;
-/** RGB multiply onto white baseColor (see AppleScene RED_TINT). */
-const RED_TINT_R = 1.18;
-const RED_TINT_G = 0.52;
-const RED_TINT_B = 0.48;
+/** Keep in sync with AppleScene.tsx — skin texels only (not flesh). */
+const SATURATION_BOOST = 1.45;
+const ROUGHNESS_SCALE = 0.32;
+const FLESH_ROUGHNESS = 0.92;
+const ENV_INTENSITY = 1.15;
+/** RGB multiply onto skin texels only (see AppleScene RED_TINT). */
+const RED_TINT_R = 1.22;
+const RED_TINT_G = 0.58;
+const RED_TINT_B = 0.52;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -139,7 +139,7 @@ const TARGET_RADIUS = ${TARGET_RADIUS};
 const BG = "${BG}";
 const SATURATION_BOOST = ${SATURATION_BOOST};
 const ROUGHNESS_SCALE = ${ROUGHNESS_SCALE};
-const METALNESS_BOOST = ${METALNESS_BOOST};
+const FLESH_ROUGHNESS = ${FLESH_ROUGHNESS};
 const ENV_INTENSITY = ${ENV_INTENSITY};
 const RED_TINT = new THREE.Color(${RED_TINT_R}, ${RED_TINT_G}, ${RED_TINT_B});
 
@@ -173,7 +173,7 @@ scene.add(new THREE.HemisphereLight(0xffffff, 0xe8e8ed, 0.38));
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-scene.environmentIntensity = 0.55;
+scene.environmentIntensity = 0.4;
 
 // Soft contact-shadow stand-in (matches ContactShadows opacity/feel roughly)
 const shadowGeo = new THREE.CircleGeometry(1.35, 64);
@@ -221,18 +221,135 @@ function fitCentered(sceneRoot, scale) {
   return wrap;
 }
 
-function isAppleSkinColor(c) {
-  const hsl = { h: 0, s: 0, l: 0 };
-  c.getHSL(hsl);
-  const redHue = hsl.h < 0.08 || hsl.h > 0.92;
-  return redHue && hsl.s > 0.12 && hsl.l > 0.06 && hsl.l < 0.75;
+function isAppleGltfMaterial(m, meshName) {
+  const label = \`\${m.name || ""} \${meshName || ""}\`.toLowerCase();
+  return /apple/.test(label);
 }
 
-function isAppleSkinMaterial(m, meshName) {
-  const label = \`\${m.name || ""} \${meshName || ""}\`.toLowerCase();
-  if (/apple/.test(label)) return true;
-  if (m.userData._origColor) return isAppleSkinColor(m.userData._origColor);
-  return false;
+function skinWeight(r, g, b) {
+  const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  if (luma < 0.07) return 0;
+  const [h, s] = rgbToHsl(r, g, b);
+  let redHue = 0;
+  if (h <= 0.04 || h >= 0.96) redHue = 1;
+  else if (h < 0.07) redHue = THREE.MathUtils.smoothstep(0.07, 0.04, h);
+  else if (h > 0.93) redHue = THREE.MathUtils.smoothstep(0.93, 0.96, h);
+  if (redHue < 0.05) return 0;
+  const redDom = r - Math.max(g, b);
+  let skin = THREE.MathUtils.smoothstep(0.04, 0.18, redDom) * redHue;
+  const rgRatio = g / Math.max(r, 1e-4);
+  skin *= 1 - THREE.MathUtils.smoothstep(0.55, 0.78, rgRatio);
+  skin *= THREE.MathUtils.smoothstep(0.12, 0.28, s);
+  skin *= 1 - THREE.MathUtils.smoothstep(0.62, 0.82, luma);
+  return THREE.MathUtils.clamp(skin, 0, 1);
+}
+
+function rgbToHsl(r, g, b) {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else h = ((r - g) / d + 4) / 6;
+  return [h, s, l];
+}
+
+function hue2rgb(p, q, t) {
+  let tt = t;
+  if (tt < 0) tt += 1;
+  if (tt > 1) tt -= 1;
+  if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+  if (tt < 1 / 2) return q;
+  if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+  return p;
+}
+
+function hslToRgb(h, s, l) {
+  if (s === 0) return [l, l, l];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [hue2rgb(p, q, h + 1 / 3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1 / 3)];
+}
+
+function polishSkinAlbedoMaps(map) {
+  if (map.userData._skinPolishedMaps) return map.userData._skinPolishedMaps;
+  const img = map.image;
+  if (!img) return null;
+  const w = img.width;
+  const h = img.height;
+  if (!w || !h) return null;
+
+  const albedoCanvas = document.createElement("canvas");
+  albedoCanvas.width = w;
+  albedoCanvas.height = h;
+  const actx = albedoCanvas.getContext("2d", { willReadFrequently: true });
+  if (!actx) return null;
+  actx.drawImage(img, 0, 0);
+  const imageData = actx.getImageData(0, 0, w, h);
+  const px = imageData.data;
+
+  const roughCanvas = document.createElement("canvas");
+  roughCanvas.width = w;
+  roughCanvas.height = h;
+  const rctx = roughCanvas.getContext("2d");
+  if (!rctx) return null;
+  const roughData = rctx.createImageData(w, h);
+  const rx = roughData.data;
+
+  const tintR = RED_TINT.r;
+  const tintG = RED_TINT.g;
+  const tintB = RED_TINT.b;
+
+  for (let i = 0; i < px.length; i += 4) {
+    let r = px[i] / 255;
+    let g = px[i + 1] / 255;
+    let b = px[i + 2] / 255;
+    const skin = skinWeight(r, g, b);
+    if (skin > 0.001) {
+      let tr = Math.min(1.35, r * tintR);
+      let tg = g * tintG;
+      let tb = b * tintB;
+      const [hh, ss, ll] = rgbToHsl(tr, tg, tb);
+      const boosted = hslToRgb(hh, Math.min(1, ss * SATURATION_BOOST), Math.min(0.58, ll * 1.03));
+      r = r * (1 - skin) + boosted[0] * skin;
+      g = g * (1 - skin) + boosted[1] * skin;
+      b = b * (1 - skin) + boosted[2] * skin;
+    }
+    px[i] = Math.round(THREE.MathUtils.clamp(r, 0, 1) * 255);
+    px[i + 1] = Math.round(THREE.MathUtils.clamp(g, 0, 1) * 255);
+    px[i + 2] = Math.round(THREE.MathUtils.clamp(b, 0, 1) * 255);
+    const rough = FLESH_ROUGHNESS * (1 - skin) + ROUGHNESS_SCALE * skin;
+    const rv = Math.round(THREE.MathUtils.clamp(rough, 0, 1) * 255);
+    rx[i] = rv;
+    rx[i + 1] = rv;
+    rx[i + 2] = rv;
+    rx[i + 3] = 255;
+  }
+
+  actx.putImageData(imageData, 0, 0);
+  rctx.putImageData(roughData, 0, 0);
+
+  const albedo = new THREE.CanvasTexture(albedoCanvas);
+  albedo.colorSpace = map.colorSpace;
+  albedo.flipY = map.flipY;
+  albedo.wrapS = map.wrapS;
+  albedo.wrapT = map.wrapT;
+  albedo.needsUpdate = true;
+
+  const roughness = new THREE.CanvasTexture(roughCanvas);
+  roughness.colorSpace = THREE.NoColorSpace;
+  roughness.flipY = map.flipY;
+  roughness.wrapS = map.wrapS;
+  roughness.wrapT = map.wrapT;
+  roughness.needsUpdate = true;
+
+  const polished = { albedo, roughness };
+  map.userData._skinPolishedMaps = polished;
+  return polished;
 }
 
 function polishAppleMaterials(root) {
@@ -246,24 +363,23 @@ function polishAppleMaterials(root) {
         m.userData._origRoughness = m.roughness ?? 0.5;
         m.userData._origMetalness = m.metalness ?? 0;
       }
-      const orig = m.userData._origColor;
-      m.color.copy(orig);
-      const origRough = m.userData._origRoughness;
-      const origMetal = m.userData._origMetalness;
-      if (isAppleSkinMaterial(m, obj.name || "")) {
-        m.color.multiply(RED_TINT);
-        const hsl = { h: 0, s: 0, l: 0 };
-        m.color.getHSL(hsl);
-        m.color.setHSL(
-          hsl.h,
-          Math.min(1, hsl.s * SATURATION_BOOST),
-          Math.min(0.62, hsl.l * 1.05),
-        );
-        m.roughness = Math.max(0.18, origRough * ROUGHNESS_SCALE);
-        m.metalness = Math.min(0.2, origMetal + METALNESS_BOOST);
-        if ("envMapIntensity" in m) m.envMapIntensity = ENV_INTENSITY;
-      } else {
-        m.roughness = Math.max(0.28, origRough * 0.92);
+      m.color.copy(m.userData._origColor);
+      m.roughness = m.userData._origRoughness;
+      m.metalness = m.userData._origMetalness;
+      if (isAppleGltfMaterial(m, obj.name || "") && m.map) {
+        if (!m.userData._skinPolished) {
+          const polished = polishSkinAlbedoMaps(m.map);
+          if (polished) {
+            m.map = polished.albedo;
+            m.roughnessMap = polished.roughness;
+            m.userData._skinPolished = true;
+          }
+        }
+        if (m.userData._skinPolished) {
+          m.roughness = 1;
+          m.metalness = 0;
+          if ("envMapIntensity" in m) m.envMapIntensity = ENV_INTENSITY;
+        }
       }
       m.needsUpdate = true;
     });
