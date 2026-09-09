@@ -9,6 +9,7 @@
     "lint": "eslint",
     "reserved-math": "node scripts/reserved-math.mjs",
     "bake-apple": "node scripts/bake-apple-frames.mjs",
+    "export-apple-stills": "node scripts/export-apple-stills.mjs",
     "test:contracts": "cd contracts && forge test"
   },
   "dependencies": {
