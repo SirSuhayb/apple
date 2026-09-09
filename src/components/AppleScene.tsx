@@ -4,6 +4,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   Center,
   ContactShadows,
+  Environment,
   OrbitControls,
   useGLTF,
 } from "@react-three/drei";
@@ -33,6 +34,26 @@ const TARGET_RADIUS = 0.92;
 const APPLE_FACE_YAW = Math.PI * 0.32;
 const APPLE_FACE_PITCH = 0.05;
 
+/**
+ * Tunables — richer, slightly wetter Eydeet apple skin (keep photoreal, not plastic).
+ * Shared conceptually with `scripts/export-apple-stills.mjs`.
+ *
+ * Note: Eydeet GLBs use white baseColor × albedo map and roughness=1. Skin polish
+ * is applied via name match + color multiply (not HSL on the white factor alone).
+ */
+/** Extra HSL saturation on the post-tint color (1 = none). */
+const SATURATION_BOOST = 1.2;
+/** Multiply GLTF roughness (source is ~1.0; lower = shinier). */
+const ROUGHNESS_SCALE = 0.28;
+/** Added metalness for a subtle wet sheen. */
+const METALNESS_BOOST = 0.08;
+/**
+ * Multiplied onto white baseColor so the albedo map reads redder/more saturated.
+ * Lower G/B = richer red from the texture.
+ */
+const RED_TINT = new THREE.Color(1.18, 0.52, 0.48);
+const ENV_INTENSITY = 1.55;
+
 function useHasGltfFrames() {
   const [available, setAvailable] = useState<boolean | null>(null);
   useEffect(() => {
@@ -60,9 +81,74 @@ function measureSphereRadius(root: THREE.Object3D): number {
 
 function appleColor(rot: boolean, quietPreview?: boolean) {
   const strength = rot ? 1 : quietPreview ? 0.35 : 0;
-  const base = new THREE.Color("#e23b2e");
+  const base = new THREE.Color("#e01820");
   const rotten = new THREE.Color("#5c3a1a");
   return base.clone().lerp(rotten, strength * 0.85);
+}
+
+function isAppleSkinColor(c: THREE.Color): boolean {
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  const redHue = hsl.h < 0.08 || hsl.h > 0.92;
+  return redHue && hsl.s > 0.12 && hsl.l > 0.06 && hsl.l < 0.75;
+}
+
+function isAppleSkinMaterial(
+  mat: THREE.MeshStandardMaterial,
+  meshName: string,
+): boolean {
+  const label = `${mat.name || ""} ${meshName}`.toLowerCase();
+  if (/apple/.test(label)) return true;
+  if (mat.userData._origColor) {
+    return isAppleSkinColor(mat.userData._origColor as THREE.Color);
+  }
+  return false;
+}
+
+/** One-time polish of GLTF materials toward a juicier, shinier apple. */
+function polishAppleMaterials(root: THREE.Object3D) {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    mats.forEach((mat) => {
+      const m = mat as THREE.MeshStandardMaterial;
+      if (!m?.color) return;
+      if (!m.userData._origColor) {
+        m.userData._origColor = m.color.clone();
+        m.userData._origRoughness = m.roughness ?? 0.5;
+        m.userData._origMetalness = m.metalness ?? 0;
+      }
+      const orig = m.userData._origColor as THREE.Color;
+      m.color.copy(orig);
+      const origRough = m.userData._origRoughness as number;
+      const origMetal = m.userData._origMetalness as number;
+
+      if (isAppleSkinMaterial(m, mesh.name || "")) {
+        // White base × albedo map: tint multiply saturates reds in the texture.
+        m.color.multiply(RED_TINT);
+        const hsl = { h: 0, s: 0, l: 0 };
+        m.color.getHSL(hsl);
+        // Keep lightness; push chroma for a juicier red without darkening.
+        m.color.setHSL(
+          hsl.h,
+          Math.min(1, hsl.s * SATURATION_BOOST),
+          Math.min(0.62, hsl.l * 1.05),
+        );
+        m.roughness = Math.max(0.18, origRough * ROUGHNESS_SCALE);
+        m.metalness = Math.min(0.2, origMetal + METALNESS_BOOST);
+        if ("envMapIntensity" in m) {
+          m.envMapIntensity = ENV_INTENSITY;
+        }
+      } else {
+        m.roughness = Math.max(0.28, origRough * 0.92);
+      }
+
+      m.userData._baseColor = m.color.clone();
+      m.userData._baseRoughness = m.roughness;
+      m.needsUpdate = true;
+    });
+  });
 }
 
 /** Procedural stop-motion apple — 10 discrete bite stages when glTF frames are missing. */
@@ -90,8 +176,8 @@ function ProceduralApple({
         <sphereGeometry args={[1, 48, 48]} />
         <meshStandardMaterial
           color={color}
-          roughness={0.45 + (rot ? 0.35 : 0)}
-          metalness={0.08}
+          roughness={0.32 + (rot ? 0.35 : 0)}
+          metalness={0.12}
         />
       </mesh>
 
@@ -176,6 +262,7 @@ function applyRotTint(
   rot: boolean,
   quietPreview?: boolean,
 ) {
+  polishAppleMaterials(root);
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -183,10 +270,6 @@ function applyRotTint(
     mats.forEach((mat) => {
       const m = mat as THREE.MeshStandardMaterial;
       if (!m?.color) return;
-      if (!m.userData._baseColor) {
-        m.userData._baseColor = m.color.clone();
-        m.userData._baseRoughness = m.roughness ?? 0.5;
-      }
       const base = m.userData._baseColor as THREE.Color;
       m.color.copy(base);
       m.roughness = m.userData._baseRoughness as number;
@@ -322,11 +405,12 @@ function SceneContent({
 }: AppleSceneProps & { useGltf: boolean; fitScale: number | null }) {
   return (
     <>
-      <ambientLight intensity={1.05} />
-      <directionalLight position={[5, 7, 4]} intensity={1.6} castShadow />
-      <directionalLight position={[-4, 3, -2]} intensity={0.35} />
-      <hemisphereLight args={["#ffffff", "#e8e8ed", 0.45]} />
+      <ambientLight intensity={0.95} />
+      <directionalLight position={[5, 7, 4]} intensity={2.05} castShadow />
+      <directionalLight position={[-4, 3, -2]} intensity={0.45} />
+      <hemisphereLight args={["#ffffff", "#e8e8ed", 0.38]} />
       <Suspense fallback={null}>
+        <Environment preset="studio" environmentIntensity={0.55} />
         {useGltf ? (
           fitScale != null ? (
             <GltfFrame

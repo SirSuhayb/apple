@@ -23,6 +23,16 @@ const APPLE_FACE_PITCH = 0.05;
 const TARGET_RADIUS = 0.92;
 const BG = "#fbfbfd";
 
+/** Keep in sync with AppleScene.tsx tunables. */
+const SATURATION_BOOST = 1.2;
+const ROUGHNESS_SCALE = 0.28;
+const METALNESS_BOOST = 0.08;
+const ENV_INTENSITY = 1.55;
+/** RGB multiply onto white baseColor (see AppleScene RED_TINT). */
+const RED_TINT_R = 1.18;
+const RED_TINT_G = 0.52;
+const RED_TINT_B = 0.48;
+
 const MIME = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -121,11 +131,17 @@ const RENDER_HTML = `<!DOCTYPE html>
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/addons/libs/meshopt_decoder.module.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const APPLE_FACE_YAW = ${APPLE_FACE_YAW};
 const APPLE_FACE_PITCH = ${APPLE_FACE_PITCH};
 const TARGET_RADIUS = ${TARGET_RADIUS};
 const BG = "${BG}";
+const SATURATION_BOOST = ${SATURATION_BOOST};
+const ROUGHNESS_SCALE = ${ROUGHNESS_SCALE};
+const METALNESS_BOOST = ${METALNESS_BOOST};
+const ENV_INTENSITY = ${ENV_INTENSITY};
+const RED_TINT = new THREE.Color(${RED_TINT_R}, ${RED_TINT_G}, ${RED_TINT_B});
 
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
@@ -136,6 +152,8 @@ renderer.setPixelRatio(1);
 renderer.setSize(window.innerWidth, window.innerHeight, false);
 renderer.shadowMap.enabled = true;
 renderer.setClearColor(BG, 1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -143,15 +161,19 @@ const camera = new THREE.PerspectiveCamera(33, 1, 0.1, 50);
 camera.position.set(0, 0.12, 3.9);
 camera.lookAt(0, 0.1, 0);
 
-scene.add(new THREE.AmbientLight(0xffffff, 1.05));
-const key = new THREE.DirectionalLight(0xffffff, 1.6);
+scene.add(new THREE.AmbientLight(0xffffff, 0.95));
+const key = new THREE.DirectionalLight(0xffffff, 2.05);
 key.position.set(5, 7, 4);
 key.castShadow = true;
 scene.add(key);
-const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+const fill = new THREE.DirectionalLight(0xffffff, 0.45);
 fill.position.set(-4, 3, -2);
 scene.add(fill);
-scene.add(new THREE.HemisphereLight(0xffffff, 0xe8e8ed, 0.45));
+scene.add(new THREE.HemisphereLight(0xffffff, 0xe8e8ed, 0.38));
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.55;
 
 // Soft contact-shadow stand-in (matches ContactShadows opacity/feel roughly)
 const shadowGeo = new THREE.CircleGeometry(1.35, 64);
@@ -199,6 +221,55 @@ function fitCentered(sceneRoot, scale) {
   return wrap;
 }
 
+function isAppleSkinColor(c) {
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.getHSL(hsl);
+  const redHue = hsl.h < 0.08 || hsl.h > 0.92;
+  return redHue && hsl.s > 0.12 && hsl.l > 0.06 && hsl.l < 0.75;
+}
+
+function isAppleSkinMaterial(m, meshName) {
+  const label = \`\${m.name || ""} \${meshName || ""}\`.toLowerCase();
+  if (/apple/.test(label)) return true;
+  if (m.userData._origColor) return isAppleSkinColor(m.userData._origColor);
+  return false;
+}
+
+function polishAppleMaterials(root) {
+  root.traverse((obj) => {
+    if (!obj.isMesh) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach((m) => {
+      if (!m?.color) return;
+      if (!m.userData._origColor) {
+        m.userData._origColor = m.color.clone();
+        m.userData._origRoughness = m.roughness ?? 0.5;
+        m.userData._origMetalness = m.metalness ?? 0;
+      }
+      const orig = m.userData._origColor;
+      m.color.copy(orig);
+      const origRough = m.userData._origRoughness;
+      const origMetal = m.userData._origMetalness;
+      if (isAppleSkinMaterial(m, obj.name || "")) {
+        m.color.multiply(RED_TINT);
+        const hsl = { h: 0, s: 0, l: 0 };
+        m.color.getHSL(hsl);
+        m.color.setHSL(
+          hsl.h,
+          Math.min(1, hsl.s * SATURATION_BOOST),
+          Math.min(0.62, hsl.l * 1.05),
+        );
+        m.roughness = Math.max(0.18, origRough * ROUGHNESS_SCALE);
+        m.metalness = Math.min(0.2, origMetal + METALNESS_BOOST);
+        if ("envMapIntensity" in m) m.envMapIntensity = ENV_INTENSITY;
+      } else {
+        m.roughness = Math.max(0.28, origRough * 0.92);
+      }
+      m.needsUpdate = true;
+    });
+  });
+}
+
 async function ensureFitScale() {
   if (fitScale != null) return fitScale;
   const gltf = await loader.loadAsync("/frames/0.glb");
@@ -221,6 +292,7 @@ window.__renderFrame = async function renderFrame(n) {
     current = null;
   }
   const gltf = await loader.loadAsync(\`/frames/\${n}.glb\`);
+  polishAppleMaterials(gltf.scene);
   const wrap = fitCentered(gltf.scene, scale);
   appleRoot.add(wrap);
   current = wrap;
