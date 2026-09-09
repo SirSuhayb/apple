@@ -56,13 +56,28 @@ export const copy = {
       core: "They ate it to the core.",
       rot: "The apple has rotted.",
     } as const,
+    /** Short stake line under the Act I tagline */
+    support: {
+      1: "Eat to the core before time runs out — winners split the pot.",
+    } as const,
     ctaPrimary: "Trade on bite.party",
     ctaSecondary: {
-      1: "What's coming ↓",
+      1: "The game ↓",
       2: "How eating works ↓",
       3: "How eating works ↓",
     } as const,
     appleLabel: "Tap the apple.",
+  },
+
+  /** Core game explainer — visible in Act I (and later acts) before mechanics */
+  game: {
+    eyebrow: "The game",
+    headline: "The game is simple.",
+    body: [
+      "Your goal is to eat the apple to its core before the timer runs out.",
+      "Win, and you split the rewards from every trade with the other eaters.",
+      "Lose, and the farmer takes the pot.",
+    ] as const,
   },
 
   line: {
@@ -144,7 +159,7 @@ export const copy = {
   },
 
   eaters: {
-    intro: ["Who", "chewed the hardest."],
+    intro: ["Who", "ate the most."],
     columns: ["Rank", "Eater", "Burned", "Buys", "Sells"] as const,
     rowMeta: (burned: string, buys: string, sells: string) =>
       `burned ${burned} · ${buys} buys · ${sells} sells`,

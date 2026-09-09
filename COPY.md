@@ -58,20 +58,40 @@ _Source: `copy.brand`, `copy.hero`_
 **Taglines (by act / resolution)**
 > Finding the right apple. · Eat it to the core. · They ate it to the core. · The apple has rotted.
 
+**Act I support (under tagline)**
+> Eat to the core before time runs out — winners split the pot.
+
 **Primary CTA**
 > Trade on bite.party
 
 **Secondary CTA**
-> What's coming ↓ · How eating works ↓
+> The game ↓ · How eating works ↓
 
 **Apple label**
 > Tap the apple.
 
 ---
 
+## The game
+
+_Source: `copy.game` · `RaceApp` `#game` — visible in Act I (Finding the apple)_
+
+**Eyebrow**
+> The game
+
+**Headline**
+> The game is simple.
+
+**Body**
+> Your goal is to eat the apple to its core before the timer runs out.
+> Win, and you split the rewards from every trade with the other eaters.
+> Lose, and the farmer takes the pot.
+
+---
+
 ## The line
 
-_Source: `copy.line`_
+_Source: `copy.line`_ — supporting detail after the game explainer
 
 **Act I**
 > Every transaction will take a bite.
@@ -151,7 +171,7 @@ _Source: `copy.pairing`_
 _Source: `copy.eaters` · `EatersBoard`_
 
 **Intro**
-> Who chewed the hardest.
+> Who ate the most.
 
 **Empty**
 > No bites yet. Be first.

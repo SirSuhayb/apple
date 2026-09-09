@@ -509,7 +509,7 @@ export default function App() {
         <div style={{ maxWidth: 580, margin: "0 auto" }}>
           <Fade>
             <p style={{ fontSize: 17, color: GRAY, margin: "0 0 16px" }}>
-              Who <span style={{ color: BLACK, fontWeight: 700 }}>chewed the hardest.</span>
+              Who <span style={{ color: BLACK, fontWeight: 700 }}>ate the most.</span>
             </p>
           </Fade>
           <Fade delay={0.1}>

@@ -370,6 +370,11 @@ export function RaceApp({ initial }: { initial: RaceState }) {
         <p className="animate-rise-delay-1 mt-2 text-[clamp(19px,4vw,28px)] font-normal text-[#86868b]">
           {tagline}
         </p>
+        {flags.act === 1 && (
+          <p className="animate-rise-delay-1 mx-auto mt-3 max-w-[420px] text-[15px] leading-relaxed text-[#86868b]">
+            {copy.hero.support[1]}
+          </p>
+        )}
 
         <div className="animate-fade relative mx-auto mt-2 flex w-full max-w-[520px] flex-col items-center">
           <div
@@ -412,7 +417,7 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             {copy.hero.ctaPrimary}
           </button>
           <a
-            href="#how"
+            href={flags.act === 1 ? "#game" : "#how"}
             className="flex items-center text-[15px] text-[#2997ff] no-underline"
           >
             {copy.hero.ctaSecondary[flags.act]}
@@ -424,6 +429,24 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             {copy.tap.dayOne.note}
           </p>
         )}
+      </section>
+
+      {/* Game explainer — Act I first (and later acts) so stakes are clear early */}
+      <section
+        id="game"
+        className="page-gutter bg-[#f5f5f7] py-16 text-center"
+      >
+        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+          {copy.game.eyebrow}
+        </p>
+        <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+          {copy.game.headline}
+        </h2>
+        <div className="mx-auto mt-3.5 max-w-[460px] space-y-3 text-[17px] leading-relaxed text-[#86868b]">
+          {copy.game.body.map((line) => (
+            <p key={line}>{line}</p>
+          ))}
+        </div>
       </section>
 
       {/* Countdown + progress — Act II+ */}
@@ -461,7 +484,7 @@ export function RaceApp({ initial }: { initial: RaceState }) {
         </div>
       )}
 
-      {/* The line */}
+      {/* The line — supporting mechanics after the game stakes */}
       <section className="page-gutter bg-[#fbfbfd] py-20 text-center">
         <h2 className="text-[clamp(26px,6vw,44px)] font-bold leading-[1.1] tracking-[-0.03em] whitespace-pre-line">
           {(flags.act === 1
