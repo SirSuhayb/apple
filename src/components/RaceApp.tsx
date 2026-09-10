@@ -208,12 +208,16 @@ function ContractBlock({
   );
 }
 
-function HowCards({ locked }: { locked: boolean }) {
+function HowCards({ act }: { act: SiteAct }) {
   return (
     <div className="page-gutter mx-auto max-w-[980px]">
       <div className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory [-webkit-overflow-scrolling:touch] md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:pb-0">
         {copy.how.items.map((item) => {
-          const isLocked = locked && item.lockInAct1;
+          const isLocked = act < item.lockUntilAct;
+          const lockLabel =
+            item.lockUntilAct <= 1
+              ? copy.how.comingAct1
+              : copy.how.comingAct2;
           return (
             <div
               key={item.title}
@@ -224,7 +228,7 @@ function HowCards({ locked }: { locked: boolean }) {
             >
               {isLocked && (
                 <div className="absolute top-3 right-3 rounded-full bg-[#d2d2d7] px-2.5 py-0.5 text-[10px] font-semibold text-[#86868b]">
-                  {copy.how.comingAct2}
+                  {lockLabel}
                 </div>
               )}
               <div className="mb-3 text-[36px] leading-none">{item.icon}</div>
@@ -367,8 +371,12 @@ export function RaceApp({ initial }: { initial: RaceState }) {
                 {copy.nav.buy}
               </button>
             ) : (
-              <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-3.5 py-1.5 text-xs font-semibold text-[#86868b]">
-                {copy.nav.soon}
+              <span
+                aria-disabled="true"
+                title={copy.nav.soon}
+                className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-3.5 py-1.5 text-xs font-semibold text-[#86868b]"
+              >
+                {copy.nav.buy}
               </span>
             )}
           </div>
@@ -545,7 +553,7 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             <span className="font-bold text-[#1d1d1f]">{copy.how.intro[1]}</span>
           </p>
         </div>
-        <HowCards locked={flags.howLocked} />
+        <HowCards act={flags.act} />
       </section>
 
       {/* Wager — Act II+ */}

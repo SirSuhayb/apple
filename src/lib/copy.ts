@@ -105,25 +105,27 @@ export const copy = {
 
   how: {
     intro: ["A few ways", "$BITE gets smaller."],
+    comingAct1: "Coming in Act I",
     comingAct2: "Coming in Act II",
     items: [
       {
         icon: "↔",
         title: "Trade.",
         body: "Buys and sells both burn supply. Selling chews harder — a larger cut on the way out.",
-        lockInAct1: false,
+        /** Locked in Prologue; active from Act I when trading opens */
+        lockUntilAct: 1 as const,
       },
       {
         icon: "👆",
         title: "Tap.",
         body: "The only real burn. Destroy your $BITE directly and push toward the core.",
-        lockInAct1: true,
+        lockUntilAct: 2 as const,
       },
       {
         icon: "◐",
         title: "Digest.",
         body: "Creator fees split fifty-fifty. Half buys and burns. Half fills the prize pot.",
-        lockInAct1: true,
+        lockUntilAct: 2 as const,
       },
     ],
   },
