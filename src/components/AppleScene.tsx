@@ -24,14 +24,34 @@ type AppleSceneProps = {
 const FRAME_URL = (n: number) => `/apple/frames/${n}.glb`;
 
 /**
- * Sketchfab bite stages ship with different node scales/pivots. We normalize
- * each frame independently:
- *  1) uniform scale so the longest AABB side == TARGET_MAX_EXTENT
- *  2) XZ-center + shared floor (min Y → -TARGET_MAX_EXTENT/2)
- * Reusing frame-0's fit factor alone left later stages ~20–40% wrong in world space.
- * AABB-sphere fit kept radius equal but let tall cores (8–9) read much larger.
+ * Shared floor after normalize (min Y → FLOOR_Y). Kept as a constant so
+ * ContactShadows stay put while per-frame scales change.
  */
-const TARGET_MAX_EXTENT = 1.16;
+const FLOOR_Y = -0.58;
+
+/**
+ * Eydeet / Sketchfab bite stages ship at wildly different node scales, and the
+ * bite cavity inflates AABB width on mid frames. Fitting to max AABB side made
+ * frames 2/4/5 read ~12–17% smaller in camera space. Fitting to Y alone still
+ * left ~8% projected-height jitter (stem/core outliers + yaw).
+ *
+ * These uniform scales were baked so camera-projected silhouette height
+ * (fov 33, z=3.9, face yaw/pitch below) matches frame 0, then refined against
+ * exported still rasters so frame tops stay within ~1–2px. Re-bake with
+ * scripts/bake-apple-fit-scales.mjs (+ still pass) if the GLBs change.
+ */
+const FRAME_FIT_SCALE = [
+  0.05257256, // 0 whole
+  0.052427, // 1
+  0.04184265, // 2
+  0.04786538, // 3
+  0.03577814, // 4
+  0.04005153, // 5
+  0.04314632, // 6
+  0.05736219, // 7
+  0.03433506, // 8
+  0.03253477, // 9 core
+] as const;
 
 /**
  * Eydeet frames ship with the bite cavity facing away from the default camera.
@@ -90,14 +110,15 @@ function measureWorldBox(root: THREE.Object3D): THREE.Box3 {
 }
 
 /**
- * Uniform scale + stable pose: longest AABB side → TARGET_MAX_EXTENT,
- * XZ centered, bottom on a shared floor so shadows don't bounce.
+ * Uniform scale (baked silhouette height) + XZ center + shared floor.
+ * Pass the stop-motion frame index so the correct FRAME_FIT_SCALE is used.
  */
-function normalizeAppleRoot(source: THREE.Object3D): THREE.Group {
-  const box0 = measureWorldBox(source);
-  const size = box0.getSize(new THREE.Vector3());
-  const maxExtent = Math.max(size.x, size.y, size.z, 1e-6);
-  const fitScale = TARGET_MAX_EXTENT / maxExtent;
+function normalizeAppleRoot(source: THREE.Object3D, frame: number): THREE.Group {
+  const idx = Math.min(
+    FRAME_FIT_SCALE.length - 1,
+    Math.max(0, Math.floor(frame)),
+  );
+  const fitScale = FRAME_FIT_SCALE[idx]!;
 
   const wrap = new THREE.Group();
   const scaled = new THREE.Group();
@@ -109,11 +130,7 @@ function normalizeAppleRoot(source: THREE.Object3D): THREE.Group {
   const box = measureWorldBox(wrap);
   const cx = (box.min.x + box.max.x) * 0.5;
   const cz = (box.min.z + box.max.z) * 0.5;
-  wrap.position.set(
-    -cx,
-    -TARGET_MAX_EXTENT * 0.5 - box.min.y,
-    -cz,
-  );
+  wrap.position.set(-cx, FLOOR_Y - box.min.y, -cz);
   return wrap;
 }
 
@@ -473,7 +490,34 @@ function applyRotTint(
   });
 }
 
-function GltfFrame({
+function GltfAppleFrame({
+  frame,
+  visible,
+  rot,
+  quietPreview,
+}: {
+  frame: number;
+  visible: boolean;
+  rot: boolean;
+  quietPreview?: boolean;
+}) {
+  const path = FRAME_URL(frame);
+  const { scene } = useGLTF(path, true, true);
+  const normalized = useMemo(() => {
+    // Fresh clone so Strict Mode / remounts never reparent a live scene graph.
+    return normalizeAppleRoot(scene.clone(true), frame);
+  }, [scene, frame]);
+
+  useEffect(() => {
+    applyRotTint(normalized, rot, quietPreview);
+  }, [normalized, rot, quietPreview]);
+
+  // Keep every stage mounted under the same parent pose; only visibility flips.
+  // Remounting a new GLB each tick was a second source of perceived size pops.
+  return <primitive object={normalized} visible={visible} />;
+}
+
+function GltfApple({
   frame,
   rot,
   quietPreview,
@@ -482,21 +526,20 @@ function GltfFrame({
   rot: boolean;
   quietPreview?: boolean;
 }) {
-  const path = FRAME_URL(frame);
-  const { scene } = useGLTF(path, true, true);
-  const cloned = useMemo(() => scene.clone(true), [scene]);
-  const normalized = useMemo(() => normalizeAppleRoot(cloned), [cloned]);
-
-  useEffect(() => {
-    applyRotTint(cloned, rot, quietPreview);
-  }, [cloned, rot, quietPreview]);
-
   return (
     <group
       position={[0, 0.22, 0]}
       rotation={[APPLE_FACE_PITCH, APPLE_FACE_YAW, 0]}
     >
-      <primitive object={normalized} />
+      {Array.from({ length: FRAME_COUNT }, (_, i) => (
+        <GltfAppleFrame
+          key={i}
+          frame={i}
+          visible={i === frame}
+          rot={rot}
+          quietPreview={quietPreview}
+        />
+      ))}
     </group>
   );
 }
@@ -582,7 +625,7 @@ function SceneContent({
       <Suspense fallback={null}>
         <Environment preset="studio" environmentIntensity={0.4} />
         {useGltf ? (
-          <GltfFrame
+          <GltfApple
             frame={frame}
             rot={rot}
             quietPreview={quietPreview}

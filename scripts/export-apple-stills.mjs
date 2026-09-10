@@ -1,7 +1,7 @@
 /**
  * Export square PNG stills for every stop-motion apple frame (0–9).
- * Matches AppleScene.tsx camera, lights, face yaw, and **per-frame** normalize
- * (each GLB has a different Sketchfab node scale — never reuse frame-0 alone).
+ * Matches AppleScene.tsx camera, lights, face yaw, and **baked** per-frame
+ * fit scales (projected silhouette height locked to frame 0).
  *
  * Usage: node scripts/export-apple-stills.mjs
  * Out:   public/apple/stills/frame-00.png … frame-09.png (+ contact-sheet.png)
@@ -21,8 +21,16 @@ const FRAME_COUNT = 10;
 
 const APPLE_FACE_YAW = Math.PI * 0.32;
 const APPLE_FACE_PITCH = 0.05;
-/** Longest AABB side after normalize — keep in sync with AppleScene.tsx */
-const TARGET_MAX_EXTENT = 1.16;
+/** Shared floor after normalize — keep in sync with AppleScene.tsx */
+const FLOOR_Y = -0.58;
+/**
+ * Baked uniform scales (projected silhouette height == frame 0).
+ * Keep in sync with AppleScene.tsx FRAME_FIT_SCALE / bake-apple-fit-scales.mjs
+ */
+const FRAME_FIT_SCALE = [
+  0.05257256, 0.052427, 0.04184265, 0.04786538, 0.03577814, 0.04005153,
+  0.04314632, 0.05736219, 0.03433506, 0.03253477,
+];
 const BG = "#fbfbfd";
 
 /** Keep in sync with AppleScene.tsx — skin texels only (not flesh). */
@@ -137,7 +145,8 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const APPLE_FACE_YAW = ${APPLE_FACE_YAW};
 const APPLE_FACE_PITCH = ${APPLE_FACE_PITCH};
-const TARGET_MAX_EXTENT = ${TARGET_MAX_EXTENT};
+const FLOOR_Y = ${FLOOR_Y};
+const FRAME_FIT_SCALE = ${JSON.stringify(FRAME_FIT_SCALE)};
 const BG = "${BG}";
 const SATURATION_BOOST = ${SATURATION_BOOST};
 const ROUGHNESS_SCALE = ${ROUGHNESS_SCALE};
@@ -208,13 +217,10 @@ function measureWorldBox(root) {
 
 /**
  * Per-frame normalize (matches AppleScene.tsx):
- * scale longest AABB side → TARGET_MAX_EXTENT, XZ-center, shared floor.
+ * baked silhouette-height scale, XZ-center, shared floor.
  */
-function normalizeFrame(sceneRoot) {
-  const box0 = measureWorldBox(sceneRoot);
-  const size = box0.getSize(new THREE.Vector3());
-  const maxExtent = Math.max(size.x, size.y, size.z, 1e-6);
-  const fitScale = TARGET_MAX_EXTENT / maxExtent;
+function normalizeFrame(sceneRoot, frameIndex) {
+  const fitScale = FRAME_FIT_SCALE[frameIndex] ?? FRAME_FIT_SCALE[0];
 
   const wrap = new THREE.Group();
   const scaled = new THREE.Group();
@@ -226,7 +232,7 @@ function normalizeFrame(sceneRoot) {
   const box = measureWorldBox(wrap);
   const cx = (box.min.x + box.max.x) * 0.5;
   const cz = (box.min.z + box.max.z) * 0.5;
-  wrap.position.set(-cx, -TARGET_MAX_EXTENT * 0.5 - box.min.y, -cz);
+  wrap.position.set(-cx, FLOOR_Y - box.min.y, -cz);
   return wrap;
 }
 
@@ -409,7 +415,7 @@ window.__renderFrame = async function renderFrame(n) {
   }
   const gltf = await loader.loadAsync(\`/frames/\${n}.glb\`);
   polishAppleMaterials(gltf.scene);
-  const wrap = normalizeFrame(gltf.scene);
+  const wrap = normalizeFrame(gltf.scene, n);
   appleRoot.add(wrap);
   current = wrap;
 
