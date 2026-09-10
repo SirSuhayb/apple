@@ -2,13 +2,12 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
-  Center,
   ContactShadows,
   Environment,
   OrbitControls,
   useGLTF,
 } from "@react-three/drei";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { copy } from "@/lib/copy";
 import { FRAME_COUNT } from "@/lib/race";
@@ -24,8 +23,15 @@ type AppleSceneProps = {
 
 const FRAME_URL = (n: number) => `/apple/frames/${n}.glb`;
 
-/** Shared visual radius so every stop-motion stage matches frame 0 framing. */
-const TARGET_RADIUS = 0.92;
+/**
+ * Sketchfab bite stages ship with different node scales/pivots. We normalize
+ * each frame independently:
+ *  1) uniform scale so the longest AABB side == TARGET_MAX_EXTENT
+ *  2) XZ-center + shared floor (min Y → -TARGET_MAX_EXTENT/2)
+ * Reusing frame-0's fit factor alone left later stages ~20–40% wrong in world space.
+ * AABB-sphere fit kept radius equal but let tall cores (8–9) read much larger.
+ */
+const TARGET_MAX_EXTENT = 1.16;
 
 /**
  * Eydeet frames ship with the bite cavity facing away from the default camera.
@@ -77,11 +83,38 @@ function useHasGltfFrames() {
   return available;
 }
 
-function measureSphereRadius(root: THREE.Object3D): number {
+/** World AABB for a loaded (or cloned) GLTF root. */
+function measureWorldBox(root: THREE.Object3D): THREE.Box3 {
   root.updateWorldMatrix(true, true);
-  const box = new THREE.Box3().setFromObject(root);
-  const sphere = box.getBoundingSphere(new THREE.Sphere());
-  return Math.max(sphere.radius, 1e-6);
+  return new THREE.Box3().setFromObject(root);
+}
+
+/**
+ * Uniform scale + stable pose: longest AABB side → TARGET_MAX_EXTENT,
+ * XZ centered, bottom on a shared floor so shadows don't bounce.
+ */
+function normalizeAppleRoot(source: THREE.Object3D): THREE.Group {
+  const box0 = measureWorldBox(source);
+  const size = box0.getSize(new THREE.Vector3());
+  const maxExtent = Math.max(size.x, size.y, size.z, 1e-6);
+  const fitScale = TARGET_MAX_EXTENT / maxExtent;
+
+  const wrap = new THREE.Group();
+  const scaled = new THREE.Group();
+  scaled.scale.setScalar(fitScale);
+  scaled.add(source);
+  wrap.add(scaled);
+
+  wrap.updateWorldMatrix(true, true);
+  const box = measureWorldBox(wrap);
+  const cx = (box.min.x + box.max.x) * 0.5;
+  const cz = (box.min.z + box.max.z) * 0.5;
+  wrap.position.set(
+    -cx,
+    -TARGET_MAX_EXTENT * 0.5 - box.min.y,
+    -cz,
+  );
+  return wrap;
 }
 
 function appleColor(rot: boolean, quietPreview?: boolean) {
@@ -440,34 +473,19 @@ function applyRotTint(
   });
 }
 
-/** Load frame 0 once and publish a shared fit scale for all stages. */
-function FrameScaleBootstrap({
-  onScale,
-}: {
-  onScale: (scale: number) => void;
-}) {
-  const { scene } = useGLTF(FRAME_URL(0), true, true);
-  useEffect(() => {
-    const radius = measureSphereRadius(scene);
-    onScale(TARGET_RADIUS / radius);
-  }, [scene, onScale]);
-  return null;
-}
-
 function GltfFrame({
   frame,
   rot,
   quietPreview,
-  fitScale,
 }: {
   frame: number;
   rot: boolean;
   quietPreview?: boolean;
-  fitScale: number;
 }) {
   const path = FRAME_URL(frame);
   const { scene } = useGLTF(path, true, true);
   const cloned = useMemo(() => scene.clone(true), [scene]);
+  const normalized = useMemo(() => normalizeAppleRoot(cloned), [cloned]);
 
   useEffect(() => {
     applyRotTint(cloned, rot, quietPreview);
@@ -478,11 +496,7 @@ function GltfFrame({
       position={[0, 0.22, 0]}
       rotation={[APPLE_FACE_PITCH, APPLE_FACE_YAW, 0]}
     >
-      <Center cacheKey={`frame-${frame}-s${fitScale.toFixed(4)}`}>
-        <group scale={fitScale}>
-          <primitive object={cloned} />
-        </group>
-      </Center>
+      <primitive object={normalized} />
     </group>
   );
 }
@@ -558,8 +572,7 @@ function SceneContent({
   juicePulse,
   enableOrbit = false,
   useGltf,
-  fitScale,
-}: AppleSceneProps & { useGltf: boolean; fitScale: number | null }) {
+}: AppleSceneProps & { useGltf: boolean }) {
   return (
     <>
       <ambientLight intensity={0.95} />
@@ -569,14 +582,11 @@ function SceneContent({
       <Suspense fallback={null}>
         <Environment preset="studio" environmentIntensity={0.4} />
         {useGltf ? (
-          fitScale != null ? (
-            <GltfFrame
-              frame={frame}
-              rot={rot}
-              quietPreview={quietPreview}
-              fitScale={fitScale}
-            />
-          ) : null
+          <GltfFrame
+            frame={frame}
+            rot={rot}
+            quietPreview={quietPreview}
+          />
         ) : (
           <ProceduralApple
             frame={frame}
@@ -634,10 +644,6 @@ export function AppleScene({
 }: AppleSceneProps) {
   const hasGltf = useHasGltfFrames();
   const safeFrame = Math.min(FRAME_COUNT - 1, Math.max(0, Math.floor(frame)));
-  const [fitScale, setFitScale] = useState<number | null>(null);
-  const onScale = useCallback((scale: number) => {
-    setFitScale(scale);
-  }, []);
 
   useEffect(() => {
     if (!hasGltf) return;
@@ -670,11 +676,6 @@ export function AppleScene({
         }}
       >
         <ResponsiveCamera />
-        {useGltf && (
-          <Suspense fallback={null}>
-            <FrameScaleBootstrap onScale={onScale} />
-          </Suspense>
-        )}
         <SceneContent
           frame={safeFrame}
           rot={rot}
@@ -682,7 +683,6 @@ export function AppleScene({
           juicePulse={juicePulse}
           enableOrbit={enableOrbit}
           useGltf={useGltf}
-          fitScale={fitScale}
         />
       </Canvas>
       {hasGltf === false && (

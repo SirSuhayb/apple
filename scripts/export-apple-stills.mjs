@@ -1,6 +1,7 @@
 /**
  * Export square PNG stills for every stop-motion apple frame (0–9).
- * Matches AppleScene.tsx camera, lights, face yaw, and fit scale.
+ * Matches AppleScene.tsx camera, lights, face yaw, and **per-frame** normalize
+ * (each GLB has a different Sketchfab node scale — never reuse frame-0 alone).
  *
  * Usage: node scripts/export-apple-stills.mjs
  * Out:   public/apple/stills/frame-00.png … frame-09.png (+ contact-sheet.png)
@@ -20,7 +21,8 @@ const FRAME_COUNT = 10;
 
 const APPLE_FACE_YAW = Math.PI * 0.32;
 const APPLE_FACE_PITCH = 0.05;
-const TARGET_RADIUS = 0.92;
+/** Longest AABB side after normalize — keep in sync with AppleScene.tsx */
+const TARGET_MAX_EXTENT = 1.16;
 const BG = "#fbfbfd";
 
 /** Keep in sync with AppleScene.tsx — skin texels only (not flesh). */
@@ -135,7 +137,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const APPLE_FACE_YAW = ${APPLE_FACE_YAW};
 const APPLE_FACE_PITCH = ${APPLE_FACE_PITCH};
-const TARGET_RADIUS = ${TARGET_RADIUS};
+const TARGET_MAX_EXTENT = ${TARGET_MAX_EXTENT};
 const BG = "${BG}";
 const SATURATION_BOOST = ${SATURATION_BOOST};
 const ROUGHNESS_SCALE = ${ROUGHNESS_SCALE};
@@ -197,27 +199,34 @@ const loader = new GLTFLoader();
 await MeshoptDecoder.ready;
 loader.setMeshoptDecoder(MeshoptDecoder);
 
-let fitScale = null;
 let current = null;
 
-function measureSphereRadius(root) {
+function measureWorldBox(root) {
   root.updateWorldMatrix(true, true);
-  const box = new THREE.Box3().setFromObject(root);
-  const sphere = box.getBoundingSphere(new THREE.Sphere());
-  return Math.max(sphere.radius, 1e-6);
+  return new THREE.Box3().setFromObject(root);
 }
 
-/** Match drei <Center> around a scaled GLTF root. */
-function fitCentered(sceneRoot, scale) {
+/**
+ * Per-frame normalize (matches AppleScene.tsx):
+ * scale longest AABB side → TARGET_MAX_EXTENT, XZ-center, shared floor.
+ */
+function normalizeFrame(sceneRoot) {
+  const box0 = measureWorldBox(sceneRoot);
+  const size = box0.getSize(new THREE.Vector3());
+  const maxExtent = Math.max(size.x, size.y, size.z, 1e-6);
+  const fitScale = TARGET_MAX_EXTENT / maxExtent;
+
   const wrap = new THREE.Group();
   const scaled = new THREE.Group();
-  scaled.scale.setScalar(scale);
+  scaled.scale.setScalar(fitScale);
   scaled.add(sceneRoot);
   wrap.add(scaled);
+
   wrap.updateWorldMatrix(true, true);
-  const box = new THREE.Box3().setFromObject(wrap);
-  const c = box.getCenter(new THREE.Vector3());
-  wrap.position.sub(c);
+  const box = measureWorldBox(wrap);
+  const cx = (box.min.x + box.max.x) * 0.5;
+  const cz = (box.min.z + box.max.z) * 0.5;
+  wrap.position.set(-cx, -TARGET_MAX_EXTENT * 0.5 - box.min.y, -cz);
   return wrap;
 }
 
@@ -386,16 +395,7 @@ function polishAppleMaterials(root) {
   });
 }
 
-async function ensureFitScale() {
-  if (fitScale != null) return fitScale;
-  const gltf = await loader.loadAsync("/frames/0.glb");
-  const radius = measureSphereRadius(gltf.scene);
-  fitScale = TARGET_RADIUS / radius;
-  return fitScale;
-}
-
 window.__renderFrame = async function renderFrame(n) {
-  const scale = await ensureFitScale();
   if (current) {
     appleRoot.remove(current);
     current.traverse((o) => {
@@ -409,7 +409,7 @@ window.__renderFrame = async function renderFrame(n) {
   }
   const gltf = await loader.loadAsync(\`/frames/\${n}.glb\`);
   polishAppleMaterials(gltf.scene);
-  const wrap = fitCentered(gltf.scene, scale);
+  const wrap = normalizeFrame(gltf.scene);
   appleRoot.add(wrap);
   current = wrap;
 
