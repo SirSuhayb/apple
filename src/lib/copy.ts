@@ -20,7 +20,9 @@ export const copy = {
 
   nav: {
     buy: "Buy",
+    soon: "Soon",
     badge: {
+      soon: "Soon",
       preparing: "Preparing",
       live: "Live",
       racing: "Racing",
@@ -28,12 +30,15 @@ export const copy = {
   },
 
   phases: {
+    prologue: "Prologue",
     labels: [
       "Finding the apple",
       "First bite",
       "To the core",
     ] as const,
     banners: {
+      prologue:
+        "The orchard is closed. $BITE mints soon — check back when trading opens.",
       act1: "The orchard is being prepared. Trading is live — burns begin in Act II.",
       earlyEater:
         "🔥 EARLY EATER BONUS — Burns in the first 72 hours count 2× toward your leaderboard rank.",
@@ -50,18 +55,22 @@ export const copy = {
 
   hero: {
     tagline: {
+      0: "Before the first bite.",
       1: "Finding the right apple.",
       2: "Eat it to the core.",
       3: "Eat it to the core.",
       core: "They ate it to the core.",
       rot: "The apple has rotted.",
     } as const,
-    /** Short stake line under the Act I tagline */
+    /** Short stake line under Prologue / Act I tagline */
     support: {
+      0: "Eat to the core before time runs out — winners split the pot. Lose, and the farmer takes it.",
       1: "Eat to the core before time runs out — winners split the pot.",
     } as const,
     ctaPrimary: "Trade on bite.party",
+    ctaPrimarySoon: "Mint soon",
     ctaSecondary: {
+      0: "The game ↓",
       1: "The game ↓",
       2: "How eating works ↓",
       3: "How eating works ↓",
@@ -82,10 +91,12 @@ export const copy = {
 
   line: {
     headline: {
+      0: ["Every transaction", "will take a bite."],
       1: ["Every transaction", "will take a bite."],
       racing: ["Every transaction", "takes a bite."],
     } as const,
     body: {
+      0: "When $BITE launches, every buy, sell, and transfer will burn supply. Right now the orchard is quiet. The race hasn't started.",
       1: "When the burn contract goes live in Act II, every buy, sell, and transfer will burn supply. Right now, you're accumulating. The race hasn't started.",
       racing:
         "Buy. Sell. Transfer. Every time $BITE moves, supply is burned forever. The apple gets smaller. Your share gets bigger.",
@@ -165,6 +176,7 @@ export const copy = {
       `burned ${burned} · ${buys} buys · ${sells} sells`,
     empty: "No bites yet. Be first.",
     emptyHint: "The leaderboard activates when the race begins in Act II.",
+    emptyHintPrologue: "The leaderboard waits for the first eaters.",
   },
 
   tap: {
@@ -173,6 +185,7 @@ export const copy = {
     body: "Trades write the tape — they move the price and burn a little. Tapping destroys your $BITE permanently and pushes the whole race toward the core.",
     cta: "Burn $BITE",
     ctaLocked: "Burns open in Act II. Accumulate now.",
+    ctaLockedPrologue: "Burns open after mint. Stay hungry.",
     raceOver: "The race is over.",
     connect: "Connect wallet",
     connecting: "Connecting…",
@@ -203,6 +216,8 @@ export const copy = {
     },
     dayOne: {
       note: "Day one — watch the apple eaten to the core. Burns unlock when the kitchen is live.",
+      notePrologue:
+        "Watch the apple. Trading opens when $BITE mints — check back soon.",
     },
   },
 
@@ -211,15 +226,17 @@ export const copy = {
     standard: "ERC-20",
     pair: "AAPL",
     mechanism: "Burn on\nevery tx",
-    phase: (act: SiteAct) => `Act ${act} of 3`,
+    phase: (act: SiteAct) => (act === 0 ? "Prologue" : `Act ${act} of 3`),
     burned: (pct: string) => `${pct}%`,
   },
 
   take: {
     headline: "Take a $BITE.",
+    headlinePrologue: "Get ready for $BITE.",
     copyAddress: "Copy address →",
     copied: "Copied.",
     buy: "Buy on PONS",
+    buySoon: "Mint soon",
     social: {
       twitter: "Twitter",
       telegram: "Telegram",
@@ -269,6 +286,8 @@ export const copy = {
   messages: {
     preview:
       "Preview — launch $BITE on pons vs AAPL, then set NEXT_PUBLIC_BITE_TOKEN.",
+    prologue:
+      "Prologue — $BITE is not live yet. Set NEXT_PUBLIC_BITE_TOKEN (and clear NEXT_PUBLIC_SITE_ACT=0) to enter Act I.",
     kitchenWire:
       "Token is set. Wire AppleKitchen and the indexer will replace demo eaters with live burns and trades.",
     racing: (pct: string) =>

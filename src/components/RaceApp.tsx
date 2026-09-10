@@ -77,6 +77,13 @@ function PhaseBanner({
       </div>
     );
   }
+  if (act === 0) {
+    return (
+      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] leading-relaxed text-[#86868b]">
+        {copy.phases.banners.prologue}
+      </div>
+    );
+  }
   if (act === 1) {
     return (
       <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] leading-relaxed text-[#86868b]">
@@ -115,7 +122,13 @@ function PhaseBanner({
   return null;
 }
 
-function ContractBlock({ onBuy }: { onBuy: () => void }) {
+function ContractBlock({
+  onBuy,
+  tradingOpen,
+}: {
+  onBuy: () => void;
+  tradingOpen: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const address = contractAddressDisplay();
   const canCopy = Boolean(BITE_TOKEN);
@@ -149,13 +162,19 @@ function ContractBlock({ onBuy }: { onBuy: () => void }) {
         </div>
       </div>
       <div className="mt-[22px]">
-        <button
-          type="button"
-          onClick={onBuy}
-          className="inline-block rounded-full bg-[#1d1d1f] px-7 py-3.5 text-[17px] font-semibold text-white transition hover:bg-black"
-        >
-          {copy.take.buy}
-        </button>
+        {tradingOpen ? (
+          <button
+            type="button"
+            onClick={onBuy}
+            className="inline-block rounded-full bg-[#1d1d1f] px-7 py-3.5 text-[17px] font-semibold text-white transition hover:bg-black"
+          >
+            {copy.take.buy}
+          </button>
+        ) : (
+          <span className="inline-block rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-7 py-3.5 text-[17px] font-semibold text-[#86868b]">
+            {copy.take.buySoon}
+          </span>
+        )}
       </div>
       <div className="mt-3.5 flex items-center justify-center gap-[18px]">
         <a
@@ -174,14 +193,16 @@ function ContractBlock({ onBuy }: { onBuy: () => void }) {
         >
           {copy.take.social.telegram}
         </a>
-        <a
-          href={socialLinks.chart}
-          target="_blank"
-          rel="noreferrer"
-          className="text-[15px] text-[#2997ff]"
-        >
-          {copy.take.social.chart}
-        </a>
+        {tradingOpen && (
+          <a
+            href={socialLinks.chart}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[15px] text-[#2997ff]"
+          >
+            {copy.take.social.chart}
+          </a>
+        )}
       </div>
     </div>
   );
@@ -299,11 +320,12 @@ export function RaceApp({ initial }: { initial: RaceState }) {
   const tagline = heroTagline(flags.act, state.phase);
   const raceEnded = state.phase === "core" || state.phase === "rot";
 
-  // Act I leaderboard empty; Act II+ use live/demo eaters
-  const boardEaters = flags.act === 1 ? [] : state.eaters;
+  // Prologue + Act I leaderboard empty; Act II+ use live/demo eaters
+  const boardEaters = flags.act <= 1 ? [] : state.eaters;
 
   /** Day 1 default: pons deep-link. Opt-in Uniswap modal via NEXT_PUBLIC_SWAP_PROVIDER=uniswap. */
   const openBuy = () => {
+    if (!flags.tradingOpen) return;
     if (SWAP_PROVIDER === "uniswap") {
       setSwapOpen(true);
       return;
@@ -327,7 +349,7 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             <span
               className={[
                 "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
-                flags.act === 1
+                flags.act === 0 || flags.act === 1
                   ? "border-[#d2d2d7] bg-[#f5f5f7] text-[#86868b]"
                   : flags.act === 2
                     ? "border-[#34c759]/40 bg-[#34c759]/15 text-[#34c759]"
@@ -336,13 +358,19 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             >
               {flags.badge}
             </span>
-            <button
-              type="button"
-              onClick={openBuy}
-              className="rounded-full bg-[#2997ff] px-3.5 py-1.5 text-xs font-semibold text-white"
-            >
-              {copy.nav.buy}
-            </button>
+            {flags.tradingOpen ? (
+              <button
+                type="button"
+                onClick={openBuy}
+                className="rounded-full bg-[#2997ff] px-3.5 py-1.5 text-xs font-semibold text-white"
+              >
+                {copy.nav.buy}
+              </button>
+            ) : (
+              <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-3.5 py-1.5 text-xs font-semibold text-[#86868b]">
+                {copy.nav.soon}
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -370,9 +398,9 @@ export function RaceApp({ initial }: { initial: RaceState }) {
         <p className="animate-rise-delay-1 mt-2 text-[clamp(19px,4vw,28px)] font-normal text-[#86868b]">
           {tagline}
         </p>
-        {flags.act === 1 && (
+        {(flags.act === 0 || flags.act === 1) && (
           <p className="animate-rise-delay-1 mx-auto mt-3 max-w-[420px] text-[15px] leading-relaxed text-[#86868b]">
-            {copy.hero.support[1]}
+            {flags.act === 0 ? copy.hero.support[0] : copy.hero.support[1]}
           </p>
         )}
 
@@ -409,15 +437,21 @@ export function RaceApp({ initial }: { initial: RaceState }) {
         </div>
 
         <div className="animate-rise-delay-2 mt-3 flex flex-wrap items-center justify-center gap-3.5">
-          <button
-            type="button"
-            onClick={openBuy}
-            className="rounded-full bg-[#1d1d1f] px-6 py-3 text-[15px] font-semibold text-white transition hover:bg-black"
-          >
-            {copy.hero.ctaPrimary}
-          </button>
+          {flags.tradingOpen ? (
+            <button
+              type="button"
+              onClick={openBuy}
+              className="rounded-full bg-[#1d1d1f] px-6 py-3 text-[15px] font-semibold text-white transition hover:bg-black"
+            >
+              {copy.hero.ctaPrimary}
+            </button>
+          ) : (
+            <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-6 py-3 text-[15px] font-semibold text-[#86868b]">
+              {copy.hero.ctaPrimarySoon}
+            </span>
+          )}
           <a
-            href={flags.act === 1 ? "#game" : "#how"}
+            href={flags.act <= 1 ? "#game" : "#how"}
             className="flex items-center text-[15px] text-[#2997ff] no-underline"
           >
             {copy.hero.ctaSecondary[flags.act]}
@@ -426,7 +460,9 @@ export function RaceApp({ initial }: { initial: RaceState }) {
 
         {DAY_ONE_PLAYTHROUGH && (
           <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-relaxed text-[#86868b]">
-            {copy.tap.dayOne.note}
+            {flags.act === 0
+              ? copy.tap.dayOne.notePrologue
+              : copy.tap.dayOne.note}
           </p>
         )}
       </section>
@@ -487,13 +523,17 @@ export function RaceApp({ initial }: { initial: RaceState }) {
       {/* The line — supporting mechanics after the game stakes */}
       <section className="page-gutter bg-[#fbfbfd] py-20 text-center">
         <h2 className="text-[clamp(26px,6vw,44px)] font-bold leading-[1.1] tracking-[-0.03em] whitespace-pre-line">
-          {(flags.act === 1
-            ? copy.line.headline[1]
+          {(flags.act <= 1
+            ? copy.line.headline[flags.act === 0 ? 0 : 1]
             : copy.line.headline.racing
           ).join("\n")}
         </h2>
         <p className="mx-auto mt-3.5 max-w-[440px] text-[17px] leading-relaxed text-[#86868b]">
-          {flags.act === 1 ? copy.line.body[1] : copy.line.body.racing}
+          {flags.act === 0
+            ? copy.line.body[0]
+            : flags.act === 1
+              ? copy.line.body[1]
+              : copy.line.body.racing}
         </p>
       </section>
 
@@ -560,6 +600,11 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             </span>
           </p>
           <EatersBoard eaters={boardEaters} />
+          {flags.act === 0 && (
+            <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
+              {copy.eaters.emptyHintPrologue}
+            </p>
+          )}
           {flags.act === 1 && (
             <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
               {copy.eaters.emptyHint}
@@ -599,7 +644,10 @@ export function RaceApp({ initial }: { initial: RaceState }) {
                 ["Pair", copy.finePrint.pair],
                 ["Mechanism", copy.finePrint.mechanism],
                 ["Phase", copy.finePrint.phase(flags.act)],
-                ["Burned", copy.finePrint.burned(flags.act === 1 ? "0" : pct)],
+                [
+                  "Burned",
+                  copy.finePrint.burned(flags.act <= 1 ? "0" : pct),
+                ],
               ] as const
             ).map(([label, value]) => (
               <div
@@ -644,7 +692,9 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             </button>
           ) : (
             <p className="text-[15px] font-medium text-[#86868b]">
-              {copy.tap.ctaLocked}
+              {flags.act === 0
+                ? copy.tap.ctaLockedPrologue
+                : copy.tap.ctaLocked}
             </p>
           )}
         </div>
@@ -653,10 +703,12 @@ export function RaceApp({ initial }: { initial: RaceState }) {
       {/* Take a $BITE */}
       <section id="buy" className="page-gutter bg-[#fbfbfd] py-20 text-center">
         <h2 className="text-[clamp(32px,7vw,48px)] font-bold leading-[1.05] tracking-[-0.03em]">
-          {copy.take.headline}
+          {flags.tradingOpen
+            ? copy.take.headline
+            : copy.take.headlinePrologue}
         </h2>
         <div className="mt-6">
-          <ContractBlock onBuy={openBuy} />
+          <ContractBlock onBuy={openBuy} tradingOpen={flags.tradingOpen} />
         </div>
       </section>
 

@@ -78,13 +78,15 @@ export const DAY_ONE_PLAYTHROUGH = envBool(
 export const KITCHEN_READY = Boolean(APPLE_KITCHEN && BITE_TOKEN);
 
 /**
- * Narrative act override for QA / preview.
- * 1 = Finding the apple · 2 = First bite · 3 = To the core
- * Omit to auto-resolve from kitchen + onchain progress (see `lib/phase.ts`).
+ * Narrative act override for QA / preview / mint flip.
+ * 0 = Prologue · 1 = Finding the apple · 2 = First bite · 3 = To the core
+ * Omit to auto-resolve (Prologue when no token CA; see `lib/phase.ts`).
  */
 export const SITE_ACT_OVERRIDE = (() => {
   const raw = process.env.NEXT_PUBLIC_SITE_ACT?.trim();
-  if (raw === "1" || raw === "2" || raw === "3") return Number(raw) as 1 | 2 | 3;
+  if (raw === "0" || raw === "1" || raw === "2" || raw === "3") {
+    return Number(raw) as 0 | 1 | 2 | 3;
+  }
   return null;
 })();
 

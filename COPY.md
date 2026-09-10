@@ -25,26 +25,46 @@ _Source: `copy.nav` · `RaceApp`_
 > $BITE
 
 **Badge**
-> Preparing · Live · Racing
+> Soon · Preparing · Live · Racing
 
-**Buy**
+**Buy** (Act I+)
 > Buy
+
+**Soon** (Prologue — not a link)
+> Soon
 
 ---
 
 ## Phases
 
-_Source: `copy.phases` · `PhaseBar` / banners_
+_Source: `copy.phases` · `PhaseBar` / banners · `src/lib/phase.ts`_
 
 **Labels**
-> Finding the apple · First bite · To the core
+> Prologue · Finding the apple · First bite · To the core
 
 **Banners**
+> The orchard is closed. $BITE mints soon — check back when trading opens.
 > The orchard is being prepared. Trading is live — burns begin in Act II.
 > 🔥 EARLY EATER BONUS — Burns in the first 72 hours count 2× toward your leaderboard rank.
 > 🍎 {pct}% eaten. {n} days left. The whole orchard is watching.
 > 🔥 Core reached. Payouts processing.
 > 🪱 Deadline passed. The farmer collects.
+
+### Prologue (act 0) — pre-mint
+
+Default when `NEXT_PUBLIC_BITE_TOKEN` is unset. Override with `NEXT_PUBLIC_SITE_ACT=0` or `NEXT_PUBLIC_PROLOGUE=true`.
+
+**UX**
+- Nav badge: Soon · Primary CTAs: **Mint soon** / **Soon** (disabled — no pons / launchpad)
+- Hero: “Before the first bite.” + game stakes · Apple time-lapse kept
+- Game explainer stays · Leaderboard empty / teased · Chart link hidden
+- No Trade / Buy / Buy on PONS paths that send visitors to buy
+
+**Exit Prologue on mint morning**
+1. Set `NEXT_PUBLIC_BITE_TOKEN` (+ curve / pool / pons URL)
+2. Clear `NEXT_PUBLIC_SITE_ACT=0` / `NEXT_PUBLIC_PROLOGUE` (or set `NEXT_PUBLIC_SITE_ACT=1`)
+3. Keep `NEXT_PUBLIC_DAY_ONE=true` until kitchen live → Act I
+4. Redeploy — Buy/Trade unlock; burns still wait for Act II
 
 ---
 
@@ -56,13 +76,13 @@ _Source: `copy.brand`, `copy.hero`_
 > $BITE
 
 **Taglines (by act / resolution)**
-> Finding the right apple. · Eat it to the core. · They ate it to the core. · The apple has rotted.
+> Before the first bite. · Finding the right apple. · Eat it to the core. · They ate it to the core. · The apple has rotted.
 
-**Act I support (under tagline)**
-> Eat to the core before time runs out — winners split the pot.
+**Prologue / Act I support (under tagline)**
+> Eat to the core before time runs out — winners split the pot. (Prologue adds: Lose, and the farmer takes it.)
 
 **Primary CTA**
-> Trade on bite.party
+> Mint soon (Prologue, not a link) · Trade on bite.party (Act I+)
 
 **Secondary CTA**
 > The game ↓ · How eating works ↓
@@ -74,7 +94,7 @@ _Source: `copy.brand`, `copy.hero`_
 
 ## The game
 
-_Source: `copy.game` · `RaceApp` `#game` — visible in Act I (Finding the apple)_
+_Source: `copy.game` · `RaceApp` `#game` — visible in Prologue + Act I_
 
 **Eyebrow**
 > The game
@@ -92,6 +112,10 @@ _Source: `copy.game` · `RaceApp` `#game` — visible in Act I (Finding the appl
 ## The line
 
 _Source: `copy.line`_ — supporting detail after the game explainer
+
+**Prologue**
+> Every transaction will take a bite.
+> When $BITE launches… Right now the orchard is quiet.
 
 **Act I**
 > Every transaction will take a bite.
@@ -175,7 +199,8 @@ _Source: `copy.eaters` · `EatersBoard`_
 
 **Empty**
 > No bites yet. Be first.
-> The leaderboard activates when the race begins in Act II.
+> The leaderboard waits for the first eaters. (Prologue)
+> The leaderboard activates when the race begins in Act II. (Act I)
 
 ---
 
@@ -186,10 +211,14 @@ _Source: `copy.tap`_
 **CTA**
 > Burn $BITE
 
+**Locked (Prologue)**
+> Burns open after mint. Stay hungry.
+
 **Locked (Act I)**
 > Burns open in Act II. Accumulate now.
 
 **Day one**
+> Watch the apple. Trading opens when $BITE mints — check back soon. (Prologue)
 > Day one — watch the apple eaten to the core. Burns unlock when the kitchen is live.
 > Play · Pause · Replay
 
@@ -199,7 +228,7 @@ _Source: `copy.tap`_
 
 _Source: `copy.finePrint`_
 
-> Chain · Standard · Pair · Mechanism · Phase (Act n of 3) · Burned
+> Chain · Standard · Pair · Mechanism · Phase (Prologue | Act n of 3) · Burned
 
 ---
 
@@ -207,7 +236,8 @@ _Source: `copy.finePrint`_
 
 _Source: `copy.take`_
 
-> Take a $BITE. · Copy address → · Buy on PONS · Twitter · Telegram · Chart
+> Get ready for $BITE. · Mint soon (Prologue, not a link)
+> Take a $BITE. · Copy address → · Buy on PONS · Twitter · Telegram · Chart (Act I+)
 
 ---
 

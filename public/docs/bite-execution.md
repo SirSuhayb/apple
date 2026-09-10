@@ -71,6 +71,32 @@ npm i @uniswap/widgets
 
 ## 2. Phase Specs
 
+### PROLOGUE — "Before the First Bite"
+
+**Duration:** Until `$BITE` is minted / CA published  
+**Burn contract:** Not deployed.  
+**Trading:** Not live. No buy / pons / launchpad CTAs.
+
+Default when `NEXT_PUBLIC_BITE_TOKEN` is unset. Force with `NEXT_PUBLIC_SITE_ACT=0` or `NEXT_PUBLIC_PROLOGUE=true`. Exit by setting the token CA (and clearing act/prologue overrides) → Act I.
+
+#### Site states
+
+| Section | State |
+|---|---|
+| Nav badge | "Soon" (gray) |
+| Phase dots | Prologue active, Acts I–III upcoming |
+| Banner | "The orchard is closed. $BITE mints soon — check back when trading opens." |
+| Hero tagline | "Before the first bite." |
+| Hero apple | Time-lapse / whole apple for atmosphere. Not tappable. |
+| Hero CTA primary | "Mint soon" — disabled, not a buy link |
+| Hero CTA secondary | "The game ↓" |
+| Progress / countdown / wager | Hidden |
+| Game explainer | Visible (eat to core / split pot / farmer) |
+| Leaderboard | Empty + tease |
+| Buy / Chart / PONS | Hidden or "Mint soon" — no launchpad deep-links |
+
+---
+
 ### ACT I — "Finding the Right Apple"
 
 **Duration:** ~1 week
