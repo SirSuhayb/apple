@@ -16,9 +16,25 @@ const mono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
+const siteUrl = "https://bite.party";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: copy.meta.title,
   description: copy.meta.description,
+  applicationName: copy.brand,
+  openGraph: {
+    type: "website",
+    url: siteUrl,
+    siteName: copy.brand,
+    title: copy.meta.title,
+    description: copy.meta.description,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: copy.meta.title,
+    description: copy.meta.description,
+  },
 };
 
 export default function RootLayout({
