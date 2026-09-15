@@ -43,6 +43,20 @@ cd contracts
 forge script script/DeployKitchen.s.sol:DeployKitchen --rpc-url https://rpc.mainnet.chain.robinhood.com --broadcast
 ```
 
+## Activity bot (Telegram)
+
+Onchain watcher that posts to Telegram (Twitter optional). See [docs/bite-bot.md](docs/bite-bot.md).
+
+```bash
+pip install -r bots/requirements.txt
+cp bots/.env.example bots/.env   # add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+python -m bots --smoke           # RPC + contract check
+python -m bots --test            # live Telegram test
+python -m bots --daemon          # always-on
+```
+
+Act I (`PHASE=1`): burn posts deferred until Act II. Put secrets in `bots/.env` — never paste them into chat.
+
 ## Disclaimer
 
 Not affiliated with Apple Inc. or Robinhood. AAPL tokens are not shares. Experimental memecoin — you can lose everything. Write **pons** lowercase; no implied partnership.

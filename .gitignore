@@ -33,6 +33,12 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!bots/.env.example
+
+# activity bot
+.venv-bots/
+bots/.bite_bot_state.json
+**/.bite_bot_state.json
 
 # vercel
 .vercel

@@ -1,0 +1,5 @@
+# $BITE activity bot — Telegram (required) + Twitter (optional)
+web3>=6.0,<8
+python-dotenv>=1.0
+# Optional — leave unset / uninstalled to skip Twitter posts
+tweepy>=4.14
