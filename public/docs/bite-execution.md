@@ -10,9 +10,15 @@
 
 ## 1. In-Site Trading
 
-No PONS redirect. Embed Uniswap directly on bite.party.
+**Day-1 primary CTA:** deep-link to pons launchpad  
+`https://www.ponsfamily.com/launchpad/{BITE_CA}`  
+(Do **not** use `/token/{CA}` — that path 404s.)
 
-### Uniswap Swap Widget
+**Uniswap:** Robinhood Chain is live on `app.uniswap.org` (`chain=robinhood`, AAPL → $BITE). In-page `/embed` iframe is **not** usable until Uniswap allowlists `bite.party` / `www.bite.party` in their `frame-ancestors` CSP. See `docs/uniswap-embed-allowlist.md`. Opt-in modal: `NEXT_PUBLIC_SWAP_PROVIDER=uniswap`.
+
+### Uniswap Swap Widget (aspirational / legacy note)
+
+Prefer `app.uniswap.org/embed` after allowlisting. The older `@uniswap/widgets` package is not wired in the Next.js site.
 
 ```bash
 npm i @uniswap/widgets

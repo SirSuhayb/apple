@@ -173,11 +173,12 @@ export const copy = {
   },
 
   eaters: {
-    intro: ["Who", "ate the most."],
+    intro: ["Who", "traded the most."],
+    introAct2: ["Who", "ate the most."],
     columns: ["Rank", "Eater", "Burned", "Buys", "Sells"] as const,
     rowMeta: (burned: string, buys: string, sells: string) =>
       `burned ${burned} · ${buys} buys · ${sells} sells`,
-    empty: "No bites yet. Be first.",
+    empty: "No traders yet. Be first.",
     emptyHint: "The leaderboard activates when the race begins in Act II.",
     emptyHintPrologue: "The leaderboard waits for the first eaters.",
   },
@@ -185,8 +186,11 @@ export const copy = {
   leaderboard: {
     title: "Leaderboard",
     headline: "Every trade counts.",
+    headlineAct1: "Accumulate. Hold. Climb.",
     subtitle:
       "Points from buys, sells, and burns. The more you trade, the higher you climb.",
+    subtitleAct1:
+      "Act I ranks traders by points from buying and holding $BITE — kitchen burns come in Act II.",
     columns: ["Rank", "Trader", "Points", "Trades"] as const,
     pts: "pts",
     trades: (n: number) => `${n} trade${n === 1 ? "" : "s"}`,
@@ -196,14 +200,22 @@ export const copy = {
     totalTrades: "Total trades",
     totalPoints: "Total points",
     empty: "No trades yet.",
-    emptyHint:
-      "The leaderboard populates when trading begins.",
+    emptyHint: "The leaderboard populates when trading begins.",
+    emptyHintAct1:
+      "Link your wallet in Telegram (DM the bot your 0x…) and start trading $BITE.",
     viewAll: "Full leaderboard →",
+    devBadge: "Dev",
+    ineligible: "Ineligible",
     scoring: {
       eyebrow: "How scoring works",
       buy: "Buy — 1× quote volume",
       sell: "Sell — 1.5× quote volume",
       tap: "Burn — 50× burn amount",
+      accum: "Accumulation — +1 pt per whole $BITE gained",
+      hold: "Holding — 100 $BITE held for 1 hour = 1 pt",
+      tradesAct1: "Trades — inbound $BITE transfers to your linked wallet",
+      devNote:
+        "Dev wallets appear on the board with a Dev badge and cannot win Act I.",
     },
     back: "← Back",
   },

@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { RaceState } from "@/lib/race";
+import type { Eater, RaceState } from "@/lib/race";
 import { FRAME_COUNT } from "@/lib/race";
 import { buildDemoRaceState } from "@/lib/demo-state";
 import {
@@ -252,8 +252,16 @@ function HowCards({ act }: { act: SiteAct }) {
   );
 }
 
-export function RaceApp({ initial }: { initial: RaceState }) {
+export function RaceApp({
+  initial,
+  act1Eaters = [],
+}: {
+  initial: RaceState;
+  /** Act I trades + points board (from bot state / public export) */
+  act1Eaters?: Eater[];
+}) {
   const [state, setState] = useState(initial);
+  const [act1Board, setAct1Board] = useState(act1Eaters);
   const [juicePulse, setJuicePulse] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
@@ -271,10 +279,31 @@ export function RaceApp({ initial }: { initial: RaceState }) {
     }
   }, []);
 
+  const refreshAct1 = useCallback(async () => {
+    try {
+      const res = await fetch("/api/leaderboard", { cache: "no-store" });
+      if (!res.ok) return;
+      const next = (await res.json()) as {
+        eaters?: Eater[];
+        scoring?: string;
+      };
+      if (next.scoring === "act1" && Array.isArray(next.eaters)) {
+        setAct1Board(next.eaters);
+      }
+    } catch {
+      // keep current
+    }
+  }, []);
+
   useEffect(() => {
     const id = setInterval(refresh, 12_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  useEffect(() => {
+    const id = setInterval(refreshAct1, 20_000);
+    return () => clearInterval(id);
+  }, [refreshAct1]);
 
   // Act I: looping stop-motion 0→9→0…
   useEffect(() => {
@@ -325,8 +354,10 @@ export function RaceApp({ initial }: { initial: RaceState }) {
   const tagline = heroTagline(flags.act, state.phase);
   const raceEnded = state.phase === "core" || state.phase === "rot";
 
-  // Prologue + Act I leaderboard empty; Act II+ use live/demo eaters
-  const boardEaters = flags.act <= 1 ? [] : state.eaters;
+  // Prologue empty; Act I = trades/points from bot; Act II+ kitchen eaters
+  const boardEaters =
+    flags.act === 0 ? [] : flags.act === 1 ? act1Board : state.eaters;
+  const boardMode = flags.act === 1 ? "act1" : "kitchen";
 
   /** Day 1 default: pons deep-link. Opt-in Uniswap modal via NEXT_PUBLIC_SWAP_PROVIDER=uniswap. */
   const openBuy = () => {
@@ -609,20 +640,20 @@ export function RaceApp({ initial }: { initial: RaceState }) {
       <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
         <div className="mx-auto max-w-[580px]">
           <p className="mb-4 text-[17px] text-[#86868b]">
-            {copy.eaters.intro[0]}{" "}
+            {flags.act <= 1 ? copy.eaters.intro[0] : copy.eaters.introAct2[0]}{" "}
             <span className="font-bold text-[#1d1d1f]">
-              {copy.eaters.intro[1]}
+              {flags.act <= 1 ? copy.eaters.intro[1] : copy.eaters.introAct2[1]}
             </span>
           </p>
-          <EatersBoard eaters={boardEaters} />
+          <EatersBoard eaters={boardEaters} mode={boardMode} />
           {flags.act === 0 && (
             <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
               {copy.eaters.emptyHintPrologue}
             </p>
           )}
-          {flags.act === 1 && (
+          {flags.act === 1 && boardEaters.length === 0 && (
             <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
-              {copy.eaters.emptyHint}
+              {copy.leaderboard.emptyHintAct1}
             </p>
           )}
         </div>

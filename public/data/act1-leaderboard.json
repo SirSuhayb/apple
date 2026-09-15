@@ -1,0 +1,38 @@
+{
+  "updatedAt": "2026-09-15T20:13:15.840192+00:00",
+  "phase": 1,
+  "scoring": "act1",
+  "tradeFromBlock": 63818043,
+  "eaters": [
+    {
+      "address": "0xc57aDFE462AD32D5eFfF8cfB3F30ee50aAB1f959",
+      "score": 48793.8118,
+      "trades": 2,
+      "accumPoints": 0.0,
+      "holdPoints": 48793.8118,
+      "dev": false,
+      "ineligible": false,
+      "badge": null
+    },
+    {
+      "address": "0xC3d5d96695b611422ee4CE1a6697E2FA94B82022",
+      "score": 30082.7914,
+      "trades": 3,
+      "accumPoints": 0.0,
+      "holdPoints": 30082.7914,
+      "dev": false,
+      "ineligible": false,
+      "badge": null
+    },
+    {
+      "address": "0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E",
+      "score": 0.0,
+      "trades": 1,
+      "accumPoints": 0.0,
+      "holdPoints": 0.0,
+      "dev": true,
+      "ineligible": true,
+      "badge": "dev"
+    }
+  ]
+}

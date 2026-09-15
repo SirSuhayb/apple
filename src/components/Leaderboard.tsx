@@ -19,16 +19,49 @@ function totalTrades(e: Eater) {
   return e.buyCount + e.sellCount + e.tapCount;
 }
 
+function isDev(e: Eater) {
+  return Boolean(e.dev) || e.badge === "dev" || Boolean(e.ineligible && e.dev);
+}
+
+function isIneligible(e: Eater) {
+  return Boolean(e.ineligible) || isDev(e);
+}
+
+function DevBadge() {
+  return (
+    <span className="ml-1.5 inline-flex align-middle rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#86868b] ring-1 ring-[#d2d2d7]">
+      {copy.leaderboard.devBadge}
+    </span>
+  );
+}
+
 type SortKey = "score" | "trades" | "burned";
 
-export function Leaderboard({ eaters }: { eaters: Eater[] }) {
+export function Leaderboard({
+  eaters,
+  mode = "kitchen",
+}: {
+  eaters: Eater[];
+  mode?: "act1" | "kitchen";
+}) {
+  const isAct1 = mode === "act1";
   const [sortBy, setSortBy] = useState<SortKey>("score");
 
   const sorted = [...eaters].sort((a, b) => {
+    if (isAct1) {
+      const ai = isIneligible(a) ? 1 : 0;
+      const bi = isIneligible(b) ? 1 : 0;
+      if (ai !== bi) return ai - bi;
+    }
     if (sortBy === "trades") return totalTrades(b) - totalTrades(a);
-    if (sortBy === "burned") return b.burned - a.burned;
+    if (sortBy === "burned" && !isAct1) return b.burned - a.burned;
     return b.score - a.score;
   });
+
+  const eligible = sorted.filter((e) => !isIneligible(e));
+  const ineligible = isAct1 ? sorted.filter((e) => isIneligible(e)) : [];
+  const podium = eligible.slice(0, 3);
+  const restEligible = eligible.slice(3);
 
   const statTotal = eaters.reduce(
     (acc, e) => ({
@@ -43,11 +76,26 @@ export function Leaderboard({ eaters }: { eaters: Eater[] }) {
       <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-14 text-center">
         <p className="text-[17px] text-[#86868b]">{copy.leaderboard.empty}</p>
         <p className="mt-2 text-[13px] text-[#86868b]">
-          {copy.leaderboard.emptyHint}
+          {isAct1
+            ? copy.leaderboard.emptyHintAct1
+            : copy.leaderboard.emptyHint}
         </p>
       </div>
     );
   }
+
+  const sortTabs = (
+    isAct1
+      ? ([
+          ["score", "Points"],
+          ["trades", "Trades"],
+        ] as const)
+      : ([
+          ["score", "Points"],
+          ["trades", "Trades"],
+          ["burned", "Burned"],
+        ] as const)
+  );
 
   return (
     <div className="space-y-6">
@@ -73,13 +121,7 @@ export function Leaderboard({ eaters }: { eaters: Eater[] }) {
 
       {/* Sort tabs */}
       <div className="flex gap-1.5 rounded-full border border-[#d2d2d7] bg-[#f5f5f7] p-1">
-        {(
-          [
-            ["score", "Points"],
-            ["trades", "Trades"],
-            ["burned", "Burned"],
-          ] as const
-        ).map(([key, label]) => (
+        {sortTabs.map(([key, label]) => (
           <button
             key={key}
             type="button"
@@ -96,30 +138,27 @@ export function Leaderboard({ eaters }: { eaters: Eater[] }) {
         ))}
       </div>
 
-      {/* Podium — top 3 */}
-      {sorted.length >= 1 && (
+      {/* Podium — top 3 eligible only */}
+      {podium.length >= 1 && (
         <div className="grid grid-cols-3 items-end gap-2.5">
-          {/* 2nd place */}
-          {sorted.length >= 2 ? (
-            <PodiumCard eater={sorted[1]} rank={2} />
+          {podium.length >= 2 ? (
+            <PodiumCard eater={podium[1]} rank={2} act1={isAct1} />
           ) : (
             <div />
           )}
-          {/* 1st place */}
-          <PodiumCard eater={sorted[0]} rank={1} hero />
-          {/* 3rd place */}
-          {sorted.length >= 3 ? (
-            <PodiumCard eater={sorted[2]} rank={3} />
+          <PodiumCard eater={podium[0]} rank={1} hero act1={isAct1} />
+          {podium.length >= 3 ? (
+            <PodiumCard eater={podium[2]} rank={3} act1={isAct1} />
           ) : (
             <div />
           )}
         </div>
       )}
 
-      {/* Rows 4+ */}
-      {sorted.length > 3 && (
+      {/* Rows 4+ eligible */}
+      {restEligible.length > 0 && (
         <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-[#d2d2d7] bg-white">
-          {sorted.slice(3).map((e, i) => (
+          {restEligible.map((e, i) => (
             <li
               key={e.address}
               className="flex items-center gap-3 px-4 py-3.5"
@@ -131,10 +170,45 @@ export function Leaderboard({ eaters }: { eaters: Eater[] }) {
                 <div className="truncate text-sm font-semibold text-[#1d1d1f]">
                   {shortAddr(e.address)}
                 </div>
-                <div className="mt-0.5 flex gap-2 text-[11px] text-[#86868b]">
-                  <span>{e.buyCount}B</span>
-                  <span>{e.sellCount}S</span>
-                  <span>{e.tapCount}T</span>
+                {!isAct1 && (
+                  <div className="mt-0.5 flex gap-2 text-[11px] text-[#86868b]">
+                    <span>{e.buyCount}B</span>
+                    <span>{e.sellCount}S</span>
+                    <span>{e.tapCount}T</span>
+                  </div>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
+                  {fmtScore(e.score)}
+                </div>
+                <div className="text-[11px] text-[#86868b]">
+                  {copy.leaderboard.trades(totalTrades(e))}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Ineligible / Dev — visible, not ranked */}
+      {ineligible.length > 0 && (
+        <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa]">
+          {ineligible.map((e) => (
+            <li
+              key={e.address}
+              className="flex items-center gap-3 px-4 py-3.5"
+            >
+              <span className="w-7 text-center text-[11px] font-semibold uppercase tracking-wide text-[#86868b]">
+                —
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-[#1d1d1f]">
+                  {shortAddr(e.address)}
+                  {isDev(e) && <DevBadge />}
+                </div>
+                <div className="mt-0.5 text-[11px] text-[#86868b]">
+                  {copy.leaderboard.ineligible}
                 </div>
               </div>
               <div className="text-right">
@@ -156,9 +230,20 @@ export function Leaderboard({ eaters }: { eaters: Eater[] }) {
           {copy.leaderboard.scoring.eyebrow}
         </p>
         <div className="space-y-1 text-[13px] text-[#6e6e73]">
-          <p>{copy.leaderboard.scoring.buy}</p>
-          <p>{copy.leaderboard.scoring.sell}</p>
-          <p>{copy.leaderboard.scoring.tap}</p>
+          {isAct1 ? (
+            <>
+              <p>{copy.leaderboard.scoring.accum}</p>
+              <p>{copy.leaderboard.scoring.hold}</p>
+              <p>{copy.leaderboard.scoring.tradesAct1}</p>
+              <p>{copy.leaderboard.scoring.devNote}</p>
+            </>
+          ) : (
+            <>
+              <p>{copy.leaderboard.scoring.buy}</p>
+              <p>{copy.leaderboard.scoring.sell}</p>
+              <p>{copy.leaderboard.scoring.tap}</p>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -169,10 +254,12 @@ function PodiumCard({
   eater,
   rank,
   hero,
+  act1,
 }: {
   eater: Eater;
   rank: 1 | 2 | 3;
   hero?: boolean;
+  act1?: boolean;
 }) {
   const colors = {
     1: "text-[#e53935]",
@@ -215,10 +302,10 @@ function PodiumCard({
           {copy.leaderboard.pts}
         </span>
       </div>
-      <div className="mt-1 flex justify-center gap-1.5 text-[10px] text-[#86868b]">
-        <span>{eater.buyCount}B</span>
-        <span>{eater.sellCount}S</span>
-        <span>{eater.tapCount}T</span>
+      <div className="mt-1 text-[10px] text-[#86868b]">
+        {act1
+          ? copy.leaderboard.trades(totalTrades(eater))
+          : `${eater.buyCount}B · ${eater.sellCount}S · ${eater.tapCount}T`}
       </div>
     </div>
   );

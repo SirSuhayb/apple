@@ -6,7 +6,14 @@ import { copy } from "@/lib/copy";
 import { Leaderboard } from "@/components/Leaderboard";
 import { SiteFooter } from "@/components/SiteFooter";
 
-export function LeaderboardPage({ eaters }: { eaters: Eater[] }) {
+export function LeaderboardPage({
+  eaters,
+  mode = "kitchen",
+}: {
+  eaters: Eater[];
+  mode?: "act1" | "kitchen";
+}) {
+  const isAct1 = mode === "act1";
   return (
     <div className="flex min-h-screen flex-col bg-[#fbfbfd] text-[#1d1d1f]">
       {/* Header */}
@@ -30,17 +37,21 @@ export function LeaderboardPage({ eaters }: { eaters: Eater[] }) {
           {copy.leaderboard.title}
         </p>
         <h1 className="text-[clamp(32px,8vw,56px)] font-bold leading-[1.05] tracking-[-0.03em]">
-          {copy.leaderboard.headline}
+          {isAct1
+            ? copy.leaderboard.headlineAct1
+            : copy.leaderboard.headline}
         </h1>
         <p className="mx-auto mt-2 max-w-[440px] text-[17px] leading-relaxed text-[#86868b]">
-          {copy.leaderboard.subtitle}
+          {isAct1
+            ? copy.leaderboard.subtitleAct1
+            : copy.leaderboard.subtitle}
         </p>
       </section>
 
       {/* Board */}
       <section className="page-gutter flex-1 pb-16">
         <div className="mx-auto max-w-[580px]">
-          <Leaderboard eaters={eaters} />
+          <Leaderboard eaters={eaters} mode={mode} />
         </div>
       </section>
 

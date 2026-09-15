@@ -9,6 +9,11 @@ export type Eater = {
   buyCount: number;
   sellCount: number;
   tapCount: number;
+  /** Act I: creator/team wallet — shown but cannot win */
+  ineligible?: boolean;
+  /** Act I: "dev" badge on the board */
+  badge?: "dev" | null;
+  dev?: boolean;
 };
 
 export type RaceEvent = {
