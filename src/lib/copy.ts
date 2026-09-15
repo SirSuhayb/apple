@@ -307,8 +307,8 @@ export const copy = {
 } as const;
 
 export const socialLinks = {
-  twitter: process.env.NEXT_PUBLIC_TWITTER_URL ?? "https://x.com",
-  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me",
+  twitter: process.env.NEXT_PUBLIC_TWITTER_URL ?? "https://x.com/biteparty_",
+  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me/biteparty",
   chart: process.env.NEXT_PUBLIC_CHART_URL ?? PONS_TOKEN_URL,
 };
 
