@@ -21,6 +21,7 @@ export const copy = {
   nav: {
     buy: "Buy",
     soon: "Soon",
+    leaderboard: "Leaderboard",
     badge: {
       soon: "Soon",
       preparing: "Preparing",
@@ -181,6 +182,32 @@ export const copy = {
     emptyHintPrologue: "The leaderboard waits for the first eaters.",
   },
 
+  leaderboard: {
+    title: "Leaderboard",
+    headline: "Every trade counts.",
+    subtitle:
+      "Points from buys, sells, and burns. The more you trade, the higher you climb.",
+    columns: ["Rank", "Trader", "Points", "Trades"] as const,
+    pts: "pts",
+    trades: (n: number) => `${n} trade${n === 1 ? "" : "s"}`,
+    buys: "Buys",
+    sells: "Sells",
+    burns: "Burns",
+    totalTrades: "Total trades",
+    totalPoints: "Total points",
+    empty: "No trades yet.",
+    emptyHint:
+      "The leaderboard populates when trading begins.",
+    viewAll: "Full leaderboard →",
+    scoring: {
+      eyebrow: "How scoring works",
+      buy: "Buy — 1× quote volume",
+      sell: "Sell — 1.5× quote volume",
+      tap: "Burn — 50× burn amount",
+    },
+    back: "← Back",
+  },
+
   tap: {
     eyebrow: "Tap the apple",
     headline: "The only real burn.",
@@ -250,16 +277,16 @@ export const copy = {
     title: "Swap",
     close: "Close",
     iframeTitle: "Uniswap swap",
-    uniswapNote: "Preview — ETH ↔ USDC on Ethereum",
+    uniswapNote: "AAPL → $BITE on Robinhood Chain",
     ponsNote: "Trade on pons",
     ponsBody:
       "Open pons to trade $BITE from your wallet.",
     deepLinkBody:
-      "Open Uniswap to swap ETH → USDC. In-page embed is available after Uniswap allowlists this site’s origin.",
-    pairLabel: (usdc: string) =>
-      `Demo pair: ETH → USDC (${usdc.slice(0, 6)}…${usdc.slice(-4)}).`,
+      "Open Uniswap to swap AAPL → $BITE on Robinhood Chain. In-page embed needs Uniswap to allowlist this site’s origin.",
+    pairLabel: (aapl: string, bite: string) =>
+      `AAPL (${aapl.slice(0, 6)}…${aapl.slice(-4)}) → $BITE (${bite.slice(0, 6)}…${bite.slice(-4)}).`,
     openUniswap: "Open Uniswap",
-    openUniswapFallback: "Or try Uniswap ETH ↔ USDC →",
+    openUniswapFallback: "Or try Uniswap AAPL → $BITE →",
     openPons: "Open pons →",
   },
 

@@ -32,9 +32,10 @@ export const BITE_POOL = envAddress("NEXT_PUBLIC_BITE_POOL");
 export const APPLE_KITCHEN = envAddress("NEXT_PUBLIC_APPLE_KITCHEN");
 export const DEPLOYER = envAddress("NEXT_PUBLIC_DEPLOYER");
 
+/** Live pons launchpad for $BITE (path is `/launchpad/:ca` — `/token/:ca` 404s). */
 export const PONS_TOKEN_URL =
   process.env.NEXT_PUBLIC_PONS_TOKEN_URL ??
-  `https://www.ponsfamily.com/token/${BITE_TOKEN}`;
+  `https://www.ponsfamily.com/launchpad/${BITE_TOKEN}`;
 
 /** Default race length if kitchen is not live yet */
 export const DEFAULT_DEADLINE_DAYS = envNumber(
@@ -106,8 +107,12 @@ export const META_WAGER_THRESHOLD = envNumber(
 
 /**
  * Swap CTA surface for Trade / Buy.
- * - `pons` (default, day 1): deep-link to pons token/launchpad only
- * - `uniswap` (opt-in): Uniswap modal deep-link / optional iframe for QA later
+ * - `pons` (default): deep-link to pons launchpad (works today)
+ * - `uniswap` (opt-in): SwapModal deep-link / optional iframe after Uniswap allowlists us
+ *
+ * Robinhood Chain (`chain=robinhood`) is supported on app.uniswap.org, but `/embed`
+ * is gated by Uniswap’s `frame-ancestors` allowlist — bite.party is not on it, so the
+ * iframe stays blank until they approve. See docs/uniswap-embed-allowlist.md.
  */
 export const SWAP_PROVIDER = (() => {
   const raw = process.env.NEXT_PUBLIC_SWAP_PROVIDER?.trim().toLowerCase();
@@ -125,17 +130,20 @@ export const SWAP_EMBED_ENABLED = (() => {
   return raw === "1" || raw === "true" || raw === "yes";
 })();
 
-/** Mainnet USDC — Uniswap widget demo pair until BITE address exists */
-export const USDC_MAINNET = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+/** Interface chain slug for Uniswap Custom Linking / embed (not numeric 4663). */
+export const UNISWAP_CHAIN = "robinhood";
 
-/** Swap-only embed; same prefill params as Custom Linking / SWAP_OPEN_URL */
+/**
+ * Prefill: AAPL → $BITE on Robinhood Chain (same pair as pons).
+ * Override with NEXT_PUBLIC_SWAP_EMBED_URL / NEXT_PUBLIC_SWAP_OPEN_URL if needed.
+ */
 export const SWAP_EMBED_URL =
   process.env.NEXT_PUBLIC_SWAP_EMBED_URL ??
-  `https://app.uniswap.org/embed?view=swap&chain=ethereum&inputCurrency=ETH&outputCurrency=${USDC_MAINNET}`;
+  `https://app.uniswap.org/embed?view=swap&chain=${UNISWAP_CHAIN}&inputCurrency=${AAPL_TOKEN}&outputCurrency=${BITE_TOKEN}`;
 
 export const SWAP_OPEN_URL =
   process.env.NEXT_PUBLIC_SWAP_OPEN_URL ??
-  `https://app.uniswap.org/swap?chain=ethereum&inputCurrency=ETH&outputCurrency=${USDC_MAINNET}`;
+  `https://app.uniswap.org/swap?chain=${UNISWAP_CHAIN}&inputCurrency=${AAPL_TOKEN}&outputCurrency=${BITE_TOKEN}`;
 
 /** @deprecated Prefer `copy` from `@/lib/copy` */
 export const siteConfig = {

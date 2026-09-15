@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { RaceState } from "@/lib/race";
 import { FRAME_COUNT } from "@/lib/race";
@@ -350,6 +351,12 @@ export function RaceApp({ initial }: { initial: RaceState }) {
             {copy.brand}
           </a>
           <div className="flex items-center gap-2.5">
+            <Link
+              href="/leaderboard"
+              className="hidden text-[13px] font-medium text-[#2997ff] sm:block"
+            >
+              {copy.nav.leaderboard}
+            </Link>
             <span
               className={[
                 "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",

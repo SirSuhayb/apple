@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import {
+  AAPL_TOKEN,
+  BITE_TOKEN,
   PONS_TOKEN_URL,
   SWAP_EMBED_ENABLED,
   SWAP_EMBED_URL,
   SWAP_OPEN_URL,
-  USDC_MAINNET,
 } from "@/lib/config";
 import { copy } from "@/lib/copy";
 
@@ -83,7 +84,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
             </div>
             <div className="flex flex-col gap-2 border-t border-[#d2d2d7] px-5 py-4">
               <p className="text-center text-[11px] leading-relaxed text-[#86868b]">
-                {copy.swap.pairLabel(USDC_MAINNET)}
+                {copy.swap.pairLabel(AAPL_TOKEN, BITE_TOKEN)}
               </p>
               <div className="flex flex-wrap items-center justify-center gap-3">
                 <a
@@ -111,7 +112,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
               {copy.swap.deepLinkBody}
             </p>
             <p className="text-[12px] leading-relaxed text-[#86868b]">
-              {copy.swap.pairLabel(USDC_MAINNET)}
+              {copy.swap.pairLabel(AAPL_TOKEN, BITE_TOKEN)}
             </p>
             <a
               href={SWAP_OPEN_URL}

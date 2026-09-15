@@ -6,6 +6,9 @@ export type Eater = {
   buyVolume: number;
   sellVolume: number;
   burned: number;
+  buyCount: number;
+  sellCount: number;
+  tapCount: number;
 };
 
 export type RaceEvent = {
