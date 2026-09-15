@@ -24,7 +24,9 @@ export const AAPL_TOKEN =
   (envAddress("NEXT_PUBLIC_AAPL_TOKEN") ??
     "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9") as Address;
 
-export const BITE_TOKEN = envAddress("NEXT_PUBLIC_BITE_TOKEN");
+/** Live $BITE CA (pons vs AAPL). Override with NEXT_PUBLIC_BITE_TOKEN if needed. */
+export const BITE_TOKEN = (envAddress("NEXT_PUBLIC_BITE_TOKEN") ??
+  "0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9") as Address;
 export const BITE_CURVE = envAddress("NEXT_PUBLIC_BITE_CURVE");
 export const BITE_POOL = envAddress("NEXT_PUBLIC_BITE_POOL");
 export const APPLE_KITCHEN = envAddress("NEXT_PUBLIC_APPLE_KITCHEN");
@@ -32,9 +34,7 @@ export const DEPLOYER = envAddress("NEXT_PUBLIC_DEPLOYER");
 
 export const PONS_TOKEN_URL =
   process.env.NEXT_PUBLIC_PONS_TOKEN_URL ??
-  (BITE_TOKEN
-    ? `https://www.ponsfamily.com/token/${BITE_TOKEN}`
-    : "https://www.ponsfamily.com/launchpad");
+  `https://www.ponsfamily.com/token/${BITE_TOKEN}`;
 
 /** Default race length if kitchen is not live yet */
 export const DEFAULT_DEADLINE_DAYS = envNumber(
