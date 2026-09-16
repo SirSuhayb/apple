@@ -1,10 +1,50 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Eater, SupplyStats } from "@/lib/race";
 import { copy } from "@/lib/copy";
 import { Leaderboard } from "@/components/Leaderboard";
 import { SiteFooter } from "@/components/SiteFooter";
+
+const POLL_INTERVAL_MS = 15_000;
+
+function useLeaderboardPolling(
+  initialEaters: Eater[],
+  initialStats: SupplyStats | undefined,
+) {
+  const [eaters, setEaters] = useState(initialEaters);
+  const [supplyStats, setSupplyStats] = useState(initialStats);
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/leaderboard", { cache: "no-store" });
+      if (!res.ok || !mountedRef.current) return;
+      const data = await res.json();
+      if (!mountedRef.current) return;
+      if (Array.isArray(data.eaters)) setEaters(data.eaters);
+      if (data.supplyStats) setSupplyStats(data.supplyStats);
+      if (data.updatedAt) setUpdatedAt(data.updatedAt);
+    } catch {
+      // silent — next poll will retry
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const kickoff = setTimeout(refresh, 0);
+    const id = setInterval(refresh, POLL_INTERVAL_MS);
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(kickoff);
+      clearInterval(id);
+    };
+  }, [refresh]);
+
+  return { eaters, supplyStats, updatedAt };
+}
 
 function fmtCompact(n: number): string {
   if (n >= 1_000_000_000)
@@ -66,15 +106,20 @@ function LeaderboardSupplyBar({ stats }: { stats: SupplyStats }) {
 }
 
 export function LeaderboardPage({
-  eaters,
+  eaters: initialEaters,
   mode = "kitchen",
-  supplyStats,
+  supplyStats: initialStats,
 }: {
   eaters: Eater[];
   mode?: "act1" | "kitchen";
   supplyStats?: SupplyStats;
 }) {
   const isAct1 = mode === "act1";
+  const { eaters, supplyStats, updatedAt } = useLeaderboardPolling(
+    initialEaters,
+    initialStats,
+  );
+
   return (
     <div className="flex min-h-screen flex-col bg-[#fbfbfd] text-[#1d1d1f]">
       {/* Header */}
@@ -107,6 +152,11 @@ export function LeaderboardPage({
             ? copy.leaderboard.subtitleAct1
             : copy.leaderboard.subtitle}
         </p>
+        {updatedAt && (
+          <p className="mt-1 text-[11px] text-[#86868b]">
+            Updated {new Date(updatedAt).toLocaleTimeString()}
+          </p>
+        )}
       </section>
 
       {/* Board */}
