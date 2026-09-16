@@ -1,12 +1,15 @@
 import { readFile } from "fs/promises";
 import path from "path";
-import type { Eater } from "./race";
+import type { Eater, SupplyStats } from "./race";
+
+export type { SupplyStats };
 
 export type Act1LeaderboardPayload = {
   updatedAt?: string;
   phase?: number;
   scoring?: string;
   tradeFromBlock?: number;
+  supplyStats?: SupplyStats;
   eaters: Eater[];
 };
 
@@ -108,6 +111,27 @@ async function fetchRemoteJson(url: string): Promise<unknown | null> {
   }
 }
 
+function parseSupplyStats(raw: unknown): SupplyStats | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const s = raw as Record<string, unknown>;
+  return {
+    prizePoolAapl: Number(s.prizePoolAapl ?? 0) || 0,
+    prizePoolUsd:
+      s.prizePoolUsd != null ? Number(s.prizePoolUsd) || null : null,
+    aaplPriceUsd:
+      s.aaplPriceUsd != null ? Number(s.aaplPriceUsd) || null : null,
+    eoaHeldBite: Number(s.eoaHeldBite ?? 0) || 0,
+    contractHeldBite: Number(s.contractHeldBite ?? 0) || 0,
+    realisticallyBurnable: Number(s.realisticallyBurnable ?? 0) || 0,
+    totalSupply: Number(s.totalSupply ?? 0) || 0,
+    totalBurned: Number(s.totalBurned ?? 0) || 0,
+    holderCount: Number(s.holderCount ?? 0) || 0,
+    bitePriceUsd:
+      s.bitePriceUsd != null ? Number(s.bitePriceUsd) || null : null,
+    updatedAt: typeof s.updatedAt === "string" ? s.updatedAt : undefined,
+  };
+}
+
 function payloadFromRaw(publicRaw: unknown): Act1LeaderboardPayload | null {
   if (!publicRaw || typeof publicRaw !== "object") return null;
   const payload = publicRaw as {
@@ -115,6 +139,7 @@ function payloadFromRaw(publicRaw: unknown): Act1LeaderboardPayload | null {
     phase?: number;
     scoring?: string;
     tradeFromBlock?: number;
+    supplyStats?: unknown;
     eaters?: RawRow[];
   };
   if (!Array.isArray(payload.eaters)) return null;
@@ -128,6 +153,7 @@ function payloadFromRaw(publicRaw: unknown): Act1LeaderboardPayload | null {
     phase: payload.phase,
     scoring: payload.scoring ?? "act1",
     tradeFromBlock: payload.tradeFromBlock,
+    supplyStats: parseSupplyStats(payload.supplyStats),
     eaters,
   };
 }

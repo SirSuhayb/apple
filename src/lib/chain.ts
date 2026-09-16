@@ -10,6 +10,10 @@ export const robinhoodChain = defineChain({
   },
   blockExplorers: {
     default: {
+      name: "Etherscan",
+      url: "https://robin.etherscan.io",
+    },
+    blockscout: {
       name: "Blockscout",
       url: "https://robinhoodchain.blockscout.com",
     },

@@ -13,11 +13,17 @@ export default async function Page() {
     racePhase: state.phase,
   });
 
-  if (act <= 1) {
-    const act1 = await fetchAct1Leaderboard();
-    return <LeaderboardPage eaters={act1.eaters} mode="act1" />;
-  }
-
-  const sorted = [...state.eaters].sort((a, b) => b.score - a.score);
-  return <LeaderboardPage eaters={sorted} mode="kitchen" />;
+  // All acts: inclusive leaderboard (Act I points/trades carry into Act II+)
+  const act1 = await fetchAct1Leaderboard();
+  const eaters =
+    act1.eaters.length > 0
+      ? act1.eaters
+      : [...state.eaters].sort((a, b) => b.score - a.score);
+  return (
+    <LeaderboardPage
+      eaters={eaters}
+      mode="act1"
+      supplyStats={act1.supplyStats ?? undefined}
+    />
+  );
 }

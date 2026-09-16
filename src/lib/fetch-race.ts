@@ -13,6 +13,7 @@ import {
 } from "./config";
 import { copy } from "./copy";
 import { emptyLiveScaffold, buildDemoRaceState } from "./demo-state";
+import { fetchAct1Leaderboard } from "./act1-leaderboard";
 import {
   type RacePhase,
   type RaceState,
@@ -80,7 +81,7 @@ export async function fetchRaceState(): Promise<RaceState> {
     coreTarget = computed.coreTarget;
 
     if (APPLE_KITCHEN) {
-      const [b, ct, dl, ph, pot] = await Promise.all([
+      const [b, ct, dl, ph, pot, kitchenBiteBalance] = await Promise.all([
         client.readContract({
           address: APPLE_KITCHEN,
           abi: appleKitchenAbi,
@@ -106,8 +107,18 @@ export async function fetchRaceState(): Promise<RaceState> {
           abi: appleKitchenAbi,
           functionName: "prizePool",
         }),
+        // Sweep burns: BITE sent directly to kitchen (not via bite())
+        BITE_TOKEN
+          ? client.readContract({
+              address: BITE_TOKEN,
+              abi: erc20Abi,
+              functionName: "balanceOf",
+              args: [APPLE_KITCHEN],
+            })
+          : BigInt(0),
       ]);
-      burned = b;
+      // kitchen.burned() + any BITE sitting in kitchen = total kitchen burns
+      burned = b + kitchenBiteBalance;
       coreTarget = ct;
       deadline = Number(dl);
       kitchenPhase = Number(ph);
@@ -121,6 +132,15 @@ export async function fetchRaceState(): Promise<RaceState> {
     const secondsLeft = Math.max(0, deadline - now);
     const quietRotPreview = now - lastEatAt > 48 * 60 * 60;
     const phase = phaseFromKitchen(kitchenPhase, clamped, secondsLeft);
+
+    // Use real bot leaderboard data instead of demo eaters
+    let realEaters: RaceState["eaters"] = [];
+    try {
+      const act1 = await fetchAct1Leaderboard();
+      realEaters = act1.eaters;
+    } catch {
+      // fall back to empty if bot data unavailable
+    }
 
     const scaffold = emptyLiveScaffold();
     return {
@@ -139,6 +159,8 @@ export async function fetchRaceState(): Promise<RaceState> {
       lastEatAt,
       quietRotPreview,
       potAapl: formatEther(potAapl),
+      eaters: realEaters.length > 0 ? realEaters : scaffold.eaters,
+      tape: [],
       message:
         phase === "core"
           ? copy.messages.core

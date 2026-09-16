@@ -1,15 +1,20 @@
 import { type Address, isAddress, zeroAddress } from "viem";
 
-function envAddress(key: string): Address | undefined {
-  const value = process.env[key];
+/**
+ * Parse an address value. Accepts the raw env string directly — callers MUST
+ * pass `process.env.NEXT_PUBLIC_*` as a static literal so Next.js can inline
+ * it into the client bundle.  Dynamic `process.env[key]` access is NOT inlined
+ * and silently resolves to `undefined` on the client, which was the root cause
+ * of the Act II → Act I hydration flip.
+ */
+function parseAddress(value: string | undefined): Address | undefined {
   if (!value || !isAddress(value) || value === zeroAddress) return undefined;
   return value;
 }
 
-function envNumber(key: string, fallback: number): number {
-  const raw = process.env[key];
-  if (!raw) return fallback;
-  const n = Number(raw);
+function parseNumber(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
 
@@ -21,16 +26,16 @@ export const RPC_URL =
   "https://rpc.mainnet.chain.robinhood.com";
 
 export const AAPL_TOKEN =
-  (envAddress("NEXT_PUBLIC_AAPL_TOKEN") ??
+  (parseAddress(process.env.NEXT_PUBLIC_AAPL_TOKEN) ??
     "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9") as Address;
 
 /** Live $BITE CA (pons vs AAPL). Override with NEXT_PUBLIC_BITE_TOKEN if needed. */
-export const BITE_TOKEN = (envAddress("NEXT_PUBLIC_BITE_TOKEN") ??
+export const BITE_TOKEN = (parseAddress(process.env.NEXT_PUBLIC_BITE_TOKEN) ??
   "0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9") as Address;
-export const BITE_CURVE = envAddress("NEXT_PUBLIC_BITE_CURVE");
-export const BITE_POOL = envAddress("NEXT_PUBLIC_BITE_POOL");
-export const APPLE_KITCHEN = envAddress("NEXT_PUBLIC_APPLE_KITCHEN");
-export const DEPLOYER = envAddress("NEXT_PUBLIC_DEPLOYER");
+export const BITE_CURVE = parseAddress(process.env.NEXT_PUBLIC_BITE_CURVE);
+export const BITE_POOL = parseAddress(process.env.NEXT_PUBLIC_BITE_POOL);
+export const APPLE_KITCHEN = parseAddress(process.env.NEXT_PUBLIC_APPLE_KITCHEN);
+export const DEPLOYER = parseAddress(process.env.NEXT_PUBLIC_DEPLOYER);
 
 /** Live pons launchpad for $BITE (path is `/launchpad/:ca` — `/token/:ca` 404s). */
 export const PONS_TOKEN_URL =
@@ -38,8 +43,8 @@ export const PONS_TOKEN_URL =
   `https://www.ponsfamily.com/launchpad/${BITE_TOKEN}`;
 
 /** Default race length if kitchen is not live yet */
-export const DEFAULT_DEADLINE_DAYS = envNumber(
-  "NEXT_PUBLIC_DEADLINE_DAYS",
+export const DEFAULT_DEADLINE_DAYS = parseNumber(
+  process.env.NEXT_PUBLIC_DEADLINE_DAYS,
   30,
 );
 
@@ -47,8 +52,8 @@ export const DEFAULT_DEADLINE_DAYS = envNumber(
  * Core target as a fraction of burnable supply (0.5 = 50%).
  * Burnable = totalSupply - reservedTokens (LP floor).
  */
-export const CORE_TARGET_FRACTION = envNumber(
-  "NEXT_PUBLIC_CORE_TARGET_FRACTION",
+export const CORE_TARGET_FRACTION = parseNumber(
+  process.env.NEXT_PUBLIC_CORE_TARGET_FRACTION,
   0.5,
 );
 
@@ -56,10 +61,9 @@ export const TOTAL_SUPPLY = BigInt(1_000_000_000) * BigInt(10) ** BigInt(18);
 
 export const isLive = Boolean(BITE_TOKEN);
 
-function envBool(key: string, fallback: boolean): boolean {
-  const raw = process.env[key];
-  if (raw === undefined || raw === "") return fallback;
-  const v = raw.trim().toLowerCase();
+function parseBool(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined || value === "") return fallback;
+  const v = value.trim().toLowerCase();
   if (["1", "true", "yes", "on"].includes(v)) return true;
   if (["0", "false", "no", "off"].includes(v)) return false;
   return fallback;
@@ -70,9 +74,9 @@ function envBool(key: string, fallback: boolean): boolean {
  * Prefer NEXT_PUBLIC_DAY_ONE; NEXT_PUBLIC_DEMO_PLAYTHROUGH is an alias.
  * Default true until kitchen + token are live.
  */
-export const DAY_ONE_PLAYTHROUGH = envBool(
-  "NEXT_PUBLIC_DAY_ONE",
-  envBool("NEXT_PUBLIC_DEMO_PLAYTHROUGH", !APPLE_KITCHEN || !BITE_TOKEN),
+export const DAY_ONE_PLAYTHROUGH = parseBool(
+  process.env.NEXT_PUBLIC_DAY_ONE,
+  parseBool(process.env.NEXT_PUBLIC_DEMO_PLAYTHROUGH, !APPLE_KITCHEN || !BITE_TOKEN),
 );
 
 /** Kitchen + token configured — real approve+bite path available */
@@ -100,8 +104,8 @@ export const ACT_II_STARTED_AT = (() => {
 })();
 
 /** Burn progress (0–1) at which meta wager unlocks — default 10% */
-export const META_WAGER_THRESHOLD = envNumber(
-  "NEXT_PUBLIC_META_WAGER_THRESHOLD",
+export const META_WAGER_THRESHOLD = parseNumber(
+  process.env.NEXT_PUBLIC_META_WAGER_THRESHOLD,
   0.1,
 );
 

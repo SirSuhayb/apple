@@ -79,6 +79,8 @@ Module entrypoints: `python -m bots` or `python -m bots.bite_bot` (package is `b
 | `TELEGRAM_CHAT_ID` | for live activity posts | channel/group/DM id |
 | `BITE_CONTRACT` | no | defaults to live CA |
 | `RPC_URL` | no | defaults to Robinhood mainnet RPC |
+| `MIN_SWAP_USD` | no | default `50` — minimum USD value for buy posts (uses Dexscreener `priceUsd`; falls back to `MIN_SWAP_AMOUNT` in BITE when price unavailable) |
+| `MIN_BURN_USD` | no | default `50` — minimum USD value for burn posts (same USD→BITE fallback logic) |
 | `PHASE` | no | `1` Act I; `2+` enable burn posts |
 | `POINTS_PER_BITE_GAINED` | no | default `1` — Act I accum points |
 | `HOLD_BITE_PER_POINT_PER_HOUR` | no | default `100` — Act I hold rate |
@@ -88,6 +90,9 @@ Module entrypoints: `python -m bots` or `python -m bots.bite_bot` (package is `b
 | `TRADE_SCAN_FROM_BLOCK` | no | default `63818043` — first mint / pons V2 launch of live `$BITE` (2026-09-15T17:02:35Z). Bot backfills trades from this block on startup. |
 | `DEV_WALLETS` | no | comma-separated; default `0xEB95ff72…b42E`. Shown with a **Dev** badge; scored but **ineligible** to win. |
 | `INELIGIBLE_WALLETS` | no | extra wallets excluded from winning (merged with `DEV_WALLETS`) |
+| `BLOCKSCOUT_API_KEY` | for accurate holders | Blockscout Pro key for `https://api.blockscout.com/{CHAIN_ID}/api/v2/...` |
+| `BLOCKSCOUT_API_BASE` | no | default `https://api.blockscout.com/4663/api/v2` |
+| `DEXSCREENER_PAIR_ID` | no | Uniswap v4 pair id used for Dexscreener market stats |
 | `BITE_LEADERBOARD_URL` | no | (site) optional remote JSON URL so Vercel can refresh without redeploy |
 | Twitter keys | no | skipped if missing |
 
@@ -102,6 +107,10 @@ Works in **group chats** and **DMs** with the bot (not in broadcast-only channel
 | `/balance` | `/bal`, `check balance` | On-chain `$BITE` balance |
 | `/points` | `/pts`, `check points` | Your Act I points + rank (group-safe) |
 | `/leaderboard` | `/lb`, `check leaderboard` | Top wallets by points · trades |
+| `/stats` | `/supply`, `/info`, `stats`, `check stats`, `supply` | Supply breakdown: total, burned %, EOA held, LP/contract held, realistically burnable, prize pool (AAPL + USD), holders, price |
+| `/burn` | `/tap`, `burn`, `tap` | Deep link to the burn UI on bite.party. `/burn 1000` pre-fills the amount. Shows current burn % and target. |
+| `/ca` | `/contract`, `/address`, `contract address`, `ca` | Token contract address + chain info + links (kitchen address shown when `PHASE>=2`) |
+| `/buy` | `buy`, `how to buy`, `where to buy` | How to buy $BITE — Pons launchpad link, chain, pair, current price, chart |
 | `/help` | `/start` | Command list |
 
 ### Private link → public score
@@ -120,11 +129,41 @@ Works in **group chats** and **DMs** with the bot (not in broadcast-only channel
 Links, points, and `tg_update_offset` live in `bots/.bite_bot_state.json` (gitignored).  
 A sanitized board (wallets, points, trades — no Telegram ids) is written to `public/data/act1-leaderboard.json` for the site (`/leaderboard`, `/api/leaderboard`).
 
-## 5. Act I points (accumulation)
+## 5. Buy bot
+
+The bot doubles as a **buy bot** — reporting buys in the channel and helping users buy.
+
+### Buy alerts (`POST_ACTIVITY=1`)
+
+When `POST_ACTIVITY=1`, notable buys (≥ `MIN_SWAP_USD`) post a buy-bot-style alert:
+
+```
+🟢 $BITE Buy!
+🔑 0xAb12...cD34
+🍎 12.5K $BITE ($48.75)
+💲 Price: $0.003900
+👥 142 holders
+
+🛒 Buy $BITE: https://www.ponsfamily.com/launchpad/...
+📊 Chart: https://dexscreener.com/robinhood/...
+🍎 https://www.bite.party
+```
+
+### `/buy` command
+
+Users can send `/buy` (or `buy`, `how to buy`, `where to buy`) to get the Pons launchpad link, chain info, current price, and chart link.
+
+### Env vars
+
+| Var | Default | Notes |
+|-----|---------|-------|
+| `PONS_BUY_URL` | `https://www.ponsfamily.com/launchpad/0x0d6e...` | Pons launchpad link included in buy alerts + `/buy` |
+
+## 6. Act I points (accumulation)
 
 Kitchen bites / burns do **not** earn points in Act I. Scoring is for people **buying and holding** `$BITE` on the curve/pool.
 
-For each **linked** wallet, every chain poll:
+For each wallet with **trade or hold activity** since `TRADE_SCAN_FROM_BLOCK` (not only Telegram-linked), every chain poll:
 
 1. **Accumulation** — if `balanceOf` rose since the last snapshot, award  
    `floor(delta_BITE) × POINTS_PER_BITE_GAINED`  
@@ -132,19 +171,21 @@ For each **linked** wallet, every chain poll:
 2. **Holding** — using the previous snapshot balance and elapsed time:  
    `(balance_BITE / HOLD_BITE_PER_POINT_PER_HOUR) × hours`  
    (default **100 $BITE held for 1 hour = 1 pt**, pro-rated by poll interval).
-3. **Trades** — each inbound `Transfer` to a linked (or configured dev) wallet (not mint/burn) increments `trade_count` for the site leaderboard. On startup the bot **backfills** from `TRADE_SCAN_FROM_BLOCK` so history since pons launch counts, not only since the daemon first started.
+3. **Trades** — each **buy** (`Transfer` from a contract / LP / router → an EOA) increments `trade_count`. Routers and the LP pool itself are **excluded** from the board (they were skewing ranks). On startup the bot backfills from `TRADE_SCAN_FROM_BLOCK`.
 
-First private link seeds a snapshot without awarding phantom accumulation. Unlinked wallets are not scored (except configured `DEV_WALLETS`).
+**Market sources:** holder/trade truth is on-chain and refreshed via **Blockscout Pro** (`BLOCKSCOUT_API_KEY` → `https://api.blockscout.com/4663/api/v2/tokens/{CA}/holders` + `/counters`; address activity via `/addresses/{address}/transactions`). Pair volume/txn stats come from [Dexscreener](https://dexscreener.com/robinhood/0x76d38162a8ef7da08c92777299fbbfe02748eea05e7cd125131a537b3f08f15c) into the public JSON `market` field.
+
+Telegram `/link` is **identity only**: linked users get personalized `/points` replies. Unlinked wallets still appear on the board as truncated addresses. First snapshot for a wallet seeds balance without awarding phantom accumulation.
 
 **Dev / ineligible:** creator wallets in `DEV_WALLETS` stay on the board with a Dev badge and are excluded from winning ranks (Telegram shows `Dev · ineligible`; site ranks them as `—`).
 
-## 6. Site Act I leaderboard
+## 7. Site Act I leaderboard
 
 - Home “Who traded the most” + `/leaderboard` show **points + trades** only (no kitchen burn columns).
 - Data source: `BITE_LEADERBOARD_URL` (optional) → `public/data/act1-leaderboard.json` → `BITE_BOT_STATE_FILE`.
 - Commit / redeploy the public JSON (or set `BITE_LEADERBOARD_URL` to a hosted copy the bot updates) so production has board data.
 
-## 7. Hosting (always-on)
+## 8. Hosting (always-on)
 
 Run `--daemon` on a small always-on host:
 
@@ -153,7 +194,7 @@ Run `--daemon` on a small always-on host:
 - Persist `bots/.bite_bot_state.json` (or set `BITE_BOT_STATE_FILE`) so restarts do not re-announce old events or reset points/links.
 - Persist / publish `public/data/act1-leaderboard.json` so the Next.js site can read Act I ranks.
 
-## 8. Flip to Act II
+## 9. Flip to Act II
 
 When the kitchen opens and burns matter:
 

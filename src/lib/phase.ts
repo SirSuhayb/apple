@@ -118,11 +118,14 @@ export function resolvePhaseFlags(input: {
   eaterCount: number;
   racePhase: RacePhase;
   secondsLeft: number;
+  /** Pass explicit timestamp (epoch seconds) to avoid Date.now() during render
+   *  which creates a server/client hydration mismatch. */
+  now?: number;
 }): PhaseFlags {
   const act = resolveSiteAct(input);
   const metaWagerLive = input.progress >= META_THRESHOLD;
   const started = actIiStartedAt();
-  const now = Math.floor(Date.now() / 1000);
+  const now = input.now ?? Math.floor(Date.now() / 1000);
   const earlyWindow = EARLY_EATER_HOURS * 3600;
   let earlyEaterSecondsLeft = 0;
   let earlyEaterActive = false;

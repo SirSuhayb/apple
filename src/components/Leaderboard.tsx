@@ -47,23 +47,24 @@ export function Leaderboard({
   const isAct1 = mode === "act1";
   const [sortBy, setSortBy] = useState<SortKey>("score");
 
-  const sorted = [...eaters].sort((a, b) => {
-    if (isAct1) {
-      const ai = isIneligible(a) ? 1 : 0;
-      const bi = isIneligible(b) ? 1 : 0;
-      if (ai !== bi) return ai - bi;
-    }
+  // Filter out zero-score wallets — only show players with points
+  const withScore = eaters.filter((e) => e.score > 0 || isIneligible(e));
+
+  const sorted = [...withScore].sort((a, b) => {
+    const ai = isIneligible(a) ? 1 : 0;
+    const bi = isIneligible(b) ? 1 : 0;
+    if (ai !== bi) return ai - bi;
     if (sortBy === "trades") return totalTrades(b) - totalTrades(a);
     if (sortBy === "burned" && !isAct1) return b.burned - a.burned;
     return b.score - a.score;
   });
 
-  const eligible = sorted.filter((e) => !isIneligible(e));
-  const ineligible = isAct1 ? sorted.filter((e) => isIneligible(e)) : [];
+  const eligible = sorted.filter((e) => !isIneligible(e) && e.score > 0);
+  const ineligibleList = sorted.filter((e) => isIneligible(e));
   const podium = eligible.slice(0, 3);
   const restEligible = eligible.slice(3);
 
-  const statTotal = eaters.reduce(
+  const statTotal = eligible.reduce(
     (acc, e) => ({
       points: acc.points + e.score,
       trades: acc.trades + totalTrades(e),
@@ -84,18 +85,11 @@ export function Leaderboard({
     );
   }
 
-  const sortTabs = (
-    isAct1
-      ? ([
-          ["score", "Points"],
-          ["trades", "Trades"],
-        ] as const)
-      : ([
-          ["score", "Points"],
-          ["trades", "Trades"],
-          ["burned", "Burned"],
-        ] as const)
-  );
+  const sortTabs = [
+    ["score", "Points"],
+    ["trades", "Trades"],
+    ["burned", "Burned"],
+  ] as const;
 
   return (
     <div className="space-y-6">
@@ -192,9 +186,9 @@ export function Leaderboard({
       )}
 
       {/* Ineligible / Dev — visible, not ranked */}
-      {ineligible.length > 0 && (
+      {ineligibleList.length > 0 && (
         <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa]">
-          {ineligible.map((e) => (
+          {ineligibleList.map((e) => (
             <li
               key={e.address}
               className="flex items-center gap-3 px-4 py-3.5"
@@ -224,26 +218,27 @@ export function Leaderboard({
         </ul>
       )}
 
-      {/* Scoring explainer */}
+      {/* Scoring explainer — Act I + II inclusive */}
       <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-4">
         <p className="mb-2.5 text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
           {copy.leaderboard.scoring.eyebrow}
         </p>
         <div className="space-y-1 text-[13px] text-[#6e6e73]">
-          {isAct1 ? (
-            <>
-              <p>{copy.leaderboard.scoring.accum}</p>
-              <p>{copy.leaderboard.scoring.hold}</p>
-              <p>{copy.leaderboard.scoring.tradesAct1}</p>
-              <p>{copy.leaderboard.scoring.devNote}</p>
-            </>
-          ) : (
-            <>
-              <p>{copy.leaderboard.scoring.buy}</p>
-              <p>{copy.leaderboard.scoring.sell}</p>
-              <p>{copy.leaderboard.scoring.tap}</p>
-            </>
-          )}
+          <p>{copy.leaderboard.scoring.accum}</p>
+          <p>{copy.leaderboard.scoring.hold}</p>
+          <p>{copy.leaderboard.scoring.burn}</p>
+          <p>{copy.leaderboard.scoring.tradesAct1}</p>
+        </div>
+      </div>
+
+      {/* Eligibility tooltip */}
+      <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-4">
+        <p className="mb-2.5 text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+          Eligibility
+        </p>
+        <div className="space-y-1 text-[13px] text-[#6e6e73]">
+          <p>{copy.leaderboard.scoring.eligibility}</p>
+          <p>{copy.leaderboard.scoring.devNote}</p>
         </div>
       </div>
     </div>

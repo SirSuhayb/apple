@@ -1,17 +1,78 @@
 "use client";
 
 import Link from "next/link";
-import type { Eater } from "@/lib/race";
+import type { Eater, SupplyStats } from "@/lib/race";
 import { copy } from "@/lib/copy";
 import { Leaderboard } from "@/components/Leaderboard";
 import { SiteFooter } from "@/components/SiteFooter";
 
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000_000)
+    return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 10) return n.toFixed(0);
+  return n.toFixed(2);
+}
+
+function LeaderboardSupplyBar({ stats }: { stats: SupplyStats }) {
+  const burnPct =
+    stats.totalSupply > 0 ? (stats.totalBurned / stats.totalSupply) * 100 : 0;
+  const prizeLabel = stats.prizePoolAapl > 0
+    ? `${fmtCompact(stats.prizePoolAapl)} AAPL`
+    : "—";
+  const prizeUsd =
+    stats.prizePoolUsd != null && stats.prizePoolUsd > 0
+      ? `$${stats.prizePoolUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      : null;
+
+  return (
+    <div className="grid grid-cols-3 gap-2.5 mb-6">
+      <div className="rounded-[14px] border border-[#e53935]/30 bg-[#e53935]/5 px-3 py-3 text-center">
+        <div className="text-[10px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+          Prize Pool
+        </div>
+        <div className="mt-0.5 text-[15px] font-bold text-[#e53935]">
+          {prizeLabel}
+        </div>
+        {prizeUsd && (
+          <div className="text-[10px] text-[#86868b]">{prizeUsd}</div>
+        )}
+      </div>
+      <div className="rounded-[14px] border border-[#d2d2d7] bg-white px-3 py-3 text-center">
+        <div className="text-[10px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+          Holders
+        </div>
+        <div className="mt-0.5 text-[15px] font-bold text-[#1d1d1f]">
+          {stats.holderCount.toLocaleString()}
+        </div>
+        <div className="text-[10px] text-[#86868b]">
+          {fmtCompact(stats.eoaHeldBite)} held
+        </div>
+      </div>
+      <div className="rounded-[14px] border border-[#d2d2d7] bg-white px-3 py-3 text-center">
+        <div className="text-[10px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+          Burned
+        </div>
+        <div className="mt-0.5 text-[15px] font-bold text-[#1d1d1f]">
+          {burnPct.toFixed(2)}%
+        </div>
+        <div className="text-[10px] text-[#86868b]">
+          {fmtCompact(stats.totalBurned)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LeaderboardPage({
   eaters,
   mode = "kitchen",
+  supplyStats,
 }: {
   eaters: Eater[];
   mode?: "act1" | "kitchen";
+  supplyStats?: SupplyStats;
 }) {
   const isAct1 = mode === "act1";
   return (
@@ -51,6 +112,9 @@ export function LeaderboardPage({
       {/* Board */}
       <section className="page-gutter flex-1 pb-16">
         <div className="mx-auto max-w-[580px]">
+          {supplyStats && supplyStats.totalSupply > 0 && (
+            <LeaderboardSupplyBar stats={supplyStats} />
+          )}
           <Leaderboard eaters={eaters} mode={mode} />
         </div>
       </section>

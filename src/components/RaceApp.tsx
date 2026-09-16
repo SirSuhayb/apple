@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Eater, RaceState } from "@/lib/race";
+import type { Eater, RaceState, SupplyStats } from "@/lib/race";
 import { FRAME_COUNT } from "@/lib/race";
 import { buildDemoRaceState } from "@/lib/demo-state";
 import {
@@ -252,6 +252,107 @@ function HowCards({ act }: { act: SiteAct }) {
   );
 }
 
+function fmtCompact(n: number): string {
+  if (n >= 1_000_000_000)
+    return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  if (n >= 10) return n.toFixed(0);
+  return n.toFixed(2);
+}
+
+function SupplyStatsCard({ stats }: { stats: SupplyStats }) {
+  const burned = stats.totalBurned;
+  const burnPct =
+    stats.totalSupply > 0 ? (burned / stats.totalSupply) * 100 : 0;
+  const eoaPct =
+    stats.totalSupply > 0 ? (stats.eoaHeldBite / stats.totalSupply) * 100 : 0;
+  const contractPct =
+    stats.totalSupply > 0
+      ? (stats.contractHeldBite / stats.totalSupply) * 100
+      : 0;
+
+  const prizeLabel = stats.prizePoolAapl > 0
+    ? `${fmtCompact(stats.prizePoolAapl)} AAPL`
+    : "0 AAPL";
+  const prizeUsd =
+    stats.prizePoolUsd != null && stats.prizePoolUsd > 0
+      ? `$${stats.prizePoolUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      : null;
+
+  const cells = [
+    {
+      label: "Prize Pool",
+      value: prizeLabel,
+      sub: prizeUsd,
+      accent: true,
+    },
+    {
+      label: "Held by Wallets",
+      value: `${fmtCompact(stats.eoaHeldBite)}`,
+      sub: `${eoaPct.toFixed(1)}% of supply`,
+    },
+    {
+      label: "In LP / Contracts",
+      value: `${fmtCompact(stats.contractHeldBite)}`,
+      sub: `${contractPct.toFixed(1)}% of supply`,
+    },
+    {
+      label: "Burnable by Holders",
+      value: `${fmtCompact(stats.realisticallyBurnable)}`,
+      sub: `${eoaPct.toFixed(1)}% of supply`,
+    },
+    {
+      label: "Burned",
+      value: `${fmtCompact(burned)}`,
+      sub: `${burnPct.toFixed(2)}%`,
+    },
+    {
+      label: "Holders",
+      value: stats.holderCount.toLocaleString(),
+      sub: stats.bitePriceUsd
+        ? `$${stats.bitePriceUsd.toFixed(6)}`
+        : null,
+    },
+  ];
+
+  return (
+    <div className="mx-auto max-w-[580px]">
+      <p className="mb-4 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+        Supply breakdown
+      </p>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        {cells.map((c) => (
+          <div
+            key={c.label}
+            className={[
+              "rounded-[14px] border px-3 py-4 text-center",
+              c.accent
+                ? "border-[#e53935]/30 bg-[#e53935]/5"
+                : "border-[#d2d2d7] bg-white",
+            ].join(" ")}
+          >
+            <div className="mb-1 text-[10px] font-semibold tracking-[1.2px] text-[#86868b] uppercase">
+              {c.label}
+            </div>
+            <div
+              className={[
+                "text-[17px] font-bold leading-snug tabular-nums",
+                c.accent ? "text-[#e53935]" : "text-[#1d1d1f]",
+              ].join(" ")}
+            >
+              {c.value}
+            </div>
+            {c.sub && (
+              <div className="mt-0.5 text-[11px] text-[#86868b]">{c.sub}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function RaceApp({
   initial,
   act1Eaters = [],
@@ -262,18 +363,45 @@ export function RaceApp({
 }) {
   const [state, setState] = useState(initial);
   const [act1Board, setAct1Board] = useState(act1Eaters);
+  const [supplyStats, setSupplyStats] = useState<SupplyStats | null>(
+    initial.supplyStats ?? null,
+  );
   const [juicePulse, setJuicePulse] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
 
   const [playFrame, setPlayFrame] = useState(0);
+  const [prefillAmount, setPrefillAmount] = useState<string | null>(null);
+
+  // Read #burn or #burn?amount=X from URL hash on mount
+  useEffect(() => {
+    const hash = window.location.hash; // e.g. "#burn?amount=1000"
+    if (!hash.startsWith("#burn")) return;
+
+    // Parse amount from hash params (e.g. #burn?amount=1000)
+    const qIdx = hash.indexOf("?");
+    if (qIdx >= 0) {
+      const params = new URLSearchParams(hash.slice(qIdx + 1));
+      const amt = params.get("amount");
+      if (amt && /^\d+$/.test(amt)) {
+        setPrefillAmount(amt);
+      }
+    }
+
+    // Scroll to the burn section after layout settles
+    requestAnimationFrame(() => {
+      const el = document.getElementById("burn");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    });
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
       const res = await fetch("/api/race", { cache: "no-store" });
       if (!res.ok) return;
-      const next = (await res.json()) as RaceState;
+      const next = (await res.json()) as RaceState & { supplyStats?: SupplyStats | null };
       setState(next);
+      if (next.supplyStats) setSupplyStats(next.supplyStats);
     } catch {
       // keep current
     }
@@ -286,10 +414,12 @@ export function RaceApp({
       const next = (await res.json()) as {
         eaters?: Eater[];
         scoring?: string;
+        supplyStats?: SupplyStats | null;
       };
       if (next.scoring === "act1" && Array.isArray(next.eaters)) {
         setAct1Board(next.eaters);
       }
+      if (next.supplyStats) setSupplyStats(next.supplyStats);
     } catch {
       // keep current
     }
@@ -336,8 +466,9 @@ export function RaceApp({
         eaterCount: state.eaters.length,
         racePhase: state.phase,
         secondsLeft: state.secondsLeft,
+        now: state.deadline - state.secondsLeft,
       }),
-    [state.progress, state.eaters.length, state.phase, state.secondsLeft],
+    [state.progress, state.eaters.length, state.phase, state.secondsLeft, state.deadline],
   );
 
   const rot =
@@ -355,9 +486,10 @@ export function RaceApp({
   const raceEnded = state.phase === "core" || state.phase === "rot";
 
   // Prologue empty; Act I = trades/points from bot; Act II+ kitchen eaters
+  // All acts: inclusive leaderboard (Act I points/trades carry into Act II+)
   const boardEaters =
-    flags.act === 0 ? [] : flags.act === 1 ? act1Board : state.eaters;
-  const boardMode = flags.act === 1 ? "act1" : "kitchen";
+    flags.act === 0 ? [] : act1Board.length > 0 ? act1Board : state.eaters;
+  const boardMode: "act1" | "kitchen" = "act1";
 
   /** Day 1 default: pons deep-link. Opt-in Uniswap modal via NEXT_PUBLIC_SWAP_PROVIDER=uniswap. */
   const openBuy = () => {
@@ -636,6 +768,13 @@ export function RaceApp({
         </section>
       )}
 
+      {/* Supply stats */}
+      {supplyStats && supplyStats.totalSupply > 0 && (
+        <section id="supply" className="page-gutter bg-[#f5f5f7] py-10">
+          <SupplyStatsCard stats={supplyStats} />
+        </section>
+      )}
+
       {/* Biggest eaters */}
       <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
         <div className="mx-auto max-w-[580px]">
@@ -712,8 +851,8 @@ export function RaceApp({
         </div>
       </section>
 
-      {/* Tap section */}
-      <section id="tap" className="page-gutter bg-[#fbfbfd] py-20 text-center">
+      {/* Tap / Burn section */}
+      <section id="burn" className="page-gutter bg-[#fbfbfd] py-20 text-center">
         <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
           {copy.tap.eyebrow}
         </p>
@@ -766,6 +905,7 @@ export function RaceApp({
           onClose={() => setModalOpen(false)}
           currentProgress={state.progress}
           onBiteComplete={onBiteComplete}
+          prefillAmount={prefillAmount}
         />
       )}
 

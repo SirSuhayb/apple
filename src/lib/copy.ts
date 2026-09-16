@@ -186,11 +186,11 @@ export const copy = {
   leaderboard: {
     title: "Leaderboard",
     headline: "Every trade counts.",
-    headlineAct1: "Accumulate. Hold. Climb.",
+    headlineAct1: "Accumulate. Hold. Burn. Climb.",
     subtitle:
       "Points from buys, sells, and burns. The more you trade, the higher you climb.",
     subtitleAct1:
-      "Act I ranks traders by points from buying and holding $BITE — kitchen burns come in Act II.",
+      "Points from buying, holding, and burning $BITE. Act I accumulation carries into Act II.",
     columns: ["Rank", "Trader", "Points", "Trades"] as const,
     pts: "pts",
     trades: (n: number) => `${n} trade${n === 1 ? "" : "s"}`,
@@ -202,8 +202,9 @@ export const copy = {
     empty: "No trades yet.",
     emptyHint: "The leaderboard populates when trading begins.",
     emptyHintAct1:
-      "Link your wallet in Telegram (DM the bot your 0x…) and start trading $BITE.",
-    viewAll: "Full leaderboard →",
+      "All wallets trading or holding $BITE since launch appear here. DM the bot your 0x… in Telegram to claim identity for /points.",
+    viewAll: "Show full leaderboard",
+    viewAllHint: "Top 10 on the home board — open the full list for every trader.",
     devBadge: "Dev",
     ineligible: "Ineligible",
     scoring: {
@@ -211,11 +212,15 @@ export const copy = {
       buy: "Buy — 1× quote volume",
       sell: "Sell — 1.5× quote volume",
       tap: "Burn — 50× burn amount",
-      accum: "Accumulation — +1 pt per whole $BITE gained",
-      hold: "Holding — 100 $BITE held for 1 hour = 1 pt",
-      tradesAct1: "Trades — inbound $BITE transfers to your linked wallet",
+      accum: "Act I — Accumulation: +1 pt per whole $BITE gained",
+      hold: "Act I — Holding: 100 $BITE held for 1 hour = 1 pt",
+      burn: "Act II — Burns: burn $BITE via the kitchen for points",
+      tradesAct1:
+        "Trades — buys since launch count (all wallets; link in Telegram for /points identity)",
       devNote:
-        "Dev wallets appear on the board with a Dev badge and cannot win Act I.",
+        "Dev wallets appear on the board with a Dev badge and are ineligible to win.",
+      eligibility:
+        "Only wallets with points > 0 are ranked. Dev and team wallets are shown but marked ineligible — they cannot win the pot.",
     },
     back: "← Back",
   },

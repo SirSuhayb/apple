@@ -27,6 +27,20 @@ export type RaceEvent = {
 
 export type RacePhase = "racing" | "core" | "rot" | "preview";
 
+export type SupplyStats = {
+  prizePoolAapl: number;
+  prizePoolUsd: number | null;
+  aaplPriceUsd: number | null;
+  eoaHeldBite: number;
+  contractHeldBite: number;
+  realisticallyBurnable: number;
+  totalSupply: number;
+  totalBurned: number;
+  holderCount: number;
+  bitePriceUsd: number | null;
+  updatedAt?: string;
+};
+
 export type RaceState = {
   phase: RacePhase;
   live: boolean;
@@ -47,6 +61,7 @@ export type RaceState = {
   eaters: Eater[];
   tape: RaceEvent[];
   message: string;
+  supplyStats?: SupplyStats | null;
 };
 
 export const FRAME_COUNT = 10;

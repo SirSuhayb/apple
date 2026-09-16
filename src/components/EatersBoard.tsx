@@ -73,10 +73,16 @@ export function EatersBoard({
 
   const eligible = isAct1 ? sorted.filter((e) => !isIneligible(e)) : sorted;
   const ineligible = isAct1 ? sorted.filter((e) => isIneligible(e)) : [];
-  const top = eligible[0];
-  const mid = eligible.slice(1, 3);
-  const low = eligible.slice(3, 6);
-  const rest = eligible.slice(6);
+  // Home board: top 10 only; full list lives on /leaderboard
+  const topTen = eligible.slice(0, 10);
+  const top = topTen[0];
+  const mid = topTen.slice(1, 3);
+  const low = topTen.slice(3, 6);
+  const rest = topTen.slice(6, 10);
+  const showDev =
+    isAct1 && ineligible.some((e) => isDev(e))
+      ? ineligible.filter((e) => isDev(e)).slice(0, 1)
+      : [];
 
   return (
     <div className="grid grid-cols-1 gap-2.5">
@@ -177,7 +183,7 @@ export function EatersBoard({
         </div>
       )}
 
-      {/* 7+ */}
+      {/* #7–10 */}
       {rest.length > 0 && (
         <ul className="mt-1 divide-y divide-[#d2d2d7] rounded-[14px] border border-[#d2d2d7] bg-white">
           {rest.map((e, i) => (
@@ -197,10 +203,10 @@ export function EatersBoard({
         </ul>
       )}
 
-      {/* Dev / ineligible — visible, not ranked */}
-      {ineligible.length > 0 && (
+      {/* Dev / ineligible — visible, not ranked (home: show Dev only) */}
+      {showDev.length > 0 && (
         <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa]">
-          {ineligible.map((e) => (
+          {showDev.map((e) => (
             <li
               key={e.address}
               className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
@@ -220,14 +226,19 @@ export function EatersBoard({
         </ul>
       )}
 
-      {/* Full leaderboard link */}
-      <div className="mt-1 text-center">
+      {/* Full leaderboard CTA */}
+      <div className="mt-2 text-center">
         <Link
           href="/leaderboard"
-          className="text-[15px] font-medium text-[#2997ff] hover:text-[#0077ed]"
+          className="inline-flex items-center justify-center rounded-full bg-[#1d1d1f] px-5 py-2.5 text-[15px] font-semibold text-white hover:bg-black"
         >
           {copy.leaderboard.viewAll}
         </Link>
+        {eligible.length > 10 && (
+          <p className="mt-2 text-[12px] text-[#86868b]">
+            {copy.leaderboard.viewAllHint}
+          </p>
+        )}
       </div>
     </div>
   );

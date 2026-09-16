@@ -14,30 +14,21 @@ export async function GET() {
     racePhase: state.phase,
   });
 
-  // Act I (and Prologue): trades + points from bot state — no kitchen burns
-  if (act <= 1) {
-    const act1 = await fetchAct1Leaderboard();
-    return NextResponse.json(
-      {
-        eaters: act1.eaters,
-        phase: state.phase,
-        act,
-        scoring: "act1",
-        updatedAt: act1.updatedAt ?? null,
-        progress: state.progress,
-      },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  const sorted = [...state.eaters].sort((a, b) => b.score - a.score);
+  // All acts use the same real bot leaderboard data (Act I + II inclusive)
+  const act1 = await fetchAct1Leaderboard();
+  const eaters =
+    act1.eaters.length > 0
+      ? act1.eaters
+      : [...state.eaters].sort((a, b) => b.score - a.score);
   return NextResponse.json(
     {
-      eaters: sorted,
+      eaters,
       phase: state.phase,
       act,
-      scoring: "kitchen",
+      scoring: "act1",
+      updatedAt: act1.updatedAt ?? null,
       progress: state.progress,
+      supplyStats: act1.supplyStats ?? null,
     },
     { headers: { "Cache-Control": "no-store" } },
   );

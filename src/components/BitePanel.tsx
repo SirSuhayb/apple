@@ -5,11 +5,13 @@ import {
   useAccount,
   useConnect,
   useDisconnect,
+  useSwitchChain,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { formatEther, parseEther } from "viem";
 import { appleKitchenAbi, erc20Abi } from "@/lib/abis";
+import { robinhoodChain } from "@/lib/chain";
 import { APPLE_KITCHEN, BITE_TOKEN, KITCHEN_READY } from "@/lib/config";
 import { copy } from "@/lib/copy";
 
@@ -19,13 +21,33 @@ export function BitePanel({
 }: {
   onBiteSubmitted?: () => void;
 }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending: connecting } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
   const [custom, setCustom] = useState("1000");
   const [amount, setAmount] = useState<bigint>(parseEther("1000"));
 
+  // Read pre-filled amount from URL hash (e.g. #burn?amount=1000)
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.startsWith("#burn")) return;
+    const qIdx = hash.indexOf("?");
+    if (qIdx < 0) return;
+    const params = new URLSearchParams(hash.slice(qIdx + 1));
+    const amt = params.get("amount");
+    if (amt && /^\d+$/.test(amt)) {
+      setCustom(amt);
+      try {
+        setAmount(parseEther(amt));
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   const kitchenReady = KITCHEN_READY;
+  const onWrongChain = isConnected && chainId !== robinhoodChain.id;
 
   const {
     writeContract,
@@ -49,6 +71,7 @@ export function BitePanel({
       abi: erc20Abi,
       functionName: "approve",
       args: [APPLE_KITCHEN, value],
+      chainId: robinhoodChain.id,
     });
   };
 
@@ -59,6 +82,7 @@ export function BitePanel({
       abi: appleKitchenAbi,
       functionName: "bite",
       args: [amount],
+      chainId: robinhoodChain.id,
     });
   };
 
@@ -73,14 +97,19 @@ export function BitePanel({
   return (
     <div className="space-y-5">
       {!isConnected ? (
-        <button
-          type="button"
-          disabled={connecting}
-          onClick={() => connect({ connector: connectors[0] })}
-          className="w-full rounded-full bg-[#1d1d1f] px-6 py-3.5 text-[15px] font-medium text-white transition hover:bg-[#000000] disabled:opacity-50"
-        >
-          {connecting ? copy.tap.connecting : copy.tap.connect}
-        </button>
+        <div className="space-y-2">
+          {connectors.map((connector) => (
+            <button
+              key={connector.uid}
+              type="button"
+              disabled={connecting}
+              onClick={() => connect({ connector })}
+              className="w-full rounded-full bg-[#1d1d1f] px-6 py-3 text-[15px] font-medium text-white transition hover:bg-[#000000] disabled:opacity-50"
+            >
+              {connecting ? copy.tap.connecting : connector.name}
+            </button>
+          ))}
+        </div>
       ) : (
         <>
           <div className="flex items-center justify-between text-[13px] text-[#6e6e73]">
@@ -95,6 +124,16 @@ export function BitePanel({
               {copy.tap.disconnect}
             </button>
           </div>
+
+          {onWrongChain && (
+            <button
+              type="button"
+              onClick={() => switchChain({ chainId: robinhoodChain.id })}
+              className="w-full rounded-full border border-[#e53935]/40 bg-[#e53935]/10 px-4 py-2.5 text-[13px] font-medium text-[#e53935] transition hover:bg-[#e53935]/20"
+            >
+              Switch to Robinhood Chain
+            </button>
+          )}
 
           <div className="grid grid-cols-3 gap-2">
             {copy.tap.presets.map((p) => (
