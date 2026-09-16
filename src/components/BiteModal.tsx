@@ -1,20 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAccount,
   useConnect,
   useDisconnect,
+  useSwitchChain,
   useWriteContract,
   useWaitForTransactionReceipt,
 } from "wagmi";
+import type { Connector } from "wagmi";
 import { formatEther, parseEther } from "viem";
 import { appleKitchenAbi, erc20Abi } from "@/lib/abis";
+import { robinhoodChain } from "@/lib/chain";
 import { APPLE_KITCHEN, BITE_TOKEN, KITCHEN_READY } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import { progressToFrame, scoreTap } from "@/lib/race";
 
 type Step = "connect" | "amount" | "burning" | "complete";
+
+const CONNECTOR_LABELS: Record<string, string> = {
+  injected: "Browser Wallet",
+  walletConnect: "WalletConnect",
+  coinbaseWalletSDK: "Coinbase Wallet",
+};
+
+function connectorLabel(c: Connector): string {
+  if (c.name && c.name !== "Injected") return c.name;
+  return CONNECTOR_LABELS[c.type] ?? c.name ?? c.type;
+}
+
+function dedupeConnectors(connectors: readonly Connector[]): Connector[] {
+  const seen = new Set<string>();
+  const result: Connector[] = [];
+  for (const c of connectors) {
+    const key = c.type === "injected" ? `injected:${c.name}` : c.type;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(c);
+  }
+  return result;
+}
 
 export type BiteResult = {
   amountLabel: string;
@@ -29,6 +55,8 @@ type BiteModalProps = {
   onClose: () => void;
   currentProgress: number;
   onBiteComplete: (result: BiteResult) => void;
+  /** Pre-fill amount from URL deep link (e.g. #burn?amount=1000) */
+  prefillAmount?: string | null;
 };
 
 export function BiteModal({
@@ -36,10 +64,14 @@ export function BiteModal({
   onClose,
   currentProgress,
   onBiteComplete,
+  prefillAmount,
 }: BiteModalProps) {
-  const { address, isConnected } = useAccount();
-  const { connect, connectors, isPending: connecting } = useConnect();
+  const { address, isConnected, chainId } = useAccount();
+  const { connect, connectors: rawConnectors, isPending: connecting } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
+
+  const connectors = useMemo(() => dedupeConnectors(rawConnectors), [rawConnectors]);
   const [custom, setCustom] = useState("1000");
   const [amount, setAmount] = useState<bigint>(parseEther("1000"));
   const [step, setStep] = useState<Step>("connect");
@@ -47,6 +79,8 @@ export function BiteModal({
   const [result, setResult] = useState<BiteResult | null>(null);
   const [demoBusy, setDemoBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const onWrongChain = isConnected && chainId !== robinhoodChain.id;
 
   const {
     writeContract,
@@ -67,7 +101,17 @@ export function BiteModal({
     setDemoBusy(false);
     reset();
     setStep(isConnected ? "amount" : "connect");
-  }, [open, isConnected, reset]);
+
+    // Apply prefilled amount from URL deep link
+    if (prefillAmount) {
+      try {
+        setCustom(prefillAmount);
+        setAmount(parseEther(prefillAmount));
+      } catch {
+        // ignore invalid values
+      }
+    }
+  }, [open, isConnected, reset, prefillAmount]);
 
   useEffect(() => {
     if (!open || !isSuccess || !hash) return;
@@ -79,6 +123,7 @@ export function BiteModal({
         abi: appleKitchenAbi,
         functionName: "bite",
         args: [amount],
+        chainId: robinhoodChain.id,
       });
       return;
     }
@@ -129,6 +174,7 @@ export function BiteModal({
       abi: erc20Abi,
       functionName: "approve",
       args: [APPLE_KITCHEN, value],
+      chainId: robinhoodChain.id,
     });
   };
 
@@ -191,14 +237,29 @@ export function BiteModal({
             <p className="text-[15px] leading-relaxed text-[#6e6e73]">
               {copy.tap.modal.stepConnect}
             </p>
-            <button
-              type="button"
-              disabled={connecting}
-              onClick={() => connect({ connector: connectors[0] })}
-              className="w-full rounded-full bg-[#1d1d1f] px-6 py-3.5 text-[15px] font-medium text-white transition hover:bg-[#000000] disabled:opacity-50"
-            >
-              {connecting ? copy.tap.connecting : copy.tap.connect}
-            </button>
+            <div className="space-y-2">
+              {connectors.map((connector) => {
+                const isWC = connector.type === "walletConnect";
+                return (
+                  <button
+                    key={connector.uid}
+                    type="button"
+                    disabled={connecting}
+                    onClick={() => connect({ connector })}
+                    className={[
+                      "w-full rounded-full px-6 py-3 text-[15px] font-medium transition disabled:opacity-50",
+                      isWC
+                        ? "border border-[#2997ff] bg-white text-[#2997ff] hover:bg-[#2997ff]/5"
+                        : "bg-[#1d1d1f] text-white hover:bg-[#000000]",
+                    ].join(" ")}
+                  >
+                    {connecting
+                      ? copy.tap.connecting
+                      : connectorLabel(connector)}
+                  </button>
+                );
+              })}
+            </div>
             {!KITCHEN_READY && (
               <button
                 type="button"
@@ -218,18 +279,43 @@ export function BiteModal({
             </p>
 
             {isConnected ? (
-              <div className="flex items-center justify-between text-[13px] text-[#6e6e73]">
-                <span className="font-mono">
-                  {address?.slice(0, 6)}…{address?.slice(-4)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => disconnect()}
-                  className="text-[#0066cc] hover:text-[#0077ed]"
-                >
-                  {copy.tap.disconnect}
-                </button>
-              </div>
+              <>
+                <div className="flex items-center justify-between text-[13px] text-[#6e6e73]">
+                  <span className="font-mono">
+                    {address?.slice(0, 6)}…{address?.slice(-4)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => disconnect()}
+                    className="text-[#0066cc] hover:text-[#0077ed]"
+                  >
+                    {copy.tap.disconnect}
+                  </button>
+                </div>
+                {onWrongChain && (
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        try {
+                          switchChain({ chainId: robinhoodChain.id });
+                        } catch {
+                          setLocalError(
+                            `Switch to Robinhood Chain (${robinhoodChain.id}) in your wallet — RPC: ${robinhoodChain.rpcUrls.default.http[0]}`,
+                          );
+                        }
+                      }}
+                      className="w-full rounded-full border border-[#e53935]/40 bg-[#e53935]/10 px-4 py-2.5 text-[13px] font-medium text-[#e53935] transition hover:bg-[#e53935]/20"
+                    >
+                      Switch to Robinhood Chain
+                    </button>
+                    <p className="text-[11px] text-[#86868b]">
+                      Chain ID: {robinhoodChain.id} · RPC:{" "}
+                      {robinhoodChain.rpcUrls.default.http[0]}
+                    </p>
+                  </div>
+                )}
+              </>
             ) : (
               !KITCHEN_READY && (
                 <p className="text-[12px] text-[#86868b]">

@@ -14,9 +14,11 @@
     "test:contracts": "cd contracts && forge test"
   },
   "dependencies": {
+    "@coinbase/wallet-sdk": "^4.3.7",
     "@react-three/drei": "^10.7.8",
     "@react-three/fiber": "^9.7.0",
     "@tanstack/react-query": "^5.102.8",
+    "@walletconnect/ethereum-provider": "^2.25.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
