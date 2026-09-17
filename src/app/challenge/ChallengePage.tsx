@@ -108,6 +108,13 @@ export function ChallengePage() {
               {c.hero.ctaPrimary}
             </a>
             <a
+              href={c.kit.href}
+              download
+              className="text-[15px] text-[#2997ff] no-underline"
+            >
+              {c.hero.ctaKit}
+            </a>
+            <a
               href="#brief"
               className="text-[15px] text-[#2997ff] no-underline"
             >
@@ -147,7 +154,7 @@ export function ChallengePage() {
               </div>
               <span
                 className={[
-                  "text-[22px] font-bold tracking-[-0.02em] tabular-nums",
+                  "text-right text-[18px] font-bold tracking-[-0.02em] tabular-nums sm:text-[20px]",
                   i === 0 ? "text-[#e53935]" : "text-[#1d1d1f]",
                 ].join(" ")}
               >
@@ -156,6 +163,32 @@ export function ChallengePage() {
             </li>
           ))}
         </ol>
+      </section>
+
+      {/* Starter kit */}
+      <section
+        id="kit"
+        className="page-gutter py-20 text-center"
+      >
+        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+          {c.kit.eyebrow}
+        </p>
+        <h2 className="text-[clamp(28px,6vw,42px)] font-bold leading-[1.1] tracking-[-0.02em]">
+          {c.kit.headline}
+        </h2>
+        <p className="mx-auto mt-3.5 max-w-[460px] text-[17px] leading-relaxed text-[#86868b]">
+          {c.kit.support}
+        </p>
+        <a
+          href={c.kit.href}
+          download
+          className="mt-8 inline-block rounded-full bg-[#1d1d1f] px-7 py-3.5 text-[15px] font-semibold text-white transition hover:bg-black"
+        >
+          {c.kit.cta}
+        </a>
+        <p className="mx-auto mt-4 max-w-[380px] text-[12px] leading-relaxed text-[#86868b]">
+          {c.kit.fine}
+        </p>
       </section>
 
       {/* Brief */}

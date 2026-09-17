@@ -1,12 +1,12 @@
 import { socialLinks } from "./copy";
 
-/** Copy for /challenge — $1M builder challenge (sample / editable). */
+/** Copy for /challenge — 1M $BITE builder challenge (sample / editable). */
 
 export const challengeCopy = {
   meta: {
     title: "$BITE Challenge — Build on the apple.",
     description:
-      "A $1,000,000 builder challenge. Five winners. Ship something cool with the $BITE apple and APIs on Robinhood Chain.",
+      "A 1,000,000 $BITE builder challenge. Five winners. Ship something cool with the $BITE apple and APIs on Robinhood Chain. Prizes paid in $BITE — not USD.",
   },
 
   brand: "$BITE",
@@ -15,23 +15,34 @@ export const challengeCopy = {
   hero: {
     headline: "Build on the apple.",
     support:
-      "One million dollars. Five winners. Use our apple, our race APIs, and the kitchen — ship something the orchard can’t ignore.",
+      "One million $BITE. Five winners. Use our apple, our race APIs, and the kitchen — ship something the orchard can’t ignore.",
     ctaPrimary: "Enter the challenge",
     ctaSecondary: "Read the brief ↓",
+    ctaKit: "Download media kit",
   },
 
   prizes: {
     eyebrow: "The purse",
-    headline: "Five winners. One million.",
+    headline: "Five winners. One million $BITE.",
     support:
-      "Prize amounts are denominated in USD value at payout. Escrow and claim mechanics publish before submissions close.",
+      "All prizes are paid in $BITE — not USD. Escrow and claim mechanics publish before submissions close.",
     tiers: [
-      { place: "1st", amount: "$400,000", note: "Grand prize" },
-      { place: "2nd", amount: "$250,000", note: "Runner-up" },
-      { place: "3rd", amount: "$175,000", note: "Third" },
-      { place: "4th", amount: "$100,000", note: "Fourth" },
-      { place: "5th", amount: "$75,000", note: "Fifth" },
+      { place: "1st", amount: "400,000 $BITE", note: "Grand prize" },
+      { place: "2nd", amount: "250,000 $BITE", note: "Runner-up" },
+      { place: "3rd", amount: "175,000 $BITE", note: "Third" },
+      { place: "4th", amount: "100,000 $BITE", note: "Fourth" },
+      { place: "5th", amount: "75,000 $BITE", note: "Fifth" },
     ] as const,
+  },
+
+  kit: {
+    eyebrow: "Starter kit",
+    headline: "Download the media package.",
+    support:
+      "Apple stills, GLB frames, brand tokens, API cheat sheet, and contract addresses — everything to start building in one zip.",
+    cta: "Download media kit",
+    href: "/challenge/bite-builder-kit.zip",
+    fine: "Apple meshes by Eydeet (CC BY 4.0). Credit included in the kit.",
   },
 
   brief: {
@@ -40,7 +51,7 @@ export const challengeCopy = {
     support:
       "Clients, bots, games, viz, agents, tools — anything that uses the live apple and at least one $BITE surface.",
     must: [
-      "Use the official apple asset (frames / stills).",
+      "Use the official apple asset (frames / stills from the media kit).",
       "Call at least one live $BITE API or contract.",
       "Ship a public demo URL + 60-second video.",
       "Open-source the repo (or a reproducible build).",
@@ -171,7 +182,7 @@ export const challengeCopy = {
     support:
       "Send your demo, repo, and 60-second video via Telegram. We’ll confirm receipt in-channel.",
     cta: "Submit on Telegram",
-    fine: "Sample page — escrow address and exact dates will be published before the build window opens.",
+    fine: "Sample page — escrow address and exact dates will be published before the build window opens. Prizes are in $BITE, not USD.",
   },
 
   nav: {

@@ -42,7 +42,7 @@ _Source: `copy.nav` · `RaceApp`_
 
 _Source: `src/lib/challenge-copy.ts` · `ChallengePage`_
 
-Sample $1M builder challenge page: five winners, brief, APIs, rules, judging rubric, TG/pons/X/Farcaster outreach, Telegram submit CTA. Escrow + final dates are placeholders until you lock them.
+**1,000,000 $BITE** builder challenge (prizes in **$BITE**, not USD). Five winners. Media kit: `public/challenge/bite-builder-kit.zip` (rebuild with `npm run challenge-kit`). Kit source docs live in `public/challenge/builder-kit/`.
 
 ---
 

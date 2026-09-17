@@ -11,6 +11,7 @@
     "bake-apple": "node scripts/bake-apple-frames.mjs",
     "bake-apple-fit": "node scripts/bake-apple-fit-scales.mjs",
     "export-apple-stills": "node scripts/export-apple-stills.mjs",
+    "challenge-kit": "node scripts/build-challenge-kit.mjs",
     "test:contracts": "cd contracts && forge test"
   },
   "dependencies": {
@@ -19,6 +20,7 @@
     "@react-three/fiber": "^9.7.0",
     "@tanstack/react-query": "^5.102.8",
     "@walletconnect/ethereum-provider": "^2.25.0",
+    "@walletconnect/modal": "^2.7.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -34,6 +36,7 @@
     "@types/three": "^0.185.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
+    "railway": "^3.11.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

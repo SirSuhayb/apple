@@ -1,0 +1,17 @@
+{
+  "chainId": 4663,
+  "chainName": "Robinhood Chain",
+  "rpc": "https://rpc.mainnet.chain.robinhood.com",
+  "site": "https://www.bite.party",
+  "challenge": "https://www.bite.party/challenge",
+  "biteToken": "0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9",
+  "aaplToken": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+  "appleKitchen": "0x56fEb999D829761C787581413605bf88F5Cd81e0",
+  "ponsLaunchpad": "https://www.ponsfamily.com/launchpad/0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9",
+  "apis": {
+    "race": "https://www.bite.party/api/race",
+    "leaderboard": "https://www.bite.party/api/leaderboard",
+    "supply": "https://www.bite.party/api/supply",
+    "circulatingSupply": "https://www.bite.party/api/circulating-supply"
+  }
+}

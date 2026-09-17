@@ -1,0 +1,20 @@
+{
+  "name": "$BITE",
+  "tagline": "Eat it to the core.",
+  "colors": {
+    "bg": "#fbfbfd",
+    "bgElevated": "#ffffff",
+    "bgLight": "#f5f5f7",
+    "ink": "#1d1d1f",
+    "inkMuted": "#6e6e73",
+    "inkFaint": "#86868b",
+    "line": "#d2d2d7",
+    "accent": "#2997ff",
+    "bite": "#e53935",
+    "success": "#34c759"
+  },
+  "fonts": {
+    "display": "Sora",
+    "mono": "JetBrains Mono"
+  }
+}
