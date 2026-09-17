@@ -66,23 +66,23 @@ export function ChallengePage() {
           className="challenge-grain pointer-events-none absolute inset-0 -z-10 opacity-[0.35]"
         />
 
-        <div className="page-gutter relative mx-auto flex w-full max-w-[980px] flex-1 flex-col items-center pt-[min(12vh,96px)] pb-10 text-center">
+        <div className="page-gutter relative mx-auto flex w-full max-w-[980px] flex-1 flex-col items-center justify-center py-8 text-center sm:py-10">
           <p className="animate-rise text-[12px] font-semibold tracking-[0.18em] text-[#e53935] uppercase">
             {c.badge}
           </p>
-          <h1 className="animate-rise-delay-1 mt-3 text-[clamp(56px,14vw,96px)] font-bold leading-none tracking-[-0.04em]">
+          <h1 className="animate-rise-delay-1 mt-2 text-[clamp(52px,12vw,88px)] font-bold leading-none tracking-[-0.04em]">
             {c.brand}
           </h1>
-          <p className="animate-rise-delay-1 mt-3 text-[clamp(22px,4.5vw,34px)] font-medium tracking-[-0.02em] text-[#1d1d1f]">
+          <p className="animate-rise-delay-1 mt-2.5 text-[clamp(20px,4vw,30px)] font-medium tracking-[-0.02em] text-[#1d1d1f]">
             {c.hero.headline}
           </p>
-          <p className="animate-rise-delay-2 mx-auto mt-4 max-w-[440px] text-[16px] leading-relaxed text-[#6e6e73]">
+          <p className="animate-rise-delay-2 mx-auto mt-3 max-w-[440px] text-[15px] leading-relaxed text-[#6e6e73] sm:text-[16px]">
             {c.hero.support}
           </p>
 
-          <div className="animate-fade relative mx-auto mt-4 w-full max-w-[560px]">
-            <div className="challenge-apple-glow absolute inset-[12%] rounded-full bg-[#e53935]/10 blur-3xl" />
-            <div className="relative mx-auto aspect-square w-[min(100%,min(52svh,480px))]">
+          <div className="animate-fade relative mx-auto mt-1 w-full max-w-[520px]">
+            <div className="challenge-apple-glow absolute inset-[14%] rounded-full bg-[#e53935]/10 blur-3xl" />
+            <div className="relative mx-auto aspect-square w-[min(100%,min(42svh,400px))]">
               {HERO_FRAMES.map((src, i) => (
                 <Image
                   key={src}
@@ -90,7 +90,7 @@ export function ChallengePage() {
                   alt=""
                   fill
                   priority={i === 0}
-                  sizes="(max-width: 640px) 90vw, 480px"
+                  sizes="(max-width: 640px) 90vw, 400px"
                   className={[
                     "object-contain transition-opacity duration-500",
                     i === frameIdx ? "opacity-100" : "opacity-0",
@@ -100,7 +100,7 @@ export function ChallengePage() {
             </div>
           </div>
 
-          <div className="animate-rise-delay-3 mt-2 flex flex-wrap items-center justify-center gap-4">
+          <div className="animate-rise-delay-3 mt-1 flex flex-wrap items-center justify-center gap-4">
             <a
               href="#enter"
               className="rounded-full bg-[#1d1d1f] px-6 py-3 text-[15px] font-semibold text-white transition hover:bg-black"
