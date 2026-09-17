@@ -22,6 +22,7 @@ export const copy = {
     buy: "Buy",
     soon: "Soon",
     leaderboard: "Leaderboard",
+    challenge: "Challenge",
     badge: {
       soon: "Soon",
       preparing: "Preparing",

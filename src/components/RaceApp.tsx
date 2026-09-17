@@ -9,6 +9,7 @@ import { buildDemoRaceState } from "@/lib/demo-state";
 import {
   BITE_TOKEN,
   DAY_ONE_PLAYTHROUGH,
+  LEADERBOARD_POLL_MS,
   PONS_TOKEN_URL,
   SWAP_PROVIDER,
 } from "@/lib/config";
@@ -23,6 +24,7 @@ import {
 import { resolvePhaseFlags, type SiteAct } from "@/lib/phase";
 import { BiteModal, type BiteResult } from "./BiteModal";
 import { Countdown } from "./Countdown";
+import { useLeaderboardLive } from "@/lib/use-leaderboard";
 import { EatersBoard } from "./EatersBoard";
 import {
   MetaWagerEmpty,
@@ -362,7 +364,11 @@ export function RaceApp({
   act1Eaters?: Eater[];
 }) {
   const [state, setState] = useState(initial);
-  const [act1Board, setAct1Board] = useState(act1Eaters);
+  const {
+    eaters: liveEaters,
+    supplyStats: liveSupply,
+    refresh: refreshBoard,
+  } = useLeaderboardLive(act1Eaters, initial.supplyStats);
   const [supplyStats, setSupplyStats] = useState<SupplyStats | null>(
     initial.supplyStats ?? null,
   );
@@ -407,33 +413,14 @@ export function RaceApp({
     }
   }, []);
 
-  const refreshAct1 = useCallback(async () => {
-    try {
-      const res = await fetch("/api/leaderboard", { cache: "no-store" });
-      if (!res.ok) return;
-      const next = (await res.json()) as {
-        eaters?: Eater[];
-        scoring?: string;
-        supplyStats?: SupplyStats | null;
-      };
-      if (next.scoring === "act1" && Array.isArray(next.eaters)) {
-        setAct1Board(next.eaters);
-      }
-      if (next.supplyStats) setSupplyStats(next.supplyStats);
-    } catch {
-      // keep current
-    }
-  }, []);
-
   useEffect(() => {
-    const id = setInterval(refresh, 12_000);
+    const id = setInterval(refresh, LEADERBOARD_POLL_MS);
     return () => clearInterval(id);
   }, [refresh]);
 
   useEffect(() => {
-    const id = setInterval(refreshAct1, 20_000);
-    return () => clearInterval(id);
-  }, [refreshAct1]);
+    if (liveSupply) setSupplyStats(liveSupply);
+  }, [liveSupply]);
 
   // Act I: looping stop-motion 0→9→0…
   useEffect(() => {
@@ -456,7 +443,10 @@ export function RaceApp({
         (result.progress * 100).toFixed(1),
       ),
     }));
-    if (!result.demo) void refresh();
+    if (!result.demo) {
+      void refresh();
+      void refreshBoard();
+    }
   };
 
   const flags = useMemo(
@@ -485,10 +475,8 @@ export function RaceApp({
   const tagline = heroTagline(flags.act, state.phase);
   const raceEnded = state.phase === "core" || state.phase === "rot";
 
-  // Prologue empty; Act I = trades/points from bot; Act II+ kitchen eaters
-  // All acts: inclusive leaderboard (Act I points/trades carry into Act II+)
-  const boardEaters =
-    flags.act === 0 ? [] : act1Board.length > 0 ? act1Board : state.eaters;
+  // Same live rows as /leaderboard — mini board is just the top of that list.
+  const boardEaters = liveEaters;
   const boardMode: "act1" | "kitchen" = "act1";
 
   /** Day 1 default: pons deep-link. Opt-in Uniswap modal via NEXT_PUBLIC_SWAP_PROVIDER=uniswap. */
@@ -514,6 +502,12 @@ export function RaceApp({
             {copy.brand}
           </a>
           <div className="flex items-center gap-2.5">
+            <Link
+              href="/challenge"
+              className="hidden text-[13px] font-medium text-[#2997ff] sm:block"
+            >
+              {copy.nav.challenge}
+            </Link>
             <Link
               href="/leaderboard"
               className="hidden text-[13px] font-medium text-[#2997ff] sm:block"
@@ -785,7 +779,7 @@ export function RaceApp({
             </span>
           </p>
           <EatersBoard eaters={boardEaters} mode={boardMode} />
-          {flags.act === 0 && (
+          {flags.act === 0 && boardEaters.length === 0 && (
             <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
               {copy.eaters.emptyHintPrologue}
             </p>

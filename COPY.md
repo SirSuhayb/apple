@@ -27,11 +27,22 @@ _Source: `copy.nav` · `RaceApp`_
 **Badge**
 > Soon · Preparing · Live · Racing
 
+**Challenge**
+> Challenge → `/challenge`
+
 **Buy** (Act I+)
 > Buy
 
 **Soon** (Prologue — not a link)
 > Soon
+
+---
+
+## Challenge (`/challenge`)
+
+_Source: `src/lib/challenge-copy.ts` · `ChallengePage`_
+
+Sample $1M builder challenge page: five winners, brief, APIs, rules, judging rubric, TG/pons/X/Farcaster outreach, Telegram submit CTA. Escrow + final dates are placeholders until you lock them.
 
 ---
 
