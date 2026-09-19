@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Connector } from "wagmi";
 import {
   useAccount,
+  useBalance,
   useConfig,
   useConnect,
   useDisconnect,
@@ -13,7 +14,7 @@ import {
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { getPublicClient, sendTransaction, switchChain } from "wagmi/actions";
-import { formatEther, isAddress, parseEther } from "viem";
+import { formatUnits, isAddress, parseUnits } from "viem";
 import { erc20Abi } from "@/lib/abis";
 import { robinhoodChain } from "@/lib/chain";
 import {
@@ -25,6 +26,7 @@ import {
 } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import {
+  BUY_SIDES,
   QUOTE_MAX_AGE_MS,
   SWAP_PORTION_SUPPORTED,
   SWAP_SLIPPAGE_PERCENT,
@@ -34,8 +36,11 @@ import {
   getInputAmount,
   swapFeeDisclosure,
   getOutputAmount,
-  otherSide,
+  isBuySide,
+  isNativeSwapToken,
+  resolveSwapPair,
   validateSwapBeforeBroadcast,
+  type BuySide,
   type QuoteResponse,
   type SwapSide,
   type SwapTransaction,
@@ -87,6 +92,13 @@ function errorMessage(error: unknown): string {
   return copy.swap.failed;
 }
 
+function defaultAmountFor(side: SwapSide): string {
+  if (side === "bite") return "1000";
+  if (side === "usdg") return "10";
+  if (side === "aapl") return "0.01";
+  return "0.01";
+}
+
 export function SwapModal({ open, onClose }: SwapModalProps) {
   const config = useConfig();
   const { address, isConnected, chainId } = useAccount();
@@ -105,6 +117,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
   );
 
   const [tokenInSide, setTokenInSide] = useState<SwapSide>("aapl");
+  const [lastBuySide, setLastBuySide] = useState<BuySide>("aapl");
   const [amount, setAmount] = useState("0.01");
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quotedAt, setQuotedAt] = useState(0);
@@ -116,19 +129,29 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
   const [done, setDone] = useState(false);
   const [showWallets, setShowWallets] = useState(false);
   const [previewPending, setPreviewPending] = useState(false);
+  const [payPickerOpen, setPayPickerOpen] = useState(false);
 
-  const tokenIn = SWAP_TOKENS[tokenInSide];
-  const tokenOut = SWAP_TOKENS[otherSide(tokenInSide)];
+  const { tokenIn, tokenOut } = resolveSwapPair(tokenInSide);
+  const buying = isBuySide(tokenInSide);
+  const payingNative = isNativeSwapToken(tokenIn);
   const onWrongChain = isConnected && chainId !== robinhoodChain.id;
 
-  const { data: balance } = useReadContract({
+  const { data: erc20Balance } = useReadContract({
     address: tokenIn.address,
     abi: erc20Abi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     chainId: robinhoodChain.id,
-    query: { enabled: Boolean(open && address) },
+    query: { enabled: Boolean(open && address && !payingNative) },
   });
+
+  const { data: nativeBalance } = useBalance({
+    address,
+    chainId: robinhoodChain.id,
+    query: { enabled: Boolean(open && address && payingNative) },
+  });
+
+  const balance = payingNative ? nativeBalance?.value : erc20Balance;
 
   const { isLoading: confirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
@@ -139,6 +162,10 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      if (payPickerOpen) {
+        setPayPickerOpen(false);
+        return;
+      }
       if (showWallets && !isConnected) {
         setShowWallets(false);
         return;
@@ -152,7 +179,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open, onClose, showWallets, isConnected]);
+  }, [open, onClose, showWallets, isConnected, payPickerOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -161,6 +188,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
     setTxHash(undefined);
     setBusy(null);
     setShowWallets(false);
+    setPayPickerOpen(false);
   }, [open]);
 
   useEffect(() => {
@@ -181,7 +209,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
   const fetchQuote = useCallback(async (): Promise<QuoteResponse | null> => {
     let wei: string;
     try {
-      wei = parseEther(amount || "0").toString();
+      wei = parseUnits(amount || "0", tokenIn.decimals).toString();
     } catch {
       setQuote(null);
       setQuoteError(copy.swap.invalidAmount);
@@ -219,7 +247,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
     } finally {
       setQuoting(false);
     }
-  }, [amount, tokenIn.address, tokenOut.address, address]);
+  }, [amount, tokenIn.address, tokenIn.decimals, tokenOut.address, address]);
 
   useEffect(() => {
     if (!open) return;
@@ -246,20 +274,40 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
   const quotedOut = useMemo(() => {
     if (!quote) return null;
     try {
-      return formatSwapAmount(getOutputAmount(quote));
+      return formatSwapAmount(getOutputAmount(quote), tokenOut.decimals);
     } catch {
       return null;
     }
-  }, [quote]);
+  }, [quote, tokenOut.decimals]);
 
   const insufficient = useMemo(() => {
     if (balance === undefined) return false;
     try {
-      return parseEther(amount || "0") > balance;
+      return parseUnits(amount || "0", tokenIn.decimals) > balance;
     } catch {
       return false;
     }
-  }, [amount, balance]);
+  }, [amount, balance, tokenIn.decimals]);
+
+  const selectBuyToken = (side: BuySide) => {
+    setTokenInSide(side);
+    setLastBuySide(side);
+    setAmount(defaultAmountFor(side));
+    setDone(false);
+    setPayPickerOpen(false);
+  };
+
+  const flipDirection = () => {
+    if (buying) {
+      setTokenInSide("bite");
+      setAmount(defaultAmountFor("bite"));
+    } else {
+      setTokenInSide(lastBuySide);
+      setAmount(defaultAmountFor(lastBuySide));
+    }
+    setDone(false);
+    setPayPickerOpen(false);
+  };
 
   const sendTx = async (tx: { to: string; data: string; value?: string }) => {
     await switchChain(config, { chainId: robinhoodChain.id });
@@ -288,24 +336,26 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
 
       const amountWei = getInputAmount(liveQuote);
 
-      setBusy("approve");
-      const approvalRes = await fetch("/api/uniswap/check_approval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          walletAddress: address,
-          token: tokenIn.address,
-          amount: amountWei,
-          chainId: robinhoodChain.id,
-        }),
-      });
-      const approvalJson = (await approvalRes.json()) as {
-        approval?: { to: string; data: string; value?: string } | null;
-        error?: string;
-      };
-      if (!approvalRes.ok) throw new Error(approvalJson.error || copy.swap.failed);
-      if (approvalJson.approval?.to && approvalJson.approval.data) {
-        await sendTx(approvalJson.approval);
+      if (!payingNative) {
+        setBusy("approve");
+        const approvalRes = await fetch("/api/uniswap/check_approval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            walletAddress: address,
+            token: tokenIn.address,
+            amount: amountWei,
+            chainId: robinhoodChain.id,
+          }),
+        });
+        const approvalJson = (await approvalRes.json()) as {
+          approval?: { to: string; data: string; value?: string } | null;
+          error?: string;
+        };
+        if (!approvalRes.ok) throw new Error(approvalJson.error || copy.swap.failed);
+        if (approvalJson.approval?.to && approvalJson.approval.data) {
+          await sendTx(approvalJson.approval);
+        }
       }
 
       let signature: string | undefined;
@@ -367,6 +417,8 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
         ? copy.swap.signing
         : copy.swap.swapping;
 
+  const uniswapHref = buying ? SWAP_OPEN_URL : SWAP_OPEN_REVERSE_URL;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-6"
@@ -401,7 +453,51 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
           <label className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
             <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.swap.youPay}</span>
-              <span>{tokenIn.symbol}</span>
+              {buying ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPayPickerOpen((v) => !v);
+                    }}
+                    className="rounded-full border border-[#d2d2d7] bg-white px-2.5 py-0.5 text-[12px] font-medium text-[#1d1d1f]"
+                    aria-expanded={payPickerOpen}
+                    aria-haspopup="listbox"
+                    aria-label={copy.swap.choosePayToken}
+                  >
+                    {tokenIn.symbol} ▾
+                  </button>
+                  {payPickerOpen && (
+                    <ul
+                      role="listbox"
+                      className="absolute right-0 z-10 mt-1 min-w-[7.5rem] overflow-hidden rounded-xl border border-[#d2d2d7] bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                    >
+                      {BUY_SIDES.map((side) => (
+                        <li key={side} role="option" aria-selected={tokenInSide === side}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              selectBuyToken(side);
+                            }}
+                            className={[
+                              "block w-full px-3 py-2 text-left text-[13px] font-medium",
+                              tokenInSide === side
+                                ? "bg-[#f5f5f7] text-[#1d1d1f]"
+                                : "text-[#1d1d1f] hover:bg-[#f5f5f7]",
+                            ].join(" ")}
+                          >
+                            {SWAP_TOKENS[side].symbol}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <span>{tokenIn.symbol}</span>
+              )}
             </div>
             <input
               inputMode="decimal"
@@ -415,18 +511,18 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
             />
             {isConnected && balance !== undefined && (
               <p className="mt-1 text-[11px] text-[#6e6e73]">
-                {copy.swap.balance}: {Number(formatEther(balance)).toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenIn.symbol}
+                {copy.swap.balance}:{" "}
+                {Number(formatUnits(balance, tokenIn.decimals)).toLocaleString(undefined, {
+                  maximumFractionDigits: tokenIn.decimals === 6 ? 2 : 4,
+                })}{" "}
+                {tokenIn.symbol}
               </p>
             )}
           </label>
 
           <button
             type="button"
-            onClick={() => {
-              setTokenInSide((side) => otherSide(side));
-              setAmount((prev) => (prev === "0.01" ? "1000" : "0.01"));
-              setDone(false);
-            }}
+            onClick={flipDirection}
             className="mx-auto rounded-full border border-[#d2d2d7] bg-white px-3 py-1 text-[12px] font-medium text-[#2997ff]"
           >
             {copy.swap.flip}
@@ -558,7 +654,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <a
-              href={tokenInSide === "aapl" ? SWAP_OPEN_URL : SWAP_OPEN_REVERSE_URL}
+              href={uniswapHref}
               target="_blank"
               rel="noreferrer"
               className="text-[13px] text-[#2997ff]"

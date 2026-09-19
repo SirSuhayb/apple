@@ -29,6 +29,23 @@ export const AAPL_TOKEN =
   (parseAddress(process.env.NEXT_PUBLIC_AAPL_TOKEN) ??
     "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9") as Address;
 
+/** Robinhood Chain USDG (6 decimals). */
+export const USDG_TOKEN =
+  (parseAddress(process.env.NEXT_PUBLIC_USDG_TOKEN) ??
+    "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168") as Address;
+
+/** Robinhood Chain WETH. */
+export const WETH_TOKEN =
+  (parseAddress(process.env.NEXT_PUBLIC_WETH_TOKEN) ??
+    "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73") as Address;
+
+/**
+ * Native ETH sentinel for Uniswap Trading API (not an ERC-20).
+ * Must stay zero — do not run through parseAddress (rejects zeroAddress).
+ */
+export const NATIVE_ETH_ADDRESS =
+  "0x0000000000000000000000000000000000000000" as Address;
+
 /** Live $BITE CA (pons vs AAPL). Override with NEXT_PUBLIC_BITE_TOKEN if needed. */
 export const BITE_TOKEN = (parseAddress(process.env.NEXT_PUBLIC_BITE_TOKEN) ??
   "0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9") as Address;
@@ -146,7 +163,7 @@ export const META_WAGER_THRESHOLD = parseNumber(
 
 /**
  * Swap CTA surface for Trade / Buy.
- * - `native` (default): in-site AAPL↔$BITE quote + swap via Uniswap Trading API proxy
+ * - `native` (default): in-site buy $BITE (AAPL/USDG/WETH/ETH) + sell to AAPL via Uniswap Trading API proxy
  * - `pons`: deep-link to pons launchpad
  *
  * Robinhood Chain (`chain=robinhood`) is supported on app.uniswap.org, but `/embed`
