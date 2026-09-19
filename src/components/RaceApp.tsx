@@ -404,10 +404,19 @@ export function RaceApp({
   const [playFrame, setPlayFrame] = useState(0);
   const [prefillAmount, setPrefillAmount] = useState<string | null>(null);
 
-  // Read #burn or #burn?amount=X from URL hash on mount
+  // Deep links: #swap opens native swap; #burn / #burn?amount=X opens burn section
   useEffect(() => {
-    const hash = window.location.hash; // e.g. "#burn?amount=1000"
-    if (!hash.startsWith("#burn")) return;
+    const hash = window.location.hash; // e.g. "#burn?amount=1000" or "#swap"
+    const base = hash.split("?")[0]?.toLowerCase() ?? "";
+
+    if (base === "#swap") {
+      if (SWAP_PROVIDER !== "pons") {
+        setSwapOpen(true);
+      }
+      return;
+    }
+
+    if (!base.startsWith("#burn")) return;
 
     // Parse amount from hash params (e.g. #burn?amount=1000)
     const qIdx = hash.indexOf("?");
