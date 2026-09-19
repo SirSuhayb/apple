@@ -137,10 +137,10 @@ export function DigestButton() {
 
   return (
     <div className="mt-3 rounded-[14px] border border-[#d2d2d7] bg-white px-4 py-3 text-left">
-      <p className="text-[10px] font-semibold tracking-[1.2px] text-[#86868b] uppercase">
+      <p className="text-[10px] font-semibold tracking-[1.2px] text-[#6e6e73] uppercase">
         {copy.digest.label}
       </p>
-      <p className="mt-1 text-[13px] leading-relaxed text-[#86868b]">{status}</p>
+      <p className="mt-1 text-[13px] leading-relaxed text-[#6e6e73]">{status}</p>
 
       {showWallets && !isConnected ? (
         <div className="mt-3 space-y-2">

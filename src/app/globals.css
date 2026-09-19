@@ -6,13 +6,14 @@
   --bg-light: #f5f5f7;
   --ink: #1d1d1f;
   --ink-muted: #6e6e73;
-  --ink-faint: #86868b;
+  /* ≥4.5:1 on --bg for body/secondary text (WCAG AA) */
+  --ink-faint: #6e6e73;
   --line: #d2d2d7;
   --accent: #2997ff;
   --accent-hover: #0077ed;
   --bite: #e53935;
   --core: #e53935;
-  --rot: #86868b;
+  --rot: #6e6e73;
   --success: #34c759;
   --hero-apple: #fbfbfd;
 }
@@ -159,4 +160,50 @@ body {
     left: 57%;
     width: 8.15rem;
   }
+}
+
+.legal-prose {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.legal-prose h2 {
+  margin-top: 2rem;
+  margin-bottom: 0.65rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.legal-prose p {
+  margin-bottom: 1rem;
+  color: var(--ink-muted);
+}
+
+.legal-prose ul {
+  margin: 0 0 1rem;
+  padding-left: 1.25rem;
+  color: var(--ink-muted);
+}
+
+.legal-prose li {
+  margin-bottom: 0.45rem;
+}
+
+.legal-prose li::marker {
+  color: var(--line);
+}
+
+.legal-prose a {
+  color: var(--accent);
+}
+
+.legal-prose a:hover {
+  color: var(--accent-hover);
+}
+
+.legal-prose strong {
+  color: var(--ink);
+  font-weight: 600;
 }

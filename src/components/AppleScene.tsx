@@ -788,7 +788,7 @@ export function AppleScene({
         />
       </Canvas>
       {hasGltf === false && (
-        <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-[#86868b]">
+        <p className="pointer-events-none absolute bottom-3 left-3 text-[11px] text-[#6e6e73]">
           {copy.scene.proceduralNote}
         </p>
       )}

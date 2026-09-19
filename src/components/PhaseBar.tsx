@@ -27,7 +27,7 @@ export function PhaseBar({ act }: { act: SiteAct }) {
                   ? "bg-[#e53935] text-white"
                   : past
                     ? "bg-[#34c759] text-white"
-                    : "border-[1.5px] border-[#d2d2d7] bg-[#f5f5f7] text-[#86868b]",
+                    : "border-[1.5px] border-[#d2d2d7] bg-[#f5f5f7] text-[#6e6e73]",
               ].join(" ")}
             >
               {past ? "✓" : display}
@@ -35,7 +35,7 @@ export function PhaseBar({ act }: { act: SiteAct }) {
             <span
               className={[
                 "text-xs",
-                active ? "font-bold text-[#1d1d1f]" : "font-normal text-[#86868b]",
+                active ? "font-bold text-[#1d1d1f]" : "font-normal text-[#6e6e73]",
               ].join(" ")}
             >
               {stage.label}

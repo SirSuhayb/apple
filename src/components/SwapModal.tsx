@@ -384,7 +384,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
             <h2 className="text-[17px] font-semibold text-[#1d1d1f]">
               {copy.swap.title}
             </h2>
-            <p className="mt-0.5 text-[12px] text-[#86868b]">
+            <p className="mt-0.5 text-[12px] text-[#6e6e73]">
               {copy.swap.uniswapNote}
             </p>
           </div>
@@ -399,7 +399,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
 
         <div className="flex flex-col gap-3 overflow-y-auto px-5 py-5">
           <label className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
-            <div className="flex items-center justify-between text-[12px] text-[#86868b]">
+            <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.swap.youPay}</span>
               <span>{tokenIn.symbol}</span>
             </div>
@@ -414,7 +414,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
               aria-label={copy.swap.youPay}
             />
             {isConnected && balance !== undefined && (
-              <p className="mt-1 text-[11px] text-[#86868b]">
+              <p className="mt-1 text-[11px] text-[#6e6e73]">
                 {copy.swap.balance}: {Number(formatEther(balance)).toLocaleString(undefined, { maximumFractionDigits: 4 })} {tokenIn.symbol}
               </p>
             )}
@@ -433,7 +433,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
           </button>
 
           <div className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
-            <div className="flex items-center justify-between text-[12px] text-[#86868b]">
+            <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.swap.youReceive}</span>
               <span>{tokenOut.symbol}</span>
             </div>
@@ -442,7 +442,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
                 ? copy.swap.quoting
                 : quotedOut ?? "—"}
             </p>
-            <p className="mt-1 text-[11px] text-[#86868b]">
+            <p className="mt-1 text-[11px] text-[#6e6e73]">
               {SWAP_PORTION_SUPPORTED && SWAP_TOTAL_FEE_BIPS > 0
                 ? copy.swap.slippage(
                     SWAP_SLIPPAGE_PERCENT,
@@ -545,7 +545,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
             <button
               type="button"
               onClick={() => disconnect()}
-              className="text-center text-[12px] text-[#86868b]"
+              className="text-center text-[12px] text-[#6e6e73]"
             >
               {copy.swap.disconnect}
             </button>
@@ -553,7 +553,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
         </div>
 
         <div className="flex flex-col gap-2 border-t border-[#d2d2d7] px-5 py-4">
-          <p className="text-center text-[11px] leading-relaxed text-[#86868b]">
+          <p className="text-center text-[11px] leading-relaxed text-[#6e6e73]">
             {copy.swap.pairLabel(AAPL_TOKEN, BITE_TOKEN)}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">

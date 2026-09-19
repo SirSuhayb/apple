@@ -32,35 +32,35 @@ function LeaderboardSupplyBar({ stats }: { stats: SupplyStats }) {
   return (
     <div className="grid grid-cols-3 gap-2.5 mb-6">
       <div className="rounded-[14px] border border-[#e53935]/30 bg-[#e53935]/5 px-3 py-3 text-center">
-        <div className="text-[10px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           Prize Pool
         </div>
         <div className="mt-0.5 text-[15px] font-bold text-[#e53935]">
           {prizeLabel}
         </div>
         {prizeUsd && (
-          <div className="text-[10px] text-[#86868b]">{prizeUsd}</div>
+          <div className="text-[10px] text-[#6e6e73]">{prizeUsd}</div>
         )}
       </div>
       <div className="rounded-[14px] border border-[#d2d2d7] bg-white px-3 py-3 text-center">
-        <div className="text-[10px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           Holders
         </div>
         <div className="mt-0.5 text-[15px] font-bold text-[#1d1d1f]">
           {stats.holderCount.toLocaleString()}
         </div>
-        <div className="text-[10px] text-[#86868b]">
+        <div className="text-[10px] text-[#6e6e73]">
           {fmtCompact(stats.eoaHeldBite)} held
         </div>
       </div>
       <div className="rounded-[14px] border border-[#d2d2d7] bg-white px-3 py-3 text-center">
-        <div className="text-[10px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           Burned
         </div>
         <div className="mt-0.5 text-[15px] font-bold text-[#1d1d1f]">
           {burnPct.toFixed(2)}%
         </div>
-        <div className="text-[10px] text-[#86868b]">
+        <div className="text-[10px] text-[#6e6e73]">
           {fmtCompact(stats.totalBurned)}
         </div>
       </div>
@@ -109,7 +109,7 @@ export function LeaderboardPage({
 
       {/* Hero */}
       <section className="page-gutter bg-[#fbfbfd] pt-[48px] pb-6 text-center">
-        <p className="mb-2 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+        <p className="mb-2 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
           {copy.leaderboard.title}
         </p>
         <h1 className="text-[clamp(32px,8vw,56px)] font-bold leading-[1.05] tracking-[-0.03em]">
@@ -117,13 +117,13 @@ export function LeaderboardPage({
             ? copy.leaderboard.headlineAct1
             : copy.leaderboard.headline}
         </h1>
-        <p className="mx-auto mt-2 max-w-[440px] text-[17px] leading-relaxed text-[#86868b]">
+        <p className="mx-auto mt-2 max-w-[440px] text-[17px] leading-relaxed text-[#6e6e73]">
           {isAct1
             ? copy.leaderboard.subtitleAct1
             : copy.leaderboard.subtitle}
         </p>
         {updatedAt && (
-          <p className="mt-1 text-[11px] text-[#86868b]">
+          <p className="mt-1 text-[11px] text-[#6e6e73]">
             Updated {new Date(updatedAt).toLocaleTimeString()}
           </p>
         )}

@@ -221,7 +221,7 @@ export function BiteModal({
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-[12px] font-medium tracking-[0.14em] text-[#86868b] uppercase">
+            <p className="text-[12px] font-medium tracking-[0.14em] text-[#6e6e73] uppercase">
               {copy.tap.eyebrow}
             </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[#1d1d1f]">
@@ -321,7 +321,7 @@ export function BiteModal({
                     >
                       Switch to Robinhood Chain
                     </button>
-                    <p className="text-[11px] text-[#86868b]">
+                    <p className="text-[11px] text-[#6e6e73]">
                       Chain ID: {robinhoodChain.id} · RPC:{" "}
                       {robinhoodChain.rpcUrls.default.http[0]}
                     </p>
@@ -330,7 +330,7 @@ export function BiteModal({
               </>
             ) : (
               !KITCHEN_READY && (
-                <p className="text-[12px] text-[#86868b]">
+                <p className="text-[12px] text-[#6e6e73]">
                   {copy.tap.modal.demoNote}
                 </p>
               )
@@ -403,7 +403,7 @@ export function BiteModal({
             <p className="text-[17px] font-medium text-[#1d1d1f]">
               {copy.tap.modal.stepBurning}
             </p>
-            <p className="text-[13px] text-[#86868b]">
+            <p className="text-[13px] text-[#6e6e73]">
               {KITCHEN_READY
                 ? phase === "approve"
                   ? copy.tap.approve
@@ -431,7 +431,7 @@ export function BiteModal({
               )}
             </p>
             {result.demo && (
-              <p className="text-[12px] text-[#86868b]">
+              <p className="text-[12px] text-[#6e6e73]">
                 {copy.tap.modal.demoNote}
               </p>
             )}

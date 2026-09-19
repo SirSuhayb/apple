@@ -26,7 +26,7 @@ import { YourRankCard } from "./YourRank";
 
 function DevBadge() {
   return (
-    <span className="ml-1.5 inline-flex align-middle rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#86868b] ring-1 ring-[#d2d2d7]">
+    <span className="ml-1.5 inline-flex align-middle rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[#6e6e73] ring-1 ring-[#d2d2d7]">
       {copy.leaderboard.devBadge}
     </span>
   );
@@ -89,8 +89,8 @@ export function Leaderboard({
       <div className="space-y-6">
         <YourRankCard eaters={eaters} appleTotal={appleTotal} />
         <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-14 text-center">
-          <p className="text-[17px] text-[#86868b]">{copy.leaderboard.empty}</p>
-          <p className="mt-2 text-[13px] text-[#86868b]">
+          <p className="text-[17px] text-[#6e6e73]">{copy.leaderboard.empty}</p>
+          <p className="mt-2 text-[13px] text-[#6e6e73]">
             {isAct1
               ? copy.leaderboard.emptyHintAct1
               : copy.leaderboard.emptyHint}
@@ -113,7 +113,7 @@ export function Leaderboard({
       {/* Stats bar */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-4 text-center">
-          <div className="text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+          <div className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
             {copy.leaderboard.totalPoints}
           </div>
           <div className="mt-1 text-[28px] font-bold tabular-nums text-[#1d1d1f]">
@@ -121,7 +121,7 @@ export function Leaderboard({
           </div>
         </div>
         <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-4 text-center">
-          <div className="text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+          <div className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
             {copy.leaderboard.totalTrades}
           </div>
           <div className="mt-1 text-[28px] font-bold tabular-nums text-[#1d1d1f]">
@@ -141,7 +141,7 @@ export function Leaderboard({
             placeholder={copy.leaderboard.searchPlaceholder}
             autoComplete="off"
             spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent text-[15px] text-[#1d1d1f] outline-none placeholder:text-[#86868b]"
+            className="min-w-0 flex-1 bg-transparent text-[15px] text-[#1d1d1f] outline-none placeholder:text-[#6e6e73]"
           />
           {searching ? (
             <button
@@ -166,7 +166,7 @@ export function Leaderboard({
               "flex-1 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors",
               sortBy === key
                 ? "bg-white text-[#1d1d1f] shadow-sm"
-                : "text-[#86868b] hover:text-[#1d1d1f]",
+                : "text-[#6e6e73] hover:text-[#1d1d1f]",
             ].join(" ")}
           >
             {label}
@@ -208,7 +208,7 @@ export function Leaderboard({
       )}
 
       {noSearchHits && (
-        <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-8 text-center text-[15px] text-[#86868b]">
+        <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-8 text-center text-[15px] text-[#6e6e73]">
           {copy.leaderboard.searchEmpty}
         </div>
       )}
@@ -228,7 +228,7 @@ export function Leaderboard({
                   "flex items-center gap-3 px-4 py-3.5 first:rounded-t-[14px] last:rounded-b-[14px]",
                 )}
               >
-                <span className="w-7 text-center text-sm font-bold tabular-nums text-[#86868b]">
+                <span className="w-7 text-center text-sm font-bold tabular-nums text-[#6e6e73]">
                   {rank}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -248,7 +248,7 @@ export function Leaderboard({
                   <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
                     {fmtScore(e.score)}
                   </div>
-                  <div className="text-[11px] text-[#86868b]">
+                  <div className="text-[11px] text-[#6e6e73]">
                     {copy.leaderboard.pts}
                   </div>
                 </div>
@@ -272,7 +272,7 @@ export function Leaderboard({
                   "flex items-center gap-3 px-4 py-3.5 first:rounded-t-[14px] last:rounded-b-[14px]",
                 )}
               >
-                <span className="w-7 text-center text-[11px] font-semibold uppercase tracking-wide text-[#86868b]">
+                <span className="w-7 text-center text-[11px] font-semibold uppercase tracking-wide text-[#6e6e73]">
                   —
                 </span>
                 <div className="min-w-0 flex-1">
@@ -281,7 +281,7 @@ export function Leaderboard({
                     <EaterName address={e.address} isYou={isYou} />
                     {isLeaderboardDev(e) && <DevBadge />}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-[#86868b]">
+                  <div className="mt-0.5 text-[11px] text-[#6e6e73]">
                     {copy.leaderboard.ineligible}
                   </div>
                   <EaterStats
@@ -294,7 +294,7 @@ export function Leaderboard({
                   <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
                     {fmtScore(e.score)}
                   </div>
-                  <div className="text-[11px] text-[#86868b]">
+                  <div className="text-[11px] text-[#6e6e73]">
                     {copy.leaderboard.pts}
                   </div>
                 </div>
@@ -306,7 +306,7 @@ export function Leaderboard({
 
       {/* Scoring explainer — Act I + II inclusive */}
       <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-4">
-        <p className="mb-2.5 text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <p className="mb-2.5 text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           {copy.leaderboard.scoring.eyebrow}
         </p>
         <div className="space-y-1 text-[13px] text-[#6e6e73]">
@@ -324,7 +324,7 @@ export function Leaderboard({
 
       {/* Eligibility tooltip */}
       <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-4">
-        <p className="mb-2.5 text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <p className="mb-2.5 text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           Eligibility
         </p>
         <div className="space-y-1 text-[13px] text-[#6e6e73]">
@@ -352,7 +352,7 @@ function PodiumCard({
   const colors = {
     1: "text-[#e53935]",
     2: "text-[#ff9500]",
-    3: "text-[#86868b]",
+    3: "text-[#6e6e73]",
   } as const;
 
   return (
@@ -395,7 +395,7 @@ function PodiumCard({
         ].join(" ")}
       >
         {fmtScore(eater.score)}
-        <span className="ml-0.5 text-[10px] font-medium text-[#86868b]">
+        <span className="ml-0.5 text-[10px] font-medium text-[#6e6e73]">
           {copy.leaderboard.pts}
         </span>
       </div>
