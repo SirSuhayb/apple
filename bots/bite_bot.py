@@ -75,6 +75,9 @@ STATE_FILE = Path(
     os.getenv("BITE_BOT_STATE_FILE", Path(__file__).resolve().parent / ".bite_bot_state.json")
 )
 SITE_URL = os.getenv("SITE_URL", "https://www.bite.party")
+# Primary buy CTA → native swap on bite.party (#swap opens SwapModal).
+BUY_URL = os.getenv("BUY_URL", f"{SITE_URL.rstrip('/')}/#swap")
+# Secondary fallback only (explicitly labeled as pons when shown).
 PONS_BUY_URL = os.getenv(
     "PONS_BUY_URL",
     "https://www.ponsfamily.com/launchpad/0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9",
@@ -3029,7 +3032,10 @@ def handle_command(
             "text": (
                 f"🛒 Buy $BITE\n"
                 f"\n"
-                f"Buy on Pons launchpad (paired with AAPL):\n"
+                f"Trade on bite.party (native swap):\n"
+                f"{BUY_URL}\n"
+                f"\n"
+                f"Fallback — Pons launchpad:\n"
                 f"{PONS_BUY_URL}\n"
                 f"\n"
                 f"Chain: Robinhood Chain ({CHAIN_ID})\n"
@@ -3508,7 +3514,7 @@ def _inline_kb(*rows: list[tuple[str, str]]) -> dict:
 
 
 def _buy_alert_buttons(tx_hash: str | None = None) -> dict:
-    row1 = [("🍎 Buy $BITE", PONS_BUY_URL), ("📈 Chart", DEXSCREENER_PAIR_URL)]
+    row1 = [("🍎 Buy $BITE", BUY_URL), ("📈 Chart", DEXSCREENER_PAIR_URL)]
     row2: list[tuple[str, str]] = []
     if tx_hash:
         row2.append(("🔍 Txn", f"{EXPLORER_TX_BASE}{tx_hash}"))
@@ -3518,25 +3524,26 @@ def _buy_alert_buttons(tx_hash: str | None = None) -> dict:
 
 def _ca_buttons() -> dict:
     return _inline_kb(
-        [("🍎 Buy $BITE", PONS_BUY_URL), ("🔥 Burn", BURN_PAGE_URL)]
+        [("🍎 Buy $BITE", BUY_URL), ("🔥 Burn", BURN_PAGE_URL)]
     )
 
 
 def _buy_buttons() -> dict:
     return _inline_kb(
-        [("🍎 Buy $BITE", PONS_BUY_URL), ("📈 Chart", DEXSCREENER_PAIR_URL)]
+        [("🍎 Buy $BITE", BUY_URL), ("📈 Chart", DEXSCREENER_PAIR_URL)],
+        [("Pons (fallback)", PONS_BUY_URL)],
     )
 
 
 def _burn_buttons() -> dict:
     return _inline_kb(
-        [("🔥 Burn", BURN_PAGE_URL), ("🍎 Buy", PONS_BUY_URL)]
+        [("🔥 Burn", BURN_PAGE_URL), ("🍎 Buy", BUY_URL)]
     )
 
 
 def _burn_milestone_buttons() -> dict:
     return _inline_kb(
-        [("🍎 Buy", PONS_BUY_URL), ("🔥 Burn", BURN_PAGE_URL)]
+        [("🍎 Buy", BUY_URL), ("🔥 Burn", BURN_PAGE_URL)]
     )
 
 
@@ -3562,7 +3569,7 @@ def swap_copy(wallet, amount, holders, phase: int, *, state: dict | None = None,
     lines.append(f"👥 {holders} holders")
     lines.append(f"")
     lines.append(
-        f"[Chart]({DEXSCREENER_PAIR_URL}) | [Buy]({PONS_BUY_URL}) | [Website]({SITE_URL})"
+        f"[Chart]({DEXSCREENER_PAIR_URL}) | [Buy]({BUY_URL}) | [Website]({SITE_URL})"
     )
     return "\n".join(lines)
 

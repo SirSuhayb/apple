@@ -45,7 +45,7 @@ forge script script/DeployKitchen.s.sol:DeployKitchen --rpc-url https://rpc.main
 
 ## Activity bot (Telegram)
 
-Onchain watcher that posts to Telegram (Twitter optional). See [docs/bite-bot.md](docs/bite-bot.md).
+Onchain watcher that posts to Telegram (Twitter optional). Buy/trade CTAs point at [bite.party/#swap](https://www.bite.party/#swap) (native swap); Pons is fallback-only. See [docs/bite-bot.md](docs/bite-bot.md).
 
 ```bash
 pip install -r bots/requirements.txt
