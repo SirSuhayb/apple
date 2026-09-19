@@ -35,6 +35,12 @@ _Source: `copy.nav` · `RaceApp`_
 
 ---
 
+## Challenge (`/challenge`) — withheld
+
+Builder contest page is kept off production: not linked in nav, and `.vercelignore` excludes `src/app/challenge` and `public/challenge`. Production `/challenge` is 404 until the contest launches.
+
+---
+
 ## Phases
 
 _Source: `copy.phases` · `PhaseBar` / banners · `src/lib/phase.ts`_
