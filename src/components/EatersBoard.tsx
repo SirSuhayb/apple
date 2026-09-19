@@ -23,7 +23,7 @@ import { YourRankCard, YourRankStickyRow } from "./YourRank";
 
 function DevBadge() {
   return (
-    <span className="ml-1 inline-flex align-middle rounded px-1 py-0.5 text-[9px] font-semibold tracking-wide text-[#86868b] ring-1 ring-[#d2d2d7]">
+    <span className="ml-1 inline-flex align-middle rounded px-1 py-0.5 text-[9px] font-semibold tracking-wide text-[#6e6e73] ring-1 ring-[#d2d2d7]">
       {copy.leaderboard.devBadge}
     </span>
   );
@@ -49,9 +49,9 @@ export function EatersBoard({
       <div className="grid grid-cols-1 gap-2.5">
         <YourRankCard eaters={eaters} appleTotal={appleTotal} compact />
         <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-10 text-center">
-          <p className="text-[17px] text-[#86868b]">{copy.eaters.empty}</p>
+          <p className="text-[17px] text-[#6e6e73]">{copy.eaters.empty}</p>
           {isAct1 && (
-            <p className="mt-2 text-[13px] text-[#86868b]">
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
               {copy.leaderboard.emptyHintAct1}
             </p>
           )}
@@ -111,7 +111,7 @@ export function EatersBoard({
               <div className="text-[28px] font-extrabold tabular-nums text-[#1d1d1f]">
                 {fmtScore(top.score)}
               </div>
-              <div className="text-[11px] text-[#86868b]">
+              <div className="text-[11px] text-[#6e6e73]">
                 {copy.leaderboard.pts}
               </div>
             </div>
@@ -140,7 +140,7 @@ export function EatersBoard({
                 <div
                   className={[
                     "text-[28px] font-black leading-none",
-                    rank === 2 ? "text-[#ff9500]" : "text-[#86868b]",
+                    rank === 2 ? "text-[#ff9500]" : "text-[#6e6e73]",
                   ].join(" ")}
                 >
                   {rank}
@@ -155,7 +155,7 @@ export function EatersBoard({
                 />
                 <div className="mt-0.5 text-xs font-medium tabular-nums text-[#1d1d1f]">
                   {fmtScore(e.score)}{" "}
-                  <span className="text-[#86868b]">
+                  <span className="text-[#6e6e73]">
                     {copy.leaderboard.pts}
                   </span>
                 </div>
@@ -188,7 +188,7 @@ export function EatersBoard({
                   ].join(" "),
                 )}
               >
-                <div className="text-xl font-extrabold text-[#86868b]">
+                <div className="text-xl font-extrabold text-[#6e6e73]">
                   {rank}
                 </div>
                 <EaterIdentity
@@ -199,7 +199,7 @@ export function EatersBoard({
                   className="mt-1.5"
                   nameClassName="text-[11px] font-semibold text-[#1d1d1f]"
                 />
-                <div className="mt-0.5 text-[10px] tabular-nums text-[#86868b]">
+                <div className="mt-0.5 text-[10px] tabular-nums text-[#6e6e73]">
                   {fmtScore(e.score)} {copy.leaderboard.pts}
                 </div>
                 <EaterStats
@@ -228,7 +228,7 @@ export function EatersBoard({
                 "flex items-center gap-3 px-4 py-3 text-sm first:rounded-t-[14px] last:rounded-b-[14px]",
               )}
             >
-              <span className="w-5 shrink-0 text-[#86868b]">{i + 7}</span>
+              <span className="w-5 shrink-0 text-[#6e6e73]">{i + 7}</span>
               <div className="min-w-0 flex-1">
                 <EaterIdentity
                   address={e.address}
@@ -263,7 +263,7 @@ export function EatersBoard({
                 "flex items-center gap-2 px-4 py-3 text-sm first:rounded-t-[14px] last:rounded-b-[14px]",
               )}
             >
-              <span className="w-6 shrink-0 text-[11px] font-semibold uppercase text-[#86868b]">
+              <span className="w-6 shrink-0 text-[11px] font-semibold uppercase text-[#6e6e73]">
                 —
               </span>
               <div className="min-w-0 flex-1">
@@ -294,7 +294,7 @@ export function EatersBoard({
           {copy.leaderboard.viewAll}
         </Link>
         {eligible.length > HOME_BOARD_LIMIT && (
-          <p className="mt-2 text-[12px] text-[#86868b]">
+          <p className="mt-2 text-[12px] text-[#6e6e73]">
             {copy.leaderboard.viewAllHint}
           </p>
         )}

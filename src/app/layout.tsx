@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Sora, JetBrains_Mono } from "next/font/google";
+import { CookieConsent } from "@/components/CookieConsent";
 import { Providers } from "@/components/Providers";
+import { SITE_URL } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import "./globals.css";
 
@@ -16,7 +18,7 @@ const mono = JetBrains_Mono({
   weight: ["400", "500"],
 });
 
-const siteUrl = "https://bite.party";
+const siteUrl = SITE_URL.replace(/\/$/, "");
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -51,6 +53,7 @@ export default function RootLayout({
     >
       <body className="min-h-full bg-[#fbfbfd] text-[#1d1d1f]">
         <Providers>{children}</Providers>
+        <CookieConsent />
       </body>
     </html>
   );

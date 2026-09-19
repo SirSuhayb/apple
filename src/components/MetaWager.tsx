@@ -34,7 +34,7 @@ export function MetaWagerInfo() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] border-[#d2d2d7] text-[11px] font-bold text-[#86868b]"
+        className="flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] border-[#d2d2d7] text-[11px] font-bold text-[#6e6e73]"
         aria-label="About the meta wager"
       >
         ?
@@ -58,12 +58,12 @@ export function MetaWagerInfo() {
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f5f5f7] text-base text-[#86868b]"
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-[#f5f5f7] text-base text-[#6e6e73]"
               >
                 ×
               </button>
             </div>
-            <p className="text-[15px] leading-relaxed text-[#86868b]">
+            <p className="text-[15px] leading-relaxed text-[#6e6e73]">
               {copy.metaWager.infoBody}
             </p>
           </div>
@@ -86,16 +86,16 @@ export function MetaWagerEmpty({ progress }: { progress: number }) {
       <div className="mb-1.5 text-[17px] font-bold text-[#1d1d1f]">
         {copy.metaWager.emptyTitle}
       </div>
-      <p className="mx-auto max-w-[300px] text-sm leading-relaxed text-[#86868b]">
+      <p className="mx-auto max-w-[300px] text-sm leading-relaxed text-[#6e6e73]">
         {copy.metaWager.emptyBody}
       </p>
-      <div className="mt-4 inline-block rounded-full bg-[#d2d2d7] px-4 py-1.5 text-xs font-semibold text-[#86868b]">
+      <div className="mt-4 inline-block rounded-full bg-[#d2d2d7] px-4 py-1.5 text-xs font-semibold text-[#6e6e73]">
         {copy.metaWager.opensAt}
       </div>
       <div className="mt-3.5">
         <div className="mx-auto h-1.5 max-w-[200px] overflow-hidden rounded bg-[#d2d2d7]">
           <div
-            className="h-full rounded bg-[#86868b]/50"
+            className="h-full rounded bg-[#6e6e73]/50"
             style={{ width: `${ofThreshold}%` }}
           />
         </div>
@@ -265,7 +265,7 @@ export function MetaWagerLive() {
         <span className="text-[15px] font-bold text-[#34c759]">
           🍎 CORE {corePct.toFixed(1)}%
         </span>
-        <span className="text-[15px] font-bold text-[#86868b]">
+        <span className="text-[15px] font-bold text-[#6e6e73]">
           ROT {rotPct.toFixed(1)}% 🪱
         </span>
       </div>
@@ -281,7 +281,7 @@ export function MetaWagerLive() {
       </div>
 
       {/* Staked totals */}
-      <div className="mt-2 flex justify-between text-[11px] text-[#86868b]">
+      <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
         <span>{fmtBite(totalCore)} $BITE on Core</span>
         <span>{fmtBite(totalRot)} $BITE on Rot</span>
       </div>
@@ -311,7 +311,7 @@ export function MetaWagerLive() {
       {/* Active betting */}
       {!isResolved && (
         <>
-          <p className="mt-2.5 text-center text-xs leading-relaxed text-[#86868b]">
+          <p className="mt-2.5 text-center text-xs leading-relaxed text-[#6e6e73]">
             {copy.metaWager.liveLead}
             <br />
             <span className="font-semibold text-[#1d1d1f]">
@@ -375,7 +375,7 @@ export function MetaWagerLive() {
                     className={`flex-1 rounded-[8px] border px-2 py-1.5 text-[11px] font-medium transition ${
                       betAmount === amt
                         ? "border-[#1d1d1f] bg-[#1d1d1f] text-white"
-                        : "border-[#d2d2d7] text-[#86868b] hover:border-[#1d1d1f]"
+                        : "border-[#d2d2d7] text-[#6e6e73] hover:border-[#1d1d1f]"
                     }`}
                   >
                     {Number(amt).toLocaleString()}
@@ -413,7 +413,7 @@ export function MetaWagerLive() {
 
               {/* User position */}
               {(userCore > BigInt(0) || userRot > BigInt(0)) && (
-                <div className="mt-2.5 rounded-[10px] bg-[#f5f5f7] px-3 py-2 text-[11px] text-[#86868b]">
+                <div className="mt-2.5 rounded-[10px] bg-[#f5f5f7] px-3 py-2 text-[11px] text-[#6e6e73]">
                   Your bets:{" "}
                   {userCore > BigInt(0) && (
                     <span className="font-semibold text-[#34c759]">
@@ -430,7 +430,7 @@ export function MetaWagerLive() {
               )}
 
               {/* Wallet footer */}
-              <div className="mt-2 flex items-center justify-between text-[11px] text-[#86868b]">
+              <div className="mt-2 flex items-center justify-between text-[11px] text-[#6e6e73]">
                 <span className="font-mono">
                   {address?.slice(0, 6)}…{address?.slice(-4)}
                 </span>

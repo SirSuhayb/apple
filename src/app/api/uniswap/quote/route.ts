@@ -4,6 +4,7 @@ import {
   QUOTE_SWAPPER_FALLBACK,
   SWAP_SLIPPAGE_PERCENT,
   UNISWAP_TRADE_CHAIN_ID_STR,
+  assertAllowedSwapPair,
   parseAllowedToken,
   parseHumanAmount,
   parseSwapAddress,
@@ -18,14 +19,20 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 function sideToAddress(side: string): `0x${string}` {
-  const key = side.trim().toLowerCase() as SwapSide | string;
-  if (key === "aapl" || key === "bite") return SWAP_TOKENS[key].address;
+  const key = side.trim().toLowerCase();
+  if (key in SWAP_TOKENS) {
+    return SWAP_TOKENS[key as SwapSide].address;
+  }
   return parseAllowedToken(side);
 }
 
-function resolveAmount(amount: string | null, amountWei: string | null): string {
+function resolveAmount(
+  amount: string | null,
+  amountWei: string | null,
+  decimals: number,
+): string {
   if (amountWei) return parseWeiAmount(amountWei);
-  if (amount) return parseHumanAmount(amount);
+  if (amount) return parseHumanAmount(amount, decimals);
   throw new Error("Missing amount");
 }
 
@@ -40,6 +47,7 @@ function quoteBody(params: {
   if (tokenIn.toLowerCase() === tokenOut.toLowerCase()) {
     throw new Error("Choose two different tokens");
   }
+  assertAllowedSwapPair(tokenIn, tokenOut);
   let swapper = QUOTE_SWAPPER_FALLBACK;
   if (params.swapper && isAddress(params.swapper)) {
     swapper = parseSwapAddress(params.swapper);
@@ -71,7 +79,12 @@ async function handleQuote(params: {
     assertRobinhoodChain(UNISWAP_TRADE_CHAIN_ID_STR);
     const tokenIn = params.tokenIn ?? "aapl";
     const tokenOut = params.tokenOut ?? "bite";
-    const amount = resolveAmount(params.amount, params.amountWei);
+    const tokenInAddress = sideToAddress(tokenIn);
+    const tokenInMeta =
+      Object.values(SWAP_TOKENS).find(
+        (t) => t.address.toLowerCase() === tokenInAddress.toLowerCase(),
+      ) ?? SWAP_TOKENS.aapl;
+    const amount = resolveAmount(params.amount, params.amountWei, tokenInMeta.decimals);
     const body = quoteBody({
       tokenIn,
       tokenOut,

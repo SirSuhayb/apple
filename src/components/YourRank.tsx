@@ -69,7 +69,7 @@ function Top10Nudge({
   eaters,
   score,
   inTop10,
-  className = "mt-2 text-[13px] leading-snug text-[#86868b]",
+  className = "mt-2 text-[13px] leading-snug text-[#6e6e73]",
 }: {
   eaters: Eater[];
   score: number;
@@ -100,7 +100,7 @@ function ConnectHint({ compact }: { compact?: boolean }) {
 
   if (compact && !open) {
     return (
-      <p className="text-center text-[13px] text-[#86868b]">
+      <p className="text-center text-[13px] text-[#6e6e73]">
         {copy.leaderboard.connectHint}{" "}
         <button
           type="button"
@@ -115,7 +115,7 @@ function ConnectHint({ compact }: { compact?: boolean }) {
 
   return (
     <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-4">
-      <p className="text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+      <p className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
         {copy.leaderboard.yourRank}
       </p>
       <p className="mt-1 text-[15px] text-[#1d1d1f]">
@@ -167,7 +167,7 @@ export function YourRankCard({
   if (status.kind === "absent") {
     return (
       <div className="rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa] px-4 py-4">
-        <p className="text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <p className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           {copy.leaderboard.yourRank}
         </p>
         <EaterIdentity
@@ -180,7 +180,7 @@ export function YourRankCard({
         <p className="mt-1 text-[15px] text-[#1d1d1f]">
           {copy.leaderboard.notOnBoard}
         </p>
-        <p className="mt-1 text-[13px] leading-relaxed text-[#86868b]">
+        <p className="mt-1 text-[13px] leading-relaxed text-[#6e6e73]">
           {copy.leaderboard.notOnBoardHint}
         </p>
         <Top10Nudge eaters={eaters} score={0} />
@@ -199,7 +199,7 @@ export function YourRankCard({
         : copy.leaderboard.belowThresholdHint;
     return (
       <div className="rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa] px-4 py-4">
-        <p className="text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+        <p className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
           {copy.leaderboard.yourRank}
         </p>
         <EaterIdentity
@@ -210,7 +210,7 @@ export function YourRankCard({
           nameClassName="text-[15px] font-semibold text-[#1d1d1f]"
         />
         <p className="mt-1 text-[15px] text-[#1d1d1f]">{title}</p>
-        <p className="mt-1 text-[13px] leading-relaxed text-[#86868b]">{hint}</p>
+        <p className="mt-1 text-[13px] leading-relaxed text-[#6e6e73]">{hint}</p>
         <EaterStats
           eater={status.eater}
           appleTotal={appleTotal}
@@ -226,7 +226,7 @@ export function YourRankCard({
   const { eater, rank, total } = status;
   return (
     <div className={youSurfaceClass(true, "rounded-[14px] px-4 py-4")}>
-      <p className="text-[11px] font-semibold tracking-[1px] text-[#86868b] uppercase">
+      <p className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
         {copy.leaderboard.yourRank}
       </p>
       <div className="mt-1 flex items-start justify-between gap-3">
@@ -241,7 +241,7 @@ export function YourRankCard({
               isYou
               className="mt-1 text-[15px] font-semibold text-[#1d1d1f]"
             />
-            <p className="mt-0.5 text-[12px] text-[#86868b]">
+            <p className="mt-0.5 text-[12px] text-[#6e6e73]">
               {copy.leaderboard.rankOf(rank, total)}
             </p>
             <EaterStats eater={eater} appleTotal={appleTotal} className="mt-1.5" />
@@ -251,7 +251,7 @@ export function YourRankCard({
           <div className="text-[22px] font-extrabold tabular-nums text-[#1d1d1f]">
             {fmtScore(eater.score)}
           </div>
-          <div className="text-[11px] text-[#86868b]">{copy.leaderboard.pts}</div>
+          <div className="text-[11px] text-[#6e6e73]">{copy.leaderboard.pts}</div>
           <button
             type="button"
             onClick={() => scrollToEater(eater.address)}
@@ -314,7 +314,7 @@ export function YourRankStickyRow({
             eaters={eaters}
             score={eater.score}
             inTop10={false}
-            className="mt-1 text-[12px] leading-snug text-[#86868b]"
+            className="mt-1 text-[12px] leading-snug text-[#6e6e73]"
           />
         </div>
         <span className="shrink-0 tabular-nums text-[#1d1d1f]">

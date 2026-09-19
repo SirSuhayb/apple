@@ -167,7 +167,7 @@ export function EaterStats({
   if (layout === "stack") {
     return (
       <div
-        className={["flex flex-col gap-0.5 text-[11px] leading-snug text-[#86868b]", className].join(
+        className={["flex flex-col gap-0.5 text-[11px] leading-snug text-[#6e6e73]", className].join(
           " ",
         )}
       >
@@ -180,7 +180,7 @@ export function EaterStats({
 
   return (
     <p
-      className={["text-[11px] leading-snug text-[#86868b]", className].join(" ")}
+      className={["text-[11px] leading-snug text-[#6e6e73]", className].join(" ")}
     >
       {items.join(" · ")}
     </p>

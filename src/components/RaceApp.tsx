@@ -43,7 +43,7 @@ const AppleScene = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex h-full w-full items-center justify-center text-[#86868b]">
+      <div className="flex h-full w-full items-center justify-center text-[#6e6e73]">
         {copy.toasts.loading}
       </div>
     ),
@@ -58,7 +58,7 @@ function AppleProduceSticker() {
     <div className="apple-sticker" aria-hidden>
       <Image
         src="/sticker.png"
-        alt=""
+        alt="PLU produce sticker"
         width={401}
         height={274}
         className="apple-sticker-img"
@@ -94,21 +94,21 @@ function PhaseBanner({
   }
   if (racePhase === "rot") {
     return (
-      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] font-semibold text-[#86868b]">
+      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] font-semibold text-[#6e6e73]">
         {copy.phases.banners.rot}
       </div>
     );
   }
   if (act === 0) {
     return (
-      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] leading-relaxed text-[#86868b]">
+      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] leading-relaxed text-[#6e6e73]">
         {copy.phases.banners.prologue}
       </div>
     );
   }
   if (act === 1) {
     return (
-      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] leading-relaxed text-[#86868b]">
+      <div className="page-gutter border-b border-[#d2d2d7] bg-[#f5f5f7] py-2.5 text-center text-[13px] leading-relaxed text-[#6e6e73]">
         {copy.phases.banners.act1}
       </div>
     );
@@ -169,7 +169,7 @@ function ContractBlock({
   return (
     <div className="mx-auto max-w-sm text-center">
       <div className="inline-block rounded-2xl border border-[#d2d2d7] bg-[#f5f5f7] px-[22px] py-5">
-        <p className="max-w-[300px] break-all font-mono text-xs leading-relaxed text-[#86868b]">
+        <p className="max-w-[300px] break-all font-mono text-xs leading-relaxed text-[#6e6e73]">
           {address}
         </p>
         <div className="mt-2.5">
@@ -193,7 +193,7 @@ function ContractBlock({
             {copy.take.buy}
           </button>
         ) : (
-          <span className="inline-block rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-7 py-3.5 text-[17px] font-semibold text-[#86868b]">
+          <span className="inline-block rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-7 py-3.5 text-[17px] font-semibold text-[#6e6e73]">
             {copy.take.buySoon}
           </span>
         )}
@@ -249,7 +249,7 @@ function HowCards({ act }: { act: SiteAct }) {
               ].join(" ")}
             >
               {isLocked && (
-                <div className="absolute top-3 right-3 rounded-full bg-[#d2d2d7] px-2.5 py-0.5 text-[10px] font-semibold text-[#86868b]">
+                <div className="absolute top-3 right-3 rounded-full bg-[#d2d2d7] px-2.5 py-0.5 text-[10px] font-semibold text-[#6e6e73]">
                   {lockLabel}
                 </div>
               )}
@@ -257,12 +257,12 @@ function HowCards({ act }: { act: SiteAct }) {
               <div
                 className={[
                   "mb-1.5 text-[22px] font-bold",
-                  isLocked ? "text-[#86868b]" : "text-[#1d1d1f]",
+                  isLocked ? "text-[#6e6e73]" : "text-[#1d1d1f]",
                 ].join(" ")}
               >
                 {item.title}
               </div>
-              <div className="text-sm leading-relaxed text-[#86868b]">
+              <div className="text-sm leading-relaxed text-[#6e6e73]">
                 {item.body}
               </div>
             </div>
@@ -339,7 +339,7 @@ function SupplyStatsCard({ stats }: { stats: SupplyStats }) {
 
   return (
     <div className="mx-auto max-w-[580px]">
-      <p className="mb-4 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+      <p className="mb-4 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
         Supply breakdown
       </p>
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -353,7 +353,7 @@ function SupplyStatsCard({ stats }: { stats: SupplyStats }) {
                 : "border-[#d2d2d7] bg-white",
             ].join(" ")}
           >
-            <div className="mb-1 text-[10px] font-semibold tracking-[1.2px] text-[#86868b] uppercase">
+            <div className="mb-1 text-[10px] font-semibold tracking-[1.2px] text-[#6e6e73] uppercase">
               {c.label}
             </div>
             <div
@@ -365,7 +365,7 @@ function SupplyStatsCard({ stats }: { stats: SupplyStats }) {
               {c.value}
             </div>
             {c.sub && (
-              <div className="mt-0.5 text-[11px] text-[#86868b]">{c.sub}</div>
+              <div className="mt-0.5 text-[11px] text-[#6e6e73]">{c.sub}</div>
             )}
           </div>
         ))}
@@ -541,7 +541,7 @@ export function RaceApp({
               className={[
                 "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
                 flags.act === 0 || flags.act === 1
-                  ? "border-[#d2d2d7] bg-[#f5f5f7] text-[#86868b]"
+                  ? "border-[#d2d2d7] bg-[#f5f5f7] text-[#6e6e73]"
                   : flags.act === 2
                     ? "border-[#34c759]/40 bg-[#34c759]/15 text-[#34c759]"
                     : "border-[#e53935]/40 bg-[#e53935]/15 text-[#e53935]",
@@ -561,7 +561,7 @@ export function RaceApp({
               <span
                 aria-disabled="true"
                 title={copy.nav.soon}
-                className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-3.5 py-1.5 text-xs font-semibold text-[#86868b]"
+                className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-3.5 py-1.5 text-xs font-semibold text-[#6e6e73]"
               >
                 {copy.nav.buy}
               </span>
@@ -590,11 +590,11 @@ export function RaceApp({
         <h1 className="animate-rise text-[clamp(56px,14vw,96px)] font-bold leading-none tracking-[-0.04em]">
           {copy.brand}
         </h1>
-        <p className="animate-rise-delay-1 mt-2 text-[clamp(19px,4vw,28px)] font-normal text-[#86868b]">
+        <p className="animate-rise-delay-1 mt-2 text-[clamp(19px,4vw,28px)] font-normal text-[#6e6e73]">
           {tagline}
         </p>
         {(flags.act === 0 || flags.act === 1) && (
-          <p className="animate-rise-delay-1 mx-auto mt-3 max-w-[420px] text-[15px] leading-relaxed text-[#86868b]">
+          <p className="animate-rise-delay-1 mx-auto mt-3 max-w-[420px] text-[15px] leading-relaxed text-[#6e6e73]">
             {flags.act === 0 ? copy.hero.support[0] : copy.hero.support[1]}
           </p>
         )}
@@ -645,7 +645,7 @@ export function RaceApp({
               {copy.hero.ctaPrimary}
             </button>
           ) : (
-            <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-6 py-3 text-[15px] font-semibold text-[#86868b]">
+            <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-6 py-3 text-[15px] font-semibold text-[#6e6e73]">
               {copy.hero.ctaPrimarySoon}
             </span>
           )}
@@ -658,7 +658,7 @@ export function RaceApp({
         </div>
 
         {DAY_ONE_PLAYTHROUGH && (
-          <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-relaxed text-[#86868b]">
+          <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-relaxed text-[#6e6e73]">
             {flags.act === 0
               ? copy.tap.dayOne.notePrologue
               : copy.tap.dayOne.note}
@@ -671,13 +671,13 @@ export function RaceApp({
         id="game"
         className="page-gutter bg-[#f5f5f7] py-16 text-center"
       >
-        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
           {copy.game.eyebrow}
         </p>
         <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
           {copy.game.headline}
         </h2>
-        <div className="mx-auto mt-3.5 max-w-[460px] space-y-3 text-[17px] leading-relaxed text-[#86868b]">
+        <div className="mx-auto mt-3.5 max-w-[460px] space-y-3 text-[17px] leading-relaxed text-[#6e6e73]">
           {copy.game.body.map((line) => (
             <p key={line}>{line}</p>
           ))}
@@ -688,7 +688,7 @@ export function RaceApp({
       {flags.showProgress && (
         <div className="page-gutter bg-[#f5f5f7] py-7 text-center">
           <div className="mx-auto max-w-[460px]">
-            <p className="mb-3.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+            <p className="mb-3.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
               {copy.core.eyebrow}
             </p>
             <Countdown
@@ -698,7 +698,7 @@ export function RaceApp({
             />
             <div className="mt-5">
               <div className="mb-1.5 flex items-baseline justify-between">
-                <span className="text-xs text-[#86868b]">
+                <span className="text-xs text-[#6e6e73]">
                   {copy.core.remaining(remainingDisplay)}
                 </span>
                 <span className="text-2xl font-bold text-[#e53935]">{pct}%</span>
@@ -711,7 +711,7 @@ export function RaceApp({
                   }}
                 />
               </div>
-              <div className="mt-1.5 text-right text-[11px] text-[#86868b]">
+              <div className="mt-1.5 text-right text-[11px] text-[#6e6e73]">
                 {copy.core.burned(burnedDisplay)}
               </div>
             </div>
@@ -727,7 +727,7 @@ export function RaceApp({
             : copy.line.headline.racing
           ).join("\n")}
         </h2>
-        <p className="mx-auto mt-3.5 max-w-[440px] text-[17px] leading-relaxed text-[#86868b]">
+        <p className="mx-auto mt-3.5 max-w-[440px] text-[17px] leading-relaxed text-[#6e6e73]">
           {flags.act === 0
             ? copy.line.body[0]
             : flags.act === 1
@@ -739,7 +739,7 @@ export function RaceApp({
       {/* How */}
       <section id="how" className="bg-[#f5f5f7] py-[60px]">
         <div className="page-gutter mx-auto max-w-[980px]">
-          <p className="mb-5 text-[17px] text-[#86868b]">
+          <p className="mb-5 text-[17px] text-[#6e6e73]">
             {copy.how.intro[0]}{" "}
             <span className="font-bold text-[#1d1d1f]">{copy.how.intro[1]}</span>
           </p>
@@ -753,7 +753,7 @@ export function RaceApp({
           id="wager"
           className="page-gutter bg-[#fbfbfd] py-20 text-center"
         >
-          <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+          <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
             {copy.wager.eyebrow}
           </p>
           <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
@@ -761,10 +761,10 @@ export function RaceApp({
             <br />
             {copy.wager.headline[1]}
           </h2>
-          <p className="mx-auto mt-3.5 max-w-[460px] text-[17px] leading-relaxed text-[#86868b]">
+          <p className="mx-auto mt-3.5 max-w-[460px] text-[17px] leading-relaxed text-[#6e6e73]">
             {copy.wager.body}
           </p>
-          <p className="mt-2.5 text-[13px] text-[#86868b] italic">
+          <p className="mt-2.5 text-[13px] text-[#6e6e73] italic">
             {copy.wager.clarifier}
           </p>
         </section>
@@ -775,7 +775,7 @@ export function RaceApp({
         <section className="page-gutter bg-[#fbfbfd] pb-[60px]">
           <div className="mx-auto max-w-[480px]">
             <div className="mb-3 flex items-center gap-2">
-              <p className="text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+              <p className="text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
                 {copy.metaWager.eyebrow}
               </p>
               <MetaWagerInfo />
@@ -799,7 +799,7 @@ export function RaceApp({
       {/* Biggest eaters */}
       <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
         <div className="mx-auto max-w-[580px]">
-          <p className="mb-4 text-[17px] text-[#86868b]">
+          <p className="mb-4 text-[17px] text-[#6e6e73]">
             {flags.act <= 1 ? copy.eaters.intro[0] : copy.eaters.introAct2[0]}{" "}
             <span className="font-bold text-[#1d1d1f]">
               {flags.act <= 1 ? copy.eaters.intro[1] : copy.eaters.introAct2[1]}
@@ -811,12 +811,12 @@ export function RaceApp({
             appleTotal={appleTotal}
           />
           {flags.act === 0 && boardEaters.length === 0 && (
-            <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
+            <p className="mt-3 text-center text-[13px] text-[#6e6e73] italic">
               {copy.eaters.emptyHintPrologue}
             </p>
           )}
           {flags.act === 1 && boardEaters.length === 0 && (
-            <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
+            <p className="mt-3 text-center text-[13px] text-[#6e6e73] italic">
               {copy.leaderboard.emptyHintAct1}
             </p>
           )}
@@ -826,7 +826,7 @@ export function RaceApp({
       {/* Why AAPL */}
       <section id="pairing" className="page-gutter bg-[#fbfbfd] py-20">
         <div className="@container mx-auto max-w-[680px]">
-          <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+          <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
             {copy.pairing.eyebrow}
           </p>
           <h2 className="text-[clamp(14px,5.4cqi,36px)] font-bold leading-[1.12] tracking-[-0.02em]">
@@ -834,10 +834,10 @@ export function RaceApp({
             <br />
             {copy.pairing.headline[1]}
           </h2>
-          <p className="mt-3.5 max-w-[580px] text-[15px] leading-relaxed text-[#86868b]">
+          <p className="mt-3.5 max-w-[580px] text-[15px] leading-relaxed text-[#6e6e73]">
             {copy.pairing.body}
           </p>
-          <p className="mt-2.5 max-w-[580px] text-[15px] leading-relaxed text-[#86868b]">
+          <p className="mt-2.5 max-w-[580px] text-[15px] leading-relaxed text-[#6e6e73]">
             {copy.pairing.then}
           </p>
         </div>
@@ -864,7 +864,7 @@ export function RaceApp({
                 key={label}
                 className="bg-white px-2.5 py-[18px] text-center"
               >
-                <div className="mb-1 text-[10px] font-semibold tracking-[1.2px] text-[#86868b] uppercase">
+                <div className="mb-1 text-[10px] font-semibold tracking-[1.2px] text-[#6e6e73] uppercase">
                   {label}
                 </div>
                 <div className="text-[15px] leading-snug font-semibold whitespace-pre-line text-[#1d1d1f]">
@@ -878,18 +878,18 @@ export function RaceApp({
 
       {/* Tap / Burn section */}
       <section id="burn" className="page-gutter bg-[#fbfbfd] py-20 text-center">
-        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#86868b] uppercase">
+        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
           {copy.tap.eyebrow}
         </p>
         <h2 className="text-[clamp(26px,6vw,40px)] font-bold tracking-[-0.02em]">
           {copy.tap.headline}
         </h2>
-        <p className="mx-auto mt-3.5 max-w-[440px] text-[15px] leading-relaxed text-[#86868b]">
+        <p className="mx-auto mt-3.5 max-w-[440px] text-[15px] leading-relaxed text-[#6e6e73]">
           {copy.tap.body}
         </p>
         <div className="mt-8">
           {raceEnded ? (
-            <p className="text-[15px] font-medium text-[#86868b]">
+            <p className="text-[15px] font-medium text-[#6e6e73]">
               {copy.tap.raceOver}
             </p>
           ) : flags.burnsOpen ? (
@@ -901,7 +901,7 @@ export function RaceApp({
               {copy.tap.cta}
             </button>
           ) : (
-            <p className="text-[15px] font-medium text-[#86868b]">
+            <p className="text-[15px] font-medium text-[#6e6e73]">
               {flags.act === 0
                 ? copy.tap.ctaLockedPrologue
                 : copy.tap.ctaLocked}

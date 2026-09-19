@@ -109,7 +109,7 @@ function ShareRow({
       className={`${className} w-full max-w-[420px] rounded-[18px] border border-[#d2d2d7] bg-white px-4 py-3.5 text-left shadow-[0_8px_30px_rgba(0,0,0,0.06)]`}
     >
       <div className="flex items-center gap-3">
-        <span className="w-10 shrink-0 text-center text-sm font-bold tabular-nums text-[#86868b]">
+        <span className="w-10 shrink-0 text-center text-sm font-bold tabular-nums text-[#6e6e73]">
           {rank ?? "—"}
         </span>
         <div className="min-w-0 flex-1">
@@ -127,7 +127,7 @@ function ShareRow({
               className="mt-0.5"
             />
           ) : burn ? (
-            <p className="mt-0.5 text-[11px] leading-snug text-[#86868b]">
+            <p className="mt-0.5 text-[11px] leading-snug text-[#6e6e73]">
               {copy.leaderboard.burnedAmount(formatCompactAmount(burn))}
             </p>
           ) : null}
@@ -137,7 +137,7 @@ function ShareRow({
             <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
               {fmtScore(eater.score)}
             </div>
-            <div className="text-[11px] text-[#86868b]">
+            <div className="text-[11px] text-[#6e6e73]">
               {copy.leaderboard.pts}
             </div>
           </div>

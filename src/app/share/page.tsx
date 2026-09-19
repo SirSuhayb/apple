@@ -95,7 +95,7 @@ export default async function SharePage({
     <main className="flex min-h-full flex-col items-center justify-center bg-[#fbfbfd] px-6 py-16 text-center">
       <img
         src={SHARE_OG_IMAGE}
-        alt=""
+        alt="$BITE — Eat it to the core."
         className="h-auto w-full max-w-[420px] rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
       />
       <SharePlayerCard

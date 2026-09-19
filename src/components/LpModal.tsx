@@ -592,7 +592,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
             <h2 className="text-[17px] font-semibold text-[#1d1d1f]">
               {copy.lp.title}
             </h2>
-            <p className="mt-0.5 text-[12px] text-[#86868b]">{copy.lp.note}</p>
+            <p className="mt-0.5 text-[12px] text-[#6e6e73]">{copy.lp.note}</p>
           </div>
           <button
             type="button"
@@ -604,11 +604,11 @@ export function LpModal({ open, onClose }: LpModalProps) {
         </div>
 
         <div className="flex flex-col gap-3 overflow-y-auto px-5 py-5">
-          <p className="text-[13px] leading-relaxed text-[#86868b]">{copy.lp.body}</p>
-          <p className="text-[13px] leading-relaxed text-[#86868b]">{copy.lp.hookExplain}</p>
+          <p className="text-[13px] leading-relaxed text-[#6e6e73]">{copy.lp.body}</p>
+          <p className="text-[13px] leading-relaxed text-[#6e6e73]">{copy.lp.hookExplain}</p>
 
           <label className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
-            <div className="flex items-center justify-between text-[12px] text-[#86868b]">
+            <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.intoPool}</span>
               <span>{SWAP_TOKENS.bite.symbol}</span>
             </div>
@@ -623,7 +623,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
               aria-label={copy.lp.intoPool}
             />
             {isConnected && biteBalance !== undefined && (
-              <p className="mt-1 text-[11px] text-[#86868b]">
+              <p className="mt-1 text-[11px] text-[#6e6e73]">
                 {copy.lp.balance}:{" "}
                 {Number(formatEther(biteBalance)).toLocaleString(undefined, {
                   maximumFractionDigits: 2,
@@ -634,7 +634,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
           </label>
 
           <label className="rounded-2xl border border-dashed border-[#d2d2d7] bg-white px-4 py-3">
-            <div className="flex items-center justify-between text-[12px] text-[#86868b]">
+            <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.keepAside}</span>
               <span>{SWAP_TOKENS.bite.symbol}</span>
             </div>
@@ -648,24 +648,24 @@ export function LpModal({ open, onClose }: LpModalProps) {
               className="mt-1 w-full bg-transparent text-[28px] font-semibold tracking-[-0.03em] text-[#1d1d1f] outline-none"
               aria-label={copy.lp.keepAside}
             />
-            <p className="mt-1 text-[11px] leading-relaxed text-[#86868b]">
+            <p className="mt-1 text-[11px] leading-relaxed text-[#6e6e73]">
               {copy.lp.keepHint}
             </p>
           </label>
 
           <div className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
-            <div className="flex items-center justify-between text-[12px] text-[#86868b]">
+            <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.matching}</span>
               <span>{SWAP_TOKENS.aapl.symbol}</span>
             </div>
             <p className="mt-1 text-[28px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
               {quoting && !matchingAapl ? copy.lp.quoting : matchingAapl ?? "—"}
             </p>
-            <p className="mt-1 text-[11px] text-[#86868b]">
+            <p className="mt-1 text-[11px] text-[#6e6e73]">
               {copy.lp.slippage(LP_SLIPPAGE_PERCENT)}
             </p>
             {isConnected && aaplBalance !== undefined && (
-              <p className="mt-1 text-[11px] text-[#86868b]">
+              <p className="mt-1 text-[11px] text-[#6e6e73]">
                 {copy.lp.balance}:{" "}
                 {Number(formatEther(aaplBalance)).toLocaleString(undefined, {
                   maximumFractionDigits: 6,
@@ -676,7 +676,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
           </div>
 
           <div className="rounded-2xl border border-[#d2d2d7] px-4 py-3">
-            <div className="flex items-center justify-between text-[12px] text-[#86868b]">
+            <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.feeTitle}</span>
               <span>
                 {copy.lp.feeTierLabel(
@@ -686,7 +686,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
               </span>
             </div>
             {quoting && !matchingAapl ? (
-              <p className="mt-2 text-[13px] leading-relaxed text-[#86868b]">
+              <p className="mt-2 text-[13px] leading-relaxed text-[#6e6e73]">
                 {copy.lp.feeLoading}
               </p>
             ) : feeEstimate.sharePercent != null && matchingAapl ? (
@@ -700,7 +700,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
                 </p>
                 {feeEstimate.feeTierPercent != null &&
                   feeEstimate.feeTierPercent > 0 && (
-                    <p className="text-[#86868b]">
+                    <p className="text-[#6e6e73]">
                       {copy.lp.feeTake(
                         formatFeeTier(pool?.fee ?? LP_SEED_FEE_PIPS),
                         formatSharePercent(feeEstimate.sharePercent),
@@ -708,32 +708,32 @@ export function LpModal({ open, onClose }: LpModalProps) {
                     </p>
                   )}
                 {feeEstimate.estimatedUsdPerDay != null ? (
-                  <p className="text-[#86868b]">
+                  <p className="text-[#6e6e73]">
                     {copy.lp.feeDaily(
                       formatUsdEstimate(feeEstimate.estimatedUsdPerDay),
                     )}
                   </p>
                 ) : feeEstimate.gap === "thin_volume" ? (
-                  <p className="text-[#86868b]">{copy.lp.feeThin}</p>
+                  <p className="text-[#6e6e73]">{copy.lp.feeThin}</p>
                 ) : feeEstimate.gap === "no_volume" ? (
-                  <p className="text-[#86868b]">{copy.lp.feeNoVolume}</p>
+                  <p className="text-[#6e6e73]">{copy.lp.feeNoVolume}</p>
                 ) : feeEstimate.gap === "zero_fee" ? (
-                  <p className="text-[#86868b]">{copy.lp.feeZeroFee}</p>
+                  <p className="text-[#6e6e73]">{copy.lp.feeZeroFee}</p>
                 ) : null}
-                <p className="text-[#86868b]">{copy.lp.feeHook}</p>
+                <p className="text-[#6e6e73]">{copy.lp.feeHook}</p>
               </div>
             ) : biteForLp <= 0n ? (
-              <p className="mt-2 text-[13px] leading-relaxed text-[#86868b]">
+              <p className="mt-2 text-[13px] leading-relaxed text-[#6e6e73]">
                 {copy.lp.feeNeedAmount}
               </p>
             ) : (
-              <p className="mt-2 text-[13px] leading-relaxed text-[#86868b]">
+              <p className="mt-2 text-[13px] leading-relaxed text-[#6e6e73]">
                 {copy.lp.feeNoVolume}
               </p>
             )}
           </div>
 
-          <p className="text-center text-[11px] leading-relaxed text-[#86868b]">
+          <p className="text-center text-[11px] leading-relaxed text-[#6e6e73]">
             {copy.lp.pots}
           </p>
 
@@ -854,18 +854,18 @@ export function LpModal({ open, onClose }: LpModalProps) {
 
           {isConnected && (
             <div className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
-              <p className="text-[12px] font-medium text-[#86868b]">
+              <p className="text-[12px] font-medium text-[#6e6e73]">
                 {copy.lp.positionsTitle}
               </p>
-              <p className="mt-1 text-[11px] leading-relaxed text-[#86868b]">
+              <p className="mt-1 text-[11px] leading-relaxed text-[#6e6e73]">
                 {copy.lp.positionsHint}
               </p>
               {positionsLoading ? (
-                <p className="mt-3 text-[13px] text-[#86868b]">
+                <p className="mt-3 text-[13px] text-[#6e6e73]">
                   {copy.lp.positionsLoading}
                 </p>
               ) : positions.length === 0 ? (
-                <p className="mt-3 text-[13px] text-[#86868b]">
+                <p className="mt-3 text-[13px] text-[#6e6e73]">
                   {copy.lp.positionsEmpty}
                 </p>
               ) : (
@@ -887,7 +887,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
                             formatFeeTier(position.feePips ?? 0),
                           )}
                         </p>
-                        <p className="mt-1 text-[12px] text-[#86868b]">
+                        <p className="mt-1 text-[12px] text-[#6e6e73]">
                           {copy.lp.uncollected}
                         </p>
                         <p className="text-[15px] font-semibold text-[#1d1d1f]">
@@ -914,14 +914,14 @@ export function LpModal({ open, onClose }: LpModalProps) {
                             type="button"
                             disabled={lpPending}
                             onClick={() => void runRemove(position.tokenId)}
-                            className="mt-2 w-full text-center text-[12px] text-[#86868b] disabled:opacity-40"
+                            className="mt-2 w-full text-center text-[12px] text-[#6e6e73] disabled:opacity-40"
                           >
                             {rowBusy && busy === "remove"
                               ? copy.lp.removing
                               : copy.lp.remove}
                           </button>
                         )}
-                        <p className="mt-1 text-center text-[11px] text-[#86868b]">
+                        <p className="mt-1 text-center text-[11px] text-[#6e6e73]">
                           {copy.lp.removeHint}
                         </p>
                       </div>
@@ -936,7 +936,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
             <button
               type="button"
               onClick={() => disconnect()}
-              className="text-center text-[12px] text-[#86868b]"
+              className="text-center text-[12px] text-[#6e6e73]"
             >
               {copy.lp.disconnect}
             </button>
