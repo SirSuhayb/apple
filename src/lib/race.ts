@@ -42,6 +42,10 @@ export type SupplyStats = {
   totalSupply: number;
   totalBurned: number;
   holderCount: number;
+  /** Same as holderCount — current EOA wallets with balance > 0. */
+  holdersEoa?: number;
+  /** Unique addresses that ever received BITE (FOMO-style overcount). */
+  allTimeRecipients?: number;
   bitePriceUsd: number | null;
   updatedAt?: string;
 };

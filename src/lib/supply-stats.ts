@@ -198,6 +198,8 @@ export function mergeSupplyStats(
     totalSupply: 0,
     totalBurned: 0,
     holderCount: 0,
+    holdersEoa: 0,
+    allTimeRecipients: 0,
     bitePriceUsd: null,
   };
   const withCirculating: SupplyStats = {

@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { SCORE_SCALE, type Eater, type SupplyStats } from "./race";
 import { migrateLegacyScore, sortLeaderboard } from "./leaderboard-rank";
+import { resolveHolderCount } from "./holders";
 import {
   fetchLiveSupplyOverlay,
   mergeSupplyStats,
@@ -172,10 +173,22 @@ async function fetchRemoteJson(url: string): Promise<unknown | null> {
   }
 }
 
-function parseSupplyStats(raw: unknown): SupplyStats | undefined {
+function parseSupplyStats(
+  raw: unknown,
+  market?: unknown,
+): SupplyStats | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const s = raw as Record<string, unknown>;
   const eoaHeldBite = Number(s.eoaHeldBite ?? 0) || 0;
+  const marketBs =
+    market && typeof market === "object"
+      ? (market as { blockscout?: { holdersEoa?: unknown } }).blockscout
+      : undefined;
+  const holdersEoa = Number(s.holdersEoa ?? marketBs?.holdersEoa ?? 0) || 0;
+  const holderCount = resolveHolderCount({
+    holderCount: Number(s.holderCount ?? 0) || 0,
+    holdersEoa,
+  });
   return {
     prizePoolAapl: Number(s.prizePoolAapl ?? 0) || 0,
     prizePoolUsd:
@@ -188,7 +201,9 @@ function parseSupplyStats(raw: unknown): SupplyStats | undefined {
     realisticallyBurnable: Number(s.realisticallyBurnable ?? 0) || 0,
     totalSupply: Number(s.totalSupply ?? 0) || 0,
     totalBurned: Number(s.totalBurned ?? 0) || 0,
-    holderCount: Number(s.holderCount ?? 0) || 0,
+    holderCount,
+    holdersEoa: holdersEoa || holderCount,
+    allTimeRecipients: Number(s.allTimeRecipients ?? 0) || 0,
     bitePriceUsd:
       s.bitePriceUsd != null ? Number(s.bitePriceUsd) || null : null,
     updatedAt: typeof s.updatedAt === "string" ? s.updatedAt : undefined,
@@ -204,6 +219,7 @@ function payloadFromRaw(publicRaw: unknown): Act1LeaderboardPayload | null {
     scoreScale?: string;
     tradeFromBlock?: number;
     supplyStats?: unknown;
+    market?: unknown;
     eaters?: RawRow[];
   };
   if (!Array.isArray(payload.eaters)) return null;
@@ -218,7 +234,7 @@ function payloadFromRaw(publicRaw: unknown): Act1LeaderboardPayload | null {
     scoring: payload.scoring ?? "act1",
     scoreScale: SCORE_SCALE,
     tradeFromBlock: payload.tradeFromBlock,
-    supplyStats: parseSupplyStats(payload.supplyStats),
+    supplyStats: parseSupplyStats(payload.supplyStats, payload.market),
     eaters,
   };
 }

@@ -1,6 +1,12 @@
 import { BITE_TOKEN, CHAIN_ID } from "./config";
 import { fetchAct1Leaderboard } from "./act1-leaderboard";
+import {
+  HOLDER_COUNT_DEFINITION,
+  resolveHolderCount,
+} from "./holders";
 import type { SupplyStats } from "./race";
+
+export { HOLDER_COUNT_DEFINITION, resolveHolderCount };
 
 /** Wallet-held BITE only — same figure as supplyStats.eoaHeldBite. */
 export const CIRCULATING_SUPPLY_DEFINITION =
@@ -14,7 +20,9 @@ export type CirculatingSupplyPayload = {
   totalSupply: number;
   totalBurned: number;
   holderCount: number;
+  allTimeRecipients: number;
   definition: string;
+  holderDefinition: string;
   token: typeof BITE_TOKEN;
   chainId: typeof CHAIN_ID;
   updatedAt: string | null;
@@ -50,8 +58,13 @@ export async function fetchCirculatingSupply(): Promise<CirculatingSupplyPayload
     contractHeldBite: stats?.contractHeldBite ?? 0,
     totalSupply: stats?.totalSupply ?? 0,
     totalBurned: stats?.totalBurned ?? 0,
-    holderCount: stats?.holderCount ?? 0,
+    holderCount: resolveHolderCount({
+      holderCount: stats?.holderCount,
+      holdersEoa: stats?.holdersEoa,
+    }),
+    allTimeRecipients: stats?.allTimeRecipients ?? 0,
     definition: CIRCULATING_SUPPLY_DEFINITION,
+    holderDefinition: HOLDER_COUNT_DEFINITION,
     token: BITE_TOKEN,
     chainId: CHAIN_ID,
     updatedAt: stats?.updatedAt ?? board.updatedAt ?? null,

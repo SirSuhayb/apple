@@ -43,7 +43,9 @@
     "realisticallyBurnable": 453812474.3100613,
     "totalSupply": 988944000.0,
     "totalBurned": 11056000.0,
-    "holderCount": 527,
+    "holderCount": 96,
+    "holdersEoa": 96,
+    "allTimeRecipients": 527,
     "bitePriceUsd": 3.979e-05,
     "updatedAt": "2026-09-16T21:15:54.814888+00:00"
   },

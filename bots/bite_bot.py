@@ -96,6 +96,20 @@ PONS_FEE_ESCROW = os.getenv(
     "PONS_FEE_ESCROW",
     "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
 )
+UNISWAP_POSITION_MANAGER = os.getenv(
+    "UNISWAP_POSITION_MANAGER",
+    "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+)
+UNISWAP_POOL_MANAGER = os.getenv(
+    "UNISWAP_POOL_MANAGER",
+    "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+)
+# Known Uniswap/Pons routers that have received BITE in Transfer logs.
+_DEFAULT_PROTOCOL_ADDRS = (
+    "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044",
+    "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
+    "0x8f10b468b06c6fd214b65f87778827f7d113f996",
+)
 # Last known kitchen-attributed escrow claimable (~0.539 AAPL / $178). RPC fallback only.
 LAST_KNOWN_ESCROW_CLAIMABLE_AAPL_RAW = int(0.539059 * 10**18)
 
@@ -763,6 +777,122 @@ def _excluded_board_addrs(state: dict | None = None) -> set[str]:
     return excluded
 
 
+def _protocol_hold_addrs() -> set[str]:
+    """Contracts that can hold BITE but are not people.
+
+    Kitchen, escrow, Uniswap pool/PositionManager, known routers, dead/zero.
+    EIP-7702 delegated EOAs are *not* listed here — they still count as holders.
+    """
+    excluded = {
+        ZERO_ADDRESS.lower(),
+        DEAD_ADDRESS.lower(),
+        BITE_CONTRACT.lower(),
+    }
+    for raw in (
+        KITCHEN_CONTRACT,
+        PONS_FEE_ESCROW,
+        META_WAGER_CONTRACT,
+        UNISWAP_POSITION_MANAGER,
+        UNISWAP_POOL_MANAGER,
+        *_DEFAULT_PROTOCOL_ADDRS,
+    ):
+        if isinstance(raw, str) and ADDR_RE.match(raw):
+            excluded.add(raw.lower())
+    return excluded
+
+
+def _raw_balance(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def is_valid_eoa_holder(
+    addr: str,
+    balance_raw: int,
+    *,
+    is_contract: bool = False,
+    contract_addrs: set[str] | None = None,
+) -> bool:
+    """A holder is an address with BITE > 0 that is a person, not a protocol contract.
+
+    EIP-7702 (0xef0100||address) must be passed as is_contract=False.
+    """
+    if balance_raw <= 0 or not isinstance(addr, str):
+        return False
+    key = addr.lower()
+    if not ADDR_RE.match(key):
+        return False
+    if key in _protocol_hold_addrs():
+        return False
+    if is_contract:
+        return False
+    if contract_addrs and key in contract_addrs:
+        return False
+    return True
+
+
+def eoa_holder_balances(state: dict) -> list[tuple[str, int]]:
+    """Current EOA (incl. EIP-7702) balances. Prefers Blockscout rows, else snapshots.
+
+    Single source for holder_count and eoa_held so they cannot diverge.
+    """
+    contracts = {
+        a.lower()
+        for a in (state.get("contract_addrs") or [])
+        if isinstance(a, str)
+    }
+    out: list[tuple[str, int]] = []
+    seen: set[str] = set()
+    rows = state.get("current_token_holders")
+    if isinstance(rows, list) and rows:
+        for h in rows:
+            if not isinstance(h, dict):
+                continue
+            addr = str(h.get("address") or "").lower()
+            if addr in seen:
+                continue
+            bal = _raw_balance(h.get("value"))
+            if not is_valid_eoa_holder(
+                addr,
+                bal,
+                is_contract=bool(h.get("is_contract")),
+                contract_addrs=contracts,
+            ):
+                continue
+            seen.add(addr)
+            out.append((addr, bal))
+        return out
+
+    for wallet_l, entry in (state.get("points") or {}).items():
+        if not isinstance(entry, dict) or not isinstance(wallet_l, str):
+            continue
+        key = wallet_l.lower()
+        if key in seen:
+            continue
+        bal = _raw_balance(entry.get("last_balance_raw"))
+        if not is_valid_eoa_holder(key, bal, contract_addrs=contracts):
+            continue
+        seen.add(key)
+        out.append((key, bal))
+    return out
+
+
+def count_eoa_holders(state: dict) -> int:
+    return len(eoa_holder_balances(state))
+
+
+def all_time_recipients(state: dict) -> int:
+    """FOMO-style count: unique addresses that ever received BITE."""
+    known = {
+        a.lower()
+        for a in (state.get("known_holders") or [])
+        if isinstance(a, str) and ADDR_RE.match(a)
+    }
+    return len(known)
+
+
 def http_get_json(url: str, timeout: int = 30) -> dict | list | None:
     try:
         req = urllib.request.Request(
@@ -838,25 +968,25 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     counters = blockscout_get(f"/tokens/{BITE_CONTRACT}/counters")
     if isinstance(counters, dict):
         bs["transfersCount"] = counters.get("transfers_count")
+        # Explorer "holders" = any address with balance > 0, including LP/contracts.
+        # Do not promote that to holder_count (FOMO-style overcount).
         bs["holdersCount"] = counters.get("token_holders_count")
-        try:
-            state["holder_count"] = max(
-                int(state.get("holder_count") or 0),
-                int(counters.get("token_holders_count") or 0),
-            )
-        except Exception:
-            pass
 
     holders: list[dict] = []
     params: dict = {"items_count": 50}
     pages = 0
-    while pages < 40:
+    holder_page_cap = 80
+    finished = False
+    truncated = False
+    while pages < holder_page_cap:
         pages += 1
         data = blockscout_get(f"/tokens/{BITE_CONTRACT}/holders", params)
         if not isinstance(data, dict):
+            truncated = True
             break
         items = data.get("items") or []
         if not items:
+            finished = True
             break
         for it in items:
             addr_obj = it.get("address") or {}
@@ -877,25 +1007,31 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
             )
         nxt = data.get("next_page_params")
         if not nxt or not isinstance(nxt, dict):
+            finished = True
             break
         params = {**nxt}
         # keep page size hint
         params.setdefault("items_count", 50)
+    else:
+        truncated = True
 
     if not holders:
         print("[blockscout] holders sync returned 0 rows")
         bs["updatedAt"] = datetime.now(timezone.utc).isoformat()
         return state
 
+    complete = finished and not truncated
     contracts = {a.lower() for a in (state.get("contract_addrs") or []) if isinstance(a, str)}
     eoas = {a.lower() for a in (state.get("eoa_addrs") or []) if isinstance(a, str)}
-    known = set()
+    known = {a.lower() for a in (state.get("known_holders") or []) if isinstance(a, str)}
     now = datetime.now(timezone.utc)
     hours = max(0.0, (now - LAUNCH_AT).total_seconds() / 3600.0)
+    present: set[str] = set()
 
     for h in holders:
         addr = h["address"]
         is_contract = bool(h["is_contract"])
+        present.add(addr)
         if is_contract and addr not in DEV_WALLETS:
             contracts.add(addr)
             continue
@@ -905,10 +1041,7 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
             eoas.add(addr)
             contracts.discard(addr)
         known.add(addr)
-        try:
-            bal = int(h["value"])
-        except Exception:
-            bal = 0
+        bal = _raw_balance(h.get("value"))
         entry = points_entry(state, addr)
         display = Web3.to_checksum_address(addr) if Web3 else addr
         entry["wallet"] = display
@@ -926,17 +1059,34 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
             entry["dev"] = True
             entry["ineligible"] = True
 
+    # Full holder list: anyone missing sold out — zero stale snapshots so
+    # circulating / holder_count do not keep FOMO leftovers.
+    if complete:
+        for wallet_l, entry in (state.get("points") or {}).items():
+            if not isinstance(entry, dict) or not isinstance(wallet_l, str):
+                continue
+            if wallet_l.lower() not in present:
+                entry["last_balance_raw"] = 0
+
+    if complete:
+        state["current_token_holders"] = holders
+    else:
+        state.pop("current_token_holders", None)
+    state["current_token_holders_complete"] = complete
     state["contract_addrs"] = sorted(contracts)
     state["eoa_addrs"] = sorted(eoas)
     state["known_holders"] = sorted(known)
-    eoa_holders = [h for h in holders if not h["is_contract"] or h["address"] in DEV_WALLETS]
-    bs["holdersEoa"] = len([h for h in holders if not h["is_contract"]])
+    eoa_count = count_eoa_holders(state)
+    state["holder_count"] = eoa_count
+    bs["holdersEoa"] = eoa_count
     bs["holdersTotal"] = len(holders)
+    bs["holdersComplete"] = complete
     bs["synced"] = len(holders)
     bs["updatedAt"] = now.isoformat()
     print(
         f"[blockscout] holders synced: {len(holders)} total, "
-        f"{bs['holdersEoa']} EOA (API holders_count={bs.get('holdersCount')})"
+        f"{eoa_count} EOA (explorer holders_count={bs.get('holdersCount')}"
+        f"{'' if complete else ', truncated'})"
     )
     return state
 
@@ -1027,37 +1177,18 @@ def sync_supply_stats(state: dict, w3=None, contract=None) -> dict:
     else:
         stats["prize_pool_usd"] = None
 
-    # Supply breakdown from Blockscout holder data
+    # Supply breakdown from current EOA balances (same set as holder_count)
     total_supply = int(state.get("total_supply") or 0)
     total_burned = int(state.get("total_burned") or 0)
 
-    # Sum EOA balances from Blockscout holders (synced in sync_blockscout_holders)
     eoa_held = 0
-    contract_held = 0
-    bs_holders = (state.get("market") or {}).get("blockscout") or {}
-    # Use points state which has last_balance_raw for each wallet
-    eoa_addrs = set(a.lower() for a in (state.get("eoa_addrs") or []))
-    contract_addrs = set(a.lower() for a in (state.get("contract_addrs") or []))
-    excluded = {ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower(), BITE_CONTRACT.lower()}
+    holder_count = 0
+    for _addr, bal in eoa_holder_balances(state):
+        eoa_held += bal
+        holder_count += 1
 
-    for wallet_l, entry in (state.get("points") or {}).items():
-        if not isinstance(entry, dict):
-            continue
-        bal = int(entry.get("last_balance_raw") or 0)
-        if bal <= 0:
-            continue
-        key = wallet_l.lower()
-        if key in excluded:
-            continue
-        if key in contract_addrs and key not in DEV_WALLETS:
-            contract_held += bal
-        else:
-            eoa_held += bal
-
-    # Anything not accounted for in points entries (LP, kitchen, etc.)
-    accounted = eoa_held + contract_held + total_burned
-    unaccounted = max(0, total_supply - accounted)
-    contract_held += unaccounted
+    accounted = eoa_held + total_burned
+    contract_held = max(0, total_supply - accounted)
 
     stats["eoa_held_bite_raw"] = eoa_held
     stats["eoa_held_bite"] = eoa_held / 10**18
@@ -1067,8 +1198,13 @@ def sync_supply_stats(state: dict, w3=None, contract=None) -> dict:
     stats["realistically_burnable"] = eoa_held / 10**18
     stats["total_supply"] = total_supply / 10**18
     stats["total_burned"] = total_burned / 10**18
-    stats["holder_count"] = int(state.get("holder_count") or 0)
+    stats["holder_count"] = holder_count
+    stats["all_time_recipients"] = all_time_recipients(state)
     stats["updated_at"] = datetime.now(timezone.utc).isoformat()
+    state["holder_count"] = holder_count
+    market = state.setdefault("market", {})
+    bs = market.setdefault("blockscout", {})
+    bs["holdersEoa"] = holder_count
 
     # BITE price for display
     try:
@@ -1373,6 +1509,8 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
             "totalSupply": supply_stats.get("total_supply") or 0,
             "totalBurned": supply_stats.get("total_burned") or 0,
             "holderCount": supply_stats.get("holder_count") or 0,
+            "holdersEoa": supply_stats.get("holder_count") or 0,
+            "allTimeRecipients": supply_stats.get("all_time_recipients") or 0,
             "bitePriceUsd": supply_stats.get("bite_price_usd"),
             "updatedAt": supply_stats.get("updated_at"),
         },
@@ -1937,7 +2075,6 @@ def backfill_trades(w3, contract, state: dict, *, force: bool = False) -> dict:
                 if to_l not in contracts or to_l in DEV_WALLETS:
                     known.add(to_l)
         state["known_holders"] = list(known)
-        state["holder_count"] = max(len(known), int(state.get("holder_count") or 0))
         scanned_to = end
         state["trade_index_cursor"] = end
         chunks_done += 1
@@ -1977,13 +2114,15 @@ def backfill_trades(w3, contract, state: dict, *, force: bool = False) -> dict:
     )
     state["last_block"] = scanned_to
     sync_market_sources(state, contract=contract)
+    sync_supply_stats(state, w3=w3, contract=contract)
     write_public_leaderboard(state)
     save_state(state)
     print(
         f"[backfill] done: {total_events} transfers scanned, "
         f"{total_hits} scored events, "
         f"{state.get('trader_count')} unique traders, "
-        f"{state.get('holder_count')} known holders, "
+        f"{state.get('holder_count')} EOA holders "
+        f"({all_time_recipients(state)} all-time recipients), "
         f"last_block={scanned_to}"
     )
     return state
@@ -3230,7 +3369,11 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
             and to_l not in (ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower())
             and _meets_usd_threshold(value, state, MIN_SWAP_USD, MIN_SWAP_RAW)
         ):
-            holders = max(len(known), int(state.get("holder_count") or 0))
+            holders = int(
+                (state.get("supply_stats") or {}).get("holder_count")
+                or state.get("holder_count")
+                or 0
+            )
             tx_hash = event.transactionHash.hex()
             if not tx_hash.startswith("0x"):
                 tx_hash = "0x" + tx_hash
@@ -3242,23 +3385,7 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                 parse_mode="Markdown",
             )
 
-    holder_count = max(len(known), int(state.get("holder_count") or 0))
-    state["holder_count"] = holder_count
     state["known_holders"] = list(known)
-
-    for m in HOLDER_MILESTONES:
-        if holder_count >= m and m > state.get("last_holder_milestone", 0):
-            if not is_catch_up:
-                broadcast(
-                    twitter,
-                    tg_token,
-                    tg_chat,
-                    holder_milestone_copy(m, PHASE),
-                    dry_run=dry_run,
-                )
-            else:
-                print(f"[catch-up] holder milestone {m} suppressed")
-            state["last_holder_milestone"] = m
 
     if scanned_to >= from_block:
         state["last_block"] = scanned_to
@@ -3273,6 +3400,25 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
     # Calculate supply breakdown (prize pool, EOA vs contract held, burnable)
     if not dry_run:
         sync_supply_stats(state, w3=w3, contract=contract)
+
+    holder_count = int(
+        (state.get("supply_stats") or {}).get("holder_count")
+        or state.get("holder_count")
+        or 0
+    )
+    for m in HOLDER_MILESTONES:
+        if holder_count >= m and m > state.get("last_holder_milestone", 0):
+            if not is_catch_up:
+                broadcast(
+                    twitter,
+                    tg_token,
+                    tg_chat,
+                    holder_milestone_copy(m, PHASE),
+                    dry_run=dry_run,
+                )
+            else:
+                print(f"[catch-up] holder milestone {m} suppressed")
+            state["last_holder_milestone"] = m
 
     # Act I: score activity wallets from balance snapshots (accum + hold)
     if PHASE >= 1 and not dry_run:
