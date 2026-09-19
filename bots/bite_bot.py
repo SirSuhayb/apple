@@ -109,6 +109,8 @@ _DEFAULT_PROTOCOL_ADDRS = (
     "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044",
     "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
     "0x8f10b468b06c6fd214b65f87778827f7d113f996",
+    "0x8876789976decbfcbbbe364623c63652db8c0904",  # Universal Router 2.1.1
+    "0x6aa80dbbed9ae5ab45fbf61f9644fada3b29326e",  # v4 unlock/locker
 )
 # Last known kitchen-attributed escrow claimable (~0.539 AAPL / $178). RPC fallback only.
 LAST_KNOWN_ESCROW_CLAIMABLE_AAPL_RAW = int(0.539059 * 10**18)
@@ -229,12 +231,22 @@ _DEFAULT_DEV_WALLETS = ("0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E",)
 # Trade index: EOA buys + sells + burns (kitchen/dead/zero). Bump to force recount.
 # v4: EIP-7702 delegated EOAs (0xef0100||address) are wallets, not contracts.
 TRADE_INDEX_MODE = "eoa_trades_burns_v4"
+# Buy/sell side from Uniswap v4 Swap BalanceDelta (token0=BITE). Does not bump
+# TRADE_INDEX_MODE so kitchen burns are not wiped and re-scanned.
+TRADE_SIDE_MODE = "v4_swap_delta_v1"
 # Visibility pass: kitchen.bite() under MIN_BURN_USD still records burned_bite /
 # burn_count so the site can show participation. Does not add points and does
 # not bump TRADE_INDEX_MODE (keeps the v4 7702 classification).
 DUST_BURN_INDEX_MODE = "dust_burns_v1"
 # MetaWager BetPlaced backfill. Does not bump TRADE_INDEX_MODE.
 WAGER_INDEX_MODE = "wager_bets_v1"
+
+# Uniswap v4 PoolManager.Swap — BITE is currency0 / token0 on this pool.
+# keccak256("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)")
+V4_SWAP_TOPIC = "0x40e9cecb9f5f1f1c5b9c97dec2917b7ee92e57ba5563708daca94dd84ad7112f"
+V4_POOL_ID = os.getenv("DEXSCREENER_PAIR_ID", DEXSCREENER_PAIR_ID).lower()
+if not str(V4_POOL_ID).startswith("0x"):
+    V4_POOL_ID = "0x" + V4_POOL_ID
 
 
 def _parse_address_set(raw: str | None, defaults: tuple[str, ...] = ()) -> set[str]:
@@ -1492,6 +1504,7 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
         "phase": PHASE,
         "scoring": "act2" if PHASE >= 2 else "act1",
         "scoreScale": state.get("score_scale") or SCORE_SCALE,
+        "tradeSideMode": state.get("trade_side_mode") or None,
         "tradeFromBlock": TRADE_SCAN_FROM_BLOCK,
         "sources": {
             "blockscout": BLOCKSCOUT_TOKEN_URL,
@@ -1849,8 +1862,268 @@ def iter_transfer_logs(contract, from_block: int, to_block: int):
         time.sleep(0.35)
 
 
+def _norm_hex(value) -> str:
+    if value is None:
+        return ""
+    if hasattr(value, "hex"):
+        text = value.hex()
+    else:
+        text = str(value)
+    text = text.lower()
+    if not text.startswith("0x"):
+        text = "0x" + text
+    return text
+
+
+def _topic_address(topic) -> str:
+    raw = _norm_hex(topic)
+    return "0x" + raw[-40:]
+
+
+def _decode_int128_word(word: bytes) -> int:
+    """ABI-encoded int128 is a 32-byte sign-extended word."""
+    if len(word) < 32:
+        word = word.rjust(32, b"\x00")
+    value = int.from_bytes(word[:32], "big")
+    if value >= 1 << 255:
+        value -= 1 << 256
+    return value
+
+
+def v4_bite_swap_side(amount0: int) -> str | None:
+    """Buy vs sell from a v4 Swap amount0 (BITE is token0).
+
+    Uniswap v4 BalanceDelta is from the *caller's* perspective:
+    +amount0 = caller received BITE = buy; −amount0 = caller paid BITE = sell.
+    Swap.sender is the router/locker — the swapper is tx.from.
+    """
+    if amount0 > 0:
+        return "buy"
+    if amount0 < 0:
+        return "sell"
+    return None
+
+
+def decode_v4_swap_log(log) -> dict | None:
+    """Parse a PoolManager Swap log for the BITE/AAPL pool."""
+    topics = log.get("topics") if isinstance(log, dict) else getattr(log, "topics", None)
+    if not topics or len(topics) < 3:
+        return None
+    topic0 = _norm_hex(topics[0])
+    if topic0 != V4_SWAP_TOPIC:
+        return None
+    pool = _norm_hex(topics[1])
+    if pool != V4_POOL_ID:
+        return None
+    data = log.get("data") if isinstance(log, dict) else getattr(log, "data", b"")
+    if isinstance(data, str):
+        data = bytes.fromhex(data[2:] if data.startswith("0x") else data)
+    elif not isinstance(data, (bytes, bytearray)):
+        return None
+    if len(data) < 64:
+        return None
+    amount0 = _decode_int128_word(data[0:32])
+    amount1 = _decode_int128_word(data[32:64])
+    tx_hash = _norm_hex(
+        log.get("transactionHash") if isinstance(log, dict) else getattr(log, "transactionHash", "")
+    )
+    block = log.get("blockNumber") if isinstance(log, dict) else getattr(log, "blockNumber", 0)
+    return {
+        "tx_hash": tx_hash,
+        "sender": _topic_address(topics[2]),
+        "amount0": amount0,
+        "amount1": amount1,
+        "side": v4_bite_swap_side(amount0),
+        "bite_amount": abs(amount0) / 10**18,
+        "block": int(block or 0),
+    }
+
+
+def fetch_v4_swap_logs(w3, from_block: int, to_block: int) -> list:
+    if not w3 or from_block > to_block:
+        return []
+    delays = (0, 3, 8, 15, 30, 45, 60)
+    last_err: Exception | None = None
+    params = {
+        "fromBlock": from_block,
+        "toBlock": to_block,
+        "address": Web3.to_checksum_address(UNISWAP_POOL_MANAGER) if Web3 else UNISWAP_POOL_MANAGER,
+        "topics": [V4_SWAP_TOPIC, V4_POOL_ID],
+    }
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        try:
+            return list(w3.eth.get_logs(params))
+        except Exception as e:
+            last_err = e
+            if not _is_rate_limit_error(e):
+                print(f"Error fetching v4 swaps {from_block}-{to_block}: {e}")
+                raise LogFetchError(str(e)) from e
+            print(
+                f"[logs] rate-limited v4 swaps {from_block}-{to_block} "
+                f"(attempt {attempt + 1}/{len(delays)})"
+            )
+    print(f"Error fetching v4 swaps {from_block}-{to_block}: {last_err}")
+    raise LogFetchError(str(last_err), rate_limited=True) from last_err
+
+
+def iter_v4_swap_logs(w3, from_block: int, to_block: int):
+    """Yield (chunk_end, decoded swaps)."""
+    if from_block > to_block:
+        return
+    b = from_block
+    chunk = max(200, LOG_CHUNK_SIZE)
+    while b <= to_block:
+        end = min(b + chunk - 1, to_block)
+        try:
+            raw = fetch_v4_swap_logs(w3, b, end)
+        except LogFetchError as e:
+            if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                print(f"[v4-swaps] backing off 20s on {b}-{end}")
+                time.sleep(20)
+                continue
+            if chunk > 200 and end - b > 200:
+                chunk = max(200, chunk // 2)
+                print(f"[v4-swaps] shrinking chunk to {chunk} after error on {b}-{end}")
+                continue
+            print(f"[v4-swaps] giving up on {b}–{end}; not advancing past {b - 1}")
+            return
+        decoded = []
+        for log in raw:
+            item = decode_v4_swap_log(log)
+            if item and item.get("side"):
+                decoded.append(item)
+        yield end, decoded
+        b = end + 1
+        time.sleep(0.2)
+
+
+def resolve_swapper(w3, tx_hash: str, cache: dict) -> str | None:
+    key = _norm_hex(tx_hash)
+    if key in cache:
+        return cache[key]
+    if not w3 or not key:
+        return None
+    try:
+        tx = w3.eth.get_transaction(key)
+        sender = (tx.get("from") if isinstance(tx, dict) else tx["from"]).lower()
+    except Exception as e:
+        print(f"[v4-swaps] get_transaction {key[:12]}…: {e}")
+        sender = None
+    cache[key] = sender
+    return sender
+
+
+def _empty_side_tally() -> dict:
+    return {"buys": 0, "sells": 0, "buy_pts": 0.0, "sell_pts": 0.0}
+
+
+def _tally_side(dest: dict, wallet: str, side: str, bite_amount: float) -> None:
+    if side not in ("buy", "sell") or bite_amount <= 0:
+        return
+    row = dest.setdefault(wallet.lower(), _empty_side_tally())
+    if side == "buy":
+        row["buys"] = int(row.get("buys") or 0) + 1
+        if PHASE >= 1 and BUY_SCORE_MULT > 0:
+            row["buy_pts"] = float(row.get("buy_pts") or 0) + bite_amount * BUY_SCORE_MULT
+    else:
+        row["sells"] = int(row.get("sells") or 0) + 1
+        if PHASE >= 1 and SELL_SCORE_MULT > 0:
+            row["sell_pts"] = float(row.get("sell_pts") or 0) + bite_amount * SELL_SCORE_MULT
+
+
+def _credit_side_live(state: dict, wallet: str, side: str, bite_amount: float) -> None:
+    entry = points_entry(state, wallet)
+    entry["wallet"] = entry.get("wallet") or (
+        Web3.to_checksum_address(wallet) if Web3 else wallet
+    )
+    if side == "buy":
+        entry["trade_count"] = int(entry.get("trade_count") or 0) + 1
+        if PHASE >= 1 and BUY_SCORE_MULT > 0:
+            pts = bite_amount * BUY_SCORE_MULT
+            entry["buy_points"] = float(entry.get("buy_points") or 0) + pts
+            entry["points"] = float(entry.get("points") or 0) + pts
+    elif side == "sell":
+        entry["sell_count"] = int(entry.get("sell_count") or 0) + 1
+        if PHASE >= 1 and SELL_SCORE_MULT > 0:
+            pts = bite_amount * SELL_SCORE_MULT
+            entry["sell_points"] = float(entry.get("sell_points") or 0) + pts
+            entry["points"] = float(entry.get("points") or 0) + pts
+
+
+def apply_v4_swap_events(
+    state: dict,
+    swaps,
+    *,
+    w3=None,
+    pending: dict | None = None,
+    tx_cache: dict | None = None,
+) -> int:
+    """Score v4 swaps for the actual swapper (tx.from), not Swap.sender."""
+    cache = tx_cache if tx_cache is not None else {}
+    hits = 0
+    excluded = _excluded_board_addrs(state)
+    for item in swaps:
+        side = item.get("side")
+        bite_amount = float(item.get("bite_amount") or 0)
+        if side not in ("buy", "sell") or bite_amount <= 0:
+            continue
+        swapper = item.get("swapper") or resolve_swapper(w3, item.get("tx_hash") or "", cache)
+        if not swapper:
+            continue
+        swapper_l = swapper.lower()
+        if swapper_l in excluded and swapper_l not in DEV_WALLETS:
+            continue
+        item["swapper"] = swapper_l
+        if pending is not None:
+            _tally_side(pending, swapper_l, side, bite_amount)
+        else:
+            _credit_side_live(state, swapper_l, side, bite_amount)
+        hits += 1
+    return hits
+
+
+def _strip_buy_sell_keep_burns(entry: dict) -> None:
+    """Drop buy/sell tallies and points. Leave kitchen burns untouched."""
+    buy_pts = float(entry.get("buy_points") or 0)
+    sell_pts = float(entry.get("sell_points") or 0)
+    pts = float(entry.get("points") or 0)
+    entry["points"] = max(0.0, pts - buy_pts - sell_pts)
+    entry["trade_count"] = 0
+    entry["sell_count"] = 0
+    entry["buy_points"] = 0.0
+    entry["sell_points"] = 0.0
+
+
+def commit_pending_sides(state: dict, pending: dict) -> None:
+    """Replace buy/sell with remapped tallies. Idempotent. Burns stay."""
+    for entry in (state.get("points") or {}).values():
+        if isinstance(entry, dict):
+            _strip_buy_sell_keep_burns(entry)
+    for wallet, tally in (pending or {}).items():
+        if not isinstance(tally, dict):
+            continue
+        entry = points_entry(state, wallet)
+        buy_n = int(tally.get("buys") or 0)
+        sell_n = int(tally.get("sells") or 0)
+        buy_pts = float(tally.get("buy_pts") or 0)
+        sell_pts = float(tally.get("sell_pts") or 0)
+        entry["trade_count"] = buy_n
+        entry["sell_count"] = sell_n
+        entry["buy_points"] = buy_pts
+        entry["sell_points"] = sell_pts
+        entry["points"] = float(entry.get("points") or 0) + buy_pts + sell_pts
+
+
 def apply_trade_events(
-    state: dict, events, tracked: set[str] | None = None, *, w3=None
+    state: dict,
+    events,
+    tracked: set[str] | None = None,
+    *,
+    w3=None,
+    skip_tx_hashes: set[str] | None = None,
+    pending: dict | None = None,
 ) -> int:
     """Score and count buys, sells, and burns from Transfer events.
 
@@ -1862,19 +2135,25 @@ def apply_trade_events(
       Points: +BURN_SCORE_MULT × BITE when the burn meets $MIN_BURN_SCORE_USD
       (default 0 — all kitchen burns score). Telegram still uses MIN_BURN_USD.
 
+    skip_tx_hashes: v4 Swap txs — buy/sell come from amount0, not Transfer hops.
+    pending: tally buy/sell into this dict instead of live points (remap).
+    Burns are never written to pending (historical burns stay on the row).
+
     tracked=None → count every eligible address.
     Returns total scored events.
     """
     hits = 0
     zero = ZERO_ADDRESS.lower()
     burn_dests = _burn_destinations()
+    skip_txs = {_norm_hex(h) for h in (skip_tx_hashes or set()) if h}
+    remap_only = pending is not None
     contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
     if w3 is not None:
-        pending = set()
+        discovered = set()
         for event in events:
-            pending.add(event.args["from"].lower())
-            pending.add(event.args["to"].lower())
-        classify_contracts(w3, pending, state)
+            discovered.add(event.args["from"].lower())
+            discovered.add(event.args["to"].lower())
+        classify_contracts(w3, discovered, state)
         contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
     excluded = _excluded_board_addrs(state)
     for event in events:
@@ -1886,6 +2165,7 @@ def apply_trade_events(
         if from_l == zero or value <= 0:
             continue
         bite_amount = value / 10**18
+        tx_hash = _norm_hex(getattr(event, "transactionHash", None))
 
         wager_l = (META_WAGER_CONTRACT or "").lower()
         # MetaWager stake / fee / claim are not buys or sells. BetPlaced scores
@@ -1895,6 +2175,8 @@ def apply_trade_events(
 
         # Burn before the contract-exclusion skip so kitchen (a contract) counts.
         if to_l in burn_dests:
+            if remap_only:
+                continue
             if from_l in contracts and from_l not in DEV_WALLETS:
                 continue  # contract-to-kitchen (digest), not a user burn
             if tracked is not None and from_l not in tracked:
@@ -1918,21 +2200,19 @@ def apply_trade_events(
             hits += 1
             continue
 
+        if tx_hash and tx_hash in skip_txs:
+            continue
+
         # Sell before the contract-exclusion skip. Destinations are contracts
         # (routers/LP), which are excluded from the board as *rows* but must
         # still credit the seller.
         if from_l not in contracts and to_l in contracts:
             if tracked is not None and from_l not in tracked:
                 continue
-            entry = points_entry(state, from_addr)
-            entry["sell_count"] = int(entry.get("sell_count") or 0) + 1
-            entry["wallet"] = entry.get("wallet") or (
-                Web3.to_checksum_address(from_addr) if Web3 else from_addr
-            )
-            if PHASE >= 1 and SELL_SCORE_MULT > 0:
-                sell_pts = bite_amount * SELL_SCORE_MULT
-                entry["sell_points"] = float(entry.get("sell_points") or 0) + sell_pts
-                entry["points"] = float(entry.get("points") or 0) + sell_pts
+            if remap_only:
+                _tally_side(pending, from_l, "sell", bite_amount)
+            else:
+                _credit_side_live(state, from_addr, "sell", bite_amount)
             hits += 1
             continue
 
@@ -1943,15 +2223,10 @@ def apply_trade_events(
         if from_l in contracts and (to_l not in contracts or to_l in DEV_WALLETS):
             if tracked is not None and to_l not in tracked:
                 continue
-            entry = points_entry(state, to_addr)
-            entry["trade_count"] = int(entry.get("trade_count") or 0) + 1
-            entry["wallet"] = entry.get("wallet") or (
-                Web3.to_checksum_address(to_addr) if Web3 else to_addr
-            )
-            if PHASE >= 1 and BUY_SCORE_MULT > 0:
-                buy_pts = bite_amount * BUY_SCORE_MULT
-                entry["buy_points"] = float(entry.get("buy_points") or 0) + buy_pts
-                entry["points"] = float(entry.get("points") or 0) + buy_pts
+            if remap_only:
+                _tally_side(pending, to_l, "buy", bite_amount)
+            else:
+                _credit_side_live(state, to_addr, "buy", bite_amount)
             hits += 1
             continue
     return hits
@@ -2461,6 +2736,136 @@ def backfill_wagers(w3, state: dict) -> dict:
     write_public_leaderboard(state)
     save_state(state)
     print(f"[wager] done: {hits} BetPlaced scored, scale={SCORE_SCALE}")
+    return state
+
+
+def backfill_v4_swap_sides(w3, contract, state: dict) -> dict:
+    """Remap buy/sell from v4 Swap amount0 + leftover Transfer hops.
+
+    Does not bump TRADE_INDEX_MODE and does not touch burn_count / burned_bite
+    / burn_points. Commit is idempotent so a crash mid-replace cannot double-score.
+    """
+    pending = state.get("trade_side_pending")
+    if state.get("trade_side_mode") == TRADE_SIDE_MODE and not pending:
+        return state
+    if not w3:
+        return state
+    if state.get("trade_index_mode") != TRADE_INDEX_MODE or not state.get(
+        "trade_index_7702"
+    ):
+        return state
+
+    if state.get("trade_side_mode") == TRADE_SIDE_MODE and isinstance(pending, dict):
+        commit_pending_sides(state, pending)
+        state.pop("trade_side_pending", None)
+        state.pop("trade_side_cursor", None)
+        state.pop("trade_side_tx_cache", None)
+        write_public_leaderboard(state)
+        save_state(state)
+        print(f"[v4-side] finished interrupted commit ({TRADE_SIDE_MODE})")
+        return state
+
+    end = int(state.get("last_block") or 0)
+    if end <= 0:
+        try:
+            end = int(w3.eth.block_number)
+        except Exception:
+            end = 0
+    start = max(0, TRADE_SCAN_FROM_BLOCK)
+    if end < start:
+        print(f"[v4-side] wait for last_block ({end}) to pass {start}")
+        return state
+
+    if not isinstance(pending, dict):
+        pending = {}
+        state["trade_side_pending"] = pending
+        state["trade_side_cursor"] = start - 1
+        save_state(state)
+
+    cursor = int(state.get("trade_side_cursor") or (start - 1))
+    scan_from = cursor + 1 if cursor >= start - 1 else start
+    if scan_from > end:
+        state["trade_side_mode"] = TRADE_SIDE_MODE
+        commit_pending_sides(state, pending)
+        state.pop("trade_side_pending", None)
+        state.pop("trade_side_cursor", None)
+        write_public_leaderboard(state)
+        save_state(state)
+        print(f"[v4-side] already scanned through {end}; mode={TRADE_SIDE_MODE}")
+        return state
+
+    print(
+        f"[v4-side] remapping buy/sell from Swap amount0 {scan_from} → {end} "
+        f"(token0=BITE, +amount0=buy, burns kept, mode={TRADE_SIDE_MODE})"
+    )
+    tx_cache = {}
+    scanned_to = scan_from - 1
+    swap_hits = 0
+    xfer_hits = 0
+    chunks_done = 0
+    b = scan_from
+    chunk = max(200, LOG_CHUNK_SIZE)
+    while b <= end:
+        chunk_end = min(b + chunk - 1, end)
+        try:
+            raw_swaps = fetch_v4_swap_logs(w3, b, chunk_end)
+            transfers = fetch_transfer_logs(contract, b, chunk_end) if contract else []
+        except LogFetchError as e:
+            if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                print(f"[v4-side] backing off 20s on {b}-{chunk_end}")
+                time.sleep(20)
+                continue
+            if chunk > 200 and chunk_end - b > 200:
+                chunk = max(200, chunk // 2)
+                print(f"[v4-side] shrinking chunk to {chunk} after error on {b}-{chunk_end}")
+                continue
+            print(f"[v4-side] giving up on {b}–{chunk_end}; not advancing past {b - 1}")
+            save_state(state)
+            return state
+        swaps = []
+        skip_txs: set[str] = set()
+        for log in raw_swaps:
+            item = decode_v4_swap_log(log)
+            if item and item.get("side"):
+                swaps.append(item)
+                if item.get("tx_hash"):
+                    skip_txs.add(item["tx_hash"])
+        swap_hits += apply_v4_swap_events(
+            state, swaps, w3=w3, pending=pending, tx_cache=tx_cache
+        )
+        xfer_hits += apply_trade_events(
+            state, transfers, tracked=None, w3=w3, skip_tx_hashes=skip_txs, pending=pending
+        )
+        scanned_to = chunk_end
+        state["trade_side_pending"] = pending
+        state["trade_side_cursor"] = chunk_end
+        chunks_done += 1
+        if chunks_done == 1 or chunks_done % 5 == 0 or chunk_end >= end:
+            span = max(1, end - start + 1)
+            pct = 100.0 * (chunk_end - start + 1) / span
+            print(
+                f"[v4-side] {chunk_end}/{end} ({pct:.1f}%) "
+                f"swaps={swap_hits} transfer_sides={xfer_hits} wallets={len(pending)}"
+            )
+            save_state(state)
+        b = chunk_end + 1
+        time.sleep(0.2)
+
+    if scanned_to < end:
+        print(f"[v4-side] incomplete ({scanned_to} < {end}) — rerun to finish")
+        save_state(state)
+        return state
+
+    state["trade_side_mode"] = TRADE_SIDE_MODE
+    commit_pending_sides(state, pending)
+    state.pop("trade_side_pending", None)
+    state.pop("trade_side_cursor", None)
+    write_public_leaderboard(state)
+    save_state(state)
+    print(
+        f"[v4-side] done: {swap_hits} v4 swaps + {xfer_hits} non-v4 transfers, "
+        f"{len(pending)} wallets, burns kept, mode={TRADE_SIDE_MODE}"
+    )
     return state
 
 
@@ -3286,6 +3691,23 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                 f"{state.get('last_block')}"
             )
 
+    v4_swaps = []
+    skip_swap_txs: set[str] = set()
+    if scanned_to >= from_block:
+        try:
+            for log in fetch_v4_swap_logs(w3, from_block, scanned_to):
+                item = decode_v4_swap_log(log)
+                if item and item.get("side"):
+                    v4_swaps.append(item)
+                    if item.get("tx_hash"):
+                        skip_swap_txs.add(item["tx_hash"])
+        except Exception as e:
+            print(
+                f"[v4-swaps] poll fetch failed: {e} — "
+                "keeping last_block so this range is retried"
+            )
+            return state
+
     known = set(a.lower() for a in (state.get("known_holders") or []))
     burn_pct, total_burned, total_supply = get_burn_pct(contract)
     state["total_burned"] = total_burned
@@ -3314,8 +3736,45 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                 )
             state["last_burn_milestone"] = m
 
-    # Index EOA buys (contract → wallet), not router/LP inbound noise
-    apply_trade_events(state, transfer_filter, tracked=None, w3=w3)
+    # v4 Swap amount0 is the buy/sell truth. Transfer hops on those txs are
+    # skipped so a sell is not also counted as a contract→EOA "buy".
+    if scanned_to >= from_block and v4_swaps:
+        tx_cache = {}
+        apply_v4_swap_events(state, v4_swaps, w3=w3, tx_cache=tx_cache)
+        if POST_ACTIVITY and not is_catch_up:
+            holders = int(
+                (state.get("supply_stats") or {}).get("holder_count")
+                or state.get("holder_count")
+                or 0
+            )
+            for item in v4_swaps:
+                if item.get("side") != "buy" or not item.get("swapper"):
+                    continue
+                raw = int(round(float(item.get("bite_amount") or 0) * 10**18))
+                if not _meets_usd_threshold(raw, state, MIN_SWAP_USD, MIN_SWAP_RAW):
+                    continue
+                tx_hash = item.get("tx_hash") or ""
+                msg = swap_copy(
+                    item["swapper"],
+                    raw,
+                    holders,
+                    PHASE,
+                    state=state,
+                    tx_hash=tx_hash,
+                )
+                broadcast(
+                    twitter,
+                    tg_token,
+                    tg_chat,
+                    msg,
+                    dry_run=dry_run,
+                    reply_markup=_buy_alert_buttons(tx_hash),
+                    photo_url=BUY_ALERT_IMAGE,
+                    parse_mode="Markdown",
+                )
+    apply_trade_events(
+        state, transfer_filter, tracked=None, w3=w3, skip_tx_hashes=skip_swap_txs
+    )
     if META_WAGER_CONTRACT and scanned_to >= from_block:
         wager = _wager_contract(w3)
         if wager is not None:
@@ -3362,10 +3821,20 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
             continue
 
         # Notable inbound transfers (rough buy proxy). Explicit opt-in only.
+        # Never announce a v4 swap Transfer hop — those include sells and
+        # router refunds that used to post as "Buy!".
+        tx_hash = _norm_hex(event.transactionHash)
+        if tx_hash in skip_swap_txs:
+            continue
+        contracts_now = {a.lower() for a in (state.get("contract_addrs") or [])}
+        is_real_buy = from_l in contracts_now and (
+            to_l not in contracts_now or to_l in DEV_WALLETS
+        )
         if (
             POST_ACTIVITY
             and not is_catch_up
             and not is_mintish
+            and is_real_buy
             and to_l not in (ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower())
             and _meets_usd_threshold(value, state, MIN_SWAP_USD, MIN_SWAP_RAW)
         ):
@@ -3374,9 +3843,6 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                 or state.get("holder_count")
                 or 0
             )
-            tx_hash = event.transactionHash.hex()
-            if not tx_hash.startswith("0x"):
-                tx_hash = "0x" + tx_hash
             msg = swap_copy(to_addr, value, holders, PHASE, state=state, tx_hash=tx_hash)
             broadcast(
                 twitter, tg_token, tg_chat, msg, dry_run=dry_run,
@@ -3572,6 +4038,10 @@ def main(argv: list[str] | None = None) -> int:
             state = backfill_wagers(w3, state)
         except Exception as e:
             print(f"[wager] startup pass failed (will retry next poll): {e}")
+        try:
+            state = backfill_v4_swap_sides(w3, contract, state)
+        except Exception as e:
+            print(f"[v4-side] startup pass failed (will retry next poll): {e}")
 
     if args.test:
         if PHASE == 1:
@@ -3618,6 +4088,13 @@ def main(argv: list[str] | None = None) -> int:
                     if state.get("wager_index_mode") != WAGER_INDEX_MODE:
                         time.sleep(args.interval)
                         continue
+                if state.get("trade_side_mode") != TRADE_SIDE_MODE:
+                    # Finish buy/sell remap before poll() so last_block+1
+                    # swaps are not scored on top of the old Transfer sides.
+                    state = backfill_v4_swap_sides(w3, contract, state)
+                    if state.get("trade_side_mode") != TRADE_SIDE_MODE:
+                        time.sleep(args.interval)
+                        continue
                 state = process_telegram_commands(
                     tg_token, contract, state, dry_run=args.dry_run
                 )
@@ -3637,6 +4114,11 @@ def main(argv: list[str] | None = None) -> int:
             state = backfill_wagers(w3, state)
             if state.get("wager_index_mode") != WAGER_INDEX_MODE:
                 print("[wager] not finished — skip poll this run")
+                return 0
+        if state.get("trade_side_mode") != TRADE_SIDE_MODE:
+            state = backfill_v4_swap_sides(w3, contract, state)
+            if state.get("trade_side_mode") != TRADE_SIDE_MODE:
+                print("[v4-side] not finished — skip poll this run")
                 return 0
         state = process_telegram_commands(
             tg_token, contract, state, dry_run=args.dry_run
