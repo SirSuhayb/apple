@@ -25,11 +25,13 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 try:
@@ -82,10 +84,33 @@ KITCHEN_CONTRACT = os.getenv(
     "KITCHEN_CONTRACT",
     "0x56fEb999D829761C787581413605bf88F5Cd81e0",
 )
+META_WAGER_CONTRACT = os.getenv(
+    "META_WAGER_CONTRACT",
+    "0x73bc28aaDaf3B1BCdeD9dE456149d54aebCdC878",
+)
 AAPL_TOKEN = os.getenv(
     "AAPL_TOKEN",
     "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
 )
+PONS_FEE_ESCROW = os.getenv(
+    "PONS_FEE_ESCROW",
+    "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+)
+# Last known kitchen-attributed escrow claimable (~0.539 AAPL / $178). RPC fallback only.
+LAST_KNOWN_ESCROW_CLAIMABLE_AAPL_RAW = int(0.539059 * 10**18)
+
+PONS_FEE_ESCROW_ABI = [
+    {
+        "inputs": [
+            {"name": "recipient", "type": "address"},
+            {"name": "token", "type": "address"},
+        ],
+        "name": "balanceOfToken",
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]
 
 # Notable Transfer→EOA posts (rough buy proxy). Explicit opt-in only to avoid spam
 # on phase transitions or daemon restarts. Set POST_ACTIVITY=1 in .env deliberately.
@@ -99,6 +124,11 @@ MIN_SWAP_RAW = int(float(os.getenv("MIN_SWAP_AMOUNT", "500000")) * 10**18)
 MIN_SWAP_USD = float(os.getenv("MIN_SWAP_USD", "50"))
 MIN_BURN_RAW = int(float(os.getenv("MIN_BURN_AMOUNT", "500000")) * 10**18)
 MIN_BURN_USD = float(os.getenv("MIN_BURN_USD", "50"))
+# Points: every kitchen burn scores (default $0). Telegram posts still use MIN_BURN_USD.
+MIN_BURN_SCORE_USD = float(os.getenv("MIN_BURN_SCORE_USD", "0"))
+MIN_BURN_SCORE_RAW = int(
+    float(os.getenv("MIN_BURN_SCORE_AMOUNT", "0")) * 10**18
+)
 
 # Rate limiting: minimum seconds between Telegram posts (buy/burn/milestone broadcasts).
 TG_POST_COOLDOWN = int(os.getenv("TG_POST_COOLDOWN", "45"))
@@ -110,10 +140,28 @@ BURN_MILESTONES = [
     *list(range(6, 51)),                             # 6, 7, … 50
 ]
 
-# Act I points: accumulation (balance growth) + holding (time-weighted balance).
-# Kitchen/burns do not earn points until Act II+.
-POINTS_PER_BITE_GAINED = float(os.getenv("POINTS_PER_BITE_GAINED", "1"))
-HOLD_BITE_PER_POINT_PER_HOUR = float(os.getenv("HOLD_BITE_PER_POINT_PER_HOUR", "100"))
+# Points: accumulation (balance growth) + holding (time-weighted balance).
+# Act II adds buy/sell/burn scoring.
+POINTS_PER_BITE_GAINED = float(os.getenv("POINTS_PER_BITE_GAINED", "0.01"))
+HOLD_BITE_PER_POINT_PER_HOUR = float(os.getenv("HOLD_BITE_PER_POINT_PER_HOUR", "10000"))
+# Act II: trades take moderate bites, burns take bigger bites.
+BUY_SCORE_MULT = float(os.getenv("BUY_SCORE_MULT", "0.01"))
+SELL_SCORE_MULT = float(os.getenv("SELL_SCORE_MULT", "0.015"))
+BURN_SCORE_MULT = float(os.getenv("BURN_SCORE_MULT", "1"))
+# Side bet, not a bite — 10× lighter than a buy so wagers cannot lead.
+WAGER_SCORE_MULT = float(os.getenv("WAGER_SCORE_MULT", "0.001"))
+EARLY_EATER_BURN_MULT = float(os.getenv("EARLY_EATER_BURN_MULT", "2"))
+EARLY_EATER_HOURS = int(os.getenv("EARLY_EATER_HOURS", "72"))
+_ACT_II_STARTED_RAW = os.getenv("ACT_II_STARTED_AT", "").strip()
+ACT_II_STARTED_AT = int(_ACT_II_STARTED_RAW) if _ACT_II_STARTED_RAW.isdigit() else 0
+SCORE_SCALE = "v2_burn_lead_wager"
+SCORE_SCALE_BURN_LEAD = "v2_burn_lead"
+SCORE_SCALE_CENTI = "v2_centi"
+ACCUM_HOLD_SCALE = 0.01
+LEGACY_BUY_MULT = 1.0
+LEGACY_SELL_MULT = 1.5
+LEGACY_BURN_MULT = 50.0
+CENTI_BURN_MULT = 0.1
 LEADERBOARD_TOP_N = int(os.getenv("LEADERBOARD_TOP_N", "10"))
 ADDR_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 # Sanitized Act I board for the site (no Telegram user ids). Default: public/data/
@@ -164,8 +212,15 @@ CA_IMAGE = "https://www.bite.party/og_image.png"
 # (Blockscout may flag the deployer as a contract — still keep it on the board.)
 _DEFAULT_DEV_WALLETS = ("0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E",)
 
-# Trade index: contract → EOA transfers (buys), not raw inbound to routers/LP.
-TRADE_INDEX_MODE = "eoa_buys_v2"
+# Trade index: EOA buys + sells + burns (kitchen/dead/zero). Bump to force recount.
+# v4: EIP-7702 delegated EOAs (0xef0100||address) are wallets, not contracts.
+TRADE_INDEX_MODE = "eoa_trades_burns_v4"
+# Visibility pass: kitchen.bite() under MIN_BURN_USD still records burned_bite /
+# burn_count so the site can show participation. Does not add points and does
+# not bump TRADE_INDEX_MODE (keeps the v4 7702 classification).
+DUST_BURN_INDEX_MODE = "dust_burns_v1"
+# MetaWager BetPlaced backfill. Does not bump TRADE_INDEX_MODE.
+WAGER_INDEX_MODE = "wager_bets_v1"
 
 
 def _parse_address_set(raw: str | None, defaults: tuple[str, ...] = ()) -> set[str]:
@@ -183,6 +238,55 @@ def _parse_address_set(raw: str | None, defaults: tuple[str, ...] = ()) -> set[s
 
 DEV_WALLETS = _parse_address_set(os.getenv("DEV_WALLETS"), _DEFAULT_DEV_WALLETS)
 INELIGIBLE_WALLETS = _parse_address_set(os.getenv("INELIGIBLE_WALLETS")) | DEV_WALLETS
+
+META_WAGER_ABI = [
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "totalCore",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "type": "function",
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "totalRot",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "type": "function",
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "resolved",
+        "outputs": [{"name": "", "type": "bool"}],
+        "type": "function",
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "winningSide",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "type": "function",
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "coreOddsBps",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "type": "function",
+    },
+    {
+        "anonymous": False,
+        "inputs": [
+            {"indexed": True, "name": "bettor", "type": "address"},
+            {"indexed": False, "name": "side", "type": "uint8"},
+            {"indexed": False, "name": "netAmount", "type": "uint256"},
+            {"indexed": False, "name": "fee", "type": "uint256"},
+        ],
+        "name": "BetPlaced",
+        "type": "event",
+    },
+]
 
 ERC20_ABI = [
     {
@@ -636,12 +740,22 @@ def linked_wallet_set(state: dict) -> set[str]:
     }
 
 
+def _burn_destinations() -> set[str]:
+    """Addresses whose inbound BITE is a user burn (kitchen bite, sweep, or dead/zero)."""
+    dest = {DEAD_ADDRESS.lower(), ZERO_ADDRESS.lower()}
+    if KITCHEN_CONTRACT:
+        dest.add(KITCHEN_CONTRACT.lower())
+    return dest
+
+
 def _excluded_board_addrs(state: dict | None = None) -> set[str]:
     excluded = {
         ZERO_ADDRESS.lower(),
         DEAD_ADDRESS.lower(),
         BITE_CONTRACT.lower(),
     }
+    if KITCHEN_CONTRACT:
+        excluded.add(KITCHEN_CONTRACT.lower())
     if state:
         for a in state.get("contract_addrs") or []:
             if isinstance(a, str) and a.lower() not in DEV_WALLETS:
@@ -751,7 +865,7 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
                 is_contract = False
             else:
                 addr = addr_obj.get("hash") or ""
-                is_contract = bool(addr_obj.get("is_contract"))
+                is_contract = _blockscout_addr_is_contract(addr_obj)
             if not isinstance(addr, str) or not ADDR_RE.match(addr):
                 continue
             holders.append(
@@ -838,21 +952,42 @@ def sync_supply_stats(state: dict, w3=None, contract=None) -> dict:
     """Calculate and store supply breakdown: prize pool, EOA/contract held, realistically burnable."""
     stats = state.setdefault("supply_stats", {})
 
-    # Prize pool: AAPL balance of kitchen contract
-    prize_pool_raw = 0
+    # Displayed prize pool = kitchen AAPL + kitchen-attributed Pons escrow claimable.
+    # Display only — never claim. Do not use the escrow's total AAPL balance.
+    kitchen_raw = 0
+    escrow_raw = 0
+    escrow_ok = False
     if w3 and Web3 and KITCHEN_CONTRACT and AAPL_TOKEN:
+        kitchen_addr = Web3.to_checksum_address(KITCHEN_CONTRACT)
+        aapl_addr = Web3.to_checksum_address(AAPL_TOKEN)
         try:
-            aapl_contract = w3.eth.contract(
-                address=Web3.to_checksum_address(AAPL_TOKEN), abi=ERC20_ABI
-            )
-            prize_pool_raw = int(
-                aapl_contract.functions.balanceOf(
-                    Web3.to_checksum_address(KITCHEN_CONTRACT)
-                ).call()
-            )
+            aapl_contract = w3.eth.contract(address=aapl_addr, abi=ERC20_ABI)
+            kitchen_raw = int(aapl_contract.functions.balanceOf(kitchen_addr).call())
         except Exception as e:
             print(f"[supply_stats] AAPL balanceOf(kitchen) error: {e}")
+        if PONS_FEE_ESCROW:
+            try:
+                escrow = w3.eth.contract(
+                    address=Web3.to_checksum_address(PONS_FEE_ESCROW),
+                    abi=PONS_FEE_ESCROW_ABI,
+                )
+                escrow_raw = int(
+                    escrow.functions.balanceOfToken(kitchen_addr, aapl_addr).call()
+                )
+                escrow_ok = True
+            except Exception as e:
+                print(f"[supply_stats] escrow balanceOfToken(kitchen, AAPL) error: {e}")
+        if not escrow_ok:
+            prev = int(stats.get("escrow_claimable_aapl_raw") or 0)
+            escrow_raw = prev if prev > 0 else LAST_KNOWN_ESCROW_CLAIMABLE_AAPL_RAW
+            print(
+                f"[supply_stats] escrow claimable fallback="
+                f"{escrow_raw / 10**18:.6f} AAPL"
+            )
 
+    prize_pool_raw = kitchen_raw + escrow_raw
+    stats["kitchen_aapl_raw"] = kitchen_raw
+    stats["escrow_claimable_aapl_raw"] = escrow_raw
     stats["prize_pool_aapl_raw"] = prize_pool_raw
     stats["prize_pool_aapl"] = prize_pool_raw / 10**18
 
@@ -946,6 +1081,7 @@ def sync_supply_stats(state: dict, w3=None, contract=None) -> dict:
     state["supply_stats"] = stats
     print(
         f"[supply_stats] prize={stats['prize_pool_aapl']:.4f} AAPL"
+        f" (kitchen={kitchen_raw / 10**18:.4f} + escrow={escrow_raw / 10**18:.4f})"
         f" (${stats.get('prize_pool_usd') or 0:.2f})"
         f" | EOA={fmt_amount(eoa_held)} | contract={fmt_amount(contract_held)}"
         f" | burnable={fmt_amount(eoa_held)}"
@@ -953,8 +1089,53 @@ def sync_supply_stats(state: dict, w3=None, contract=None) -> dict:
     return state
 
 
-def classify_contracts(w3, addresses: set[str], state: dict) -> set[str]:
-    """Cache eth_getCode results; contracts are excluded from the Act I board."""
+def _as_bytecode(code) -> bytes:
+    if not code:
+        return b""
+    if isinstance(code, (bytes, bytearray)):
+        return bytes(code)
+    text = str(code).strip()
+    if text.startswith(("0x", "0X")):
+        text = text[2:]
+    if not text:
+        return b""
+    try:
+        return bytes.fromhex(text)
+    except ValueError:
+        return b""
+
+
+def _is_eip7702_delegation(code) -> bool:
+    """EIP-7702 designator is 0xef0100 || address (23 bytes). Still an EOA."""
+    raw = _as_bytecode(code)
+    return len(raw) == 23 and raw[:3] == b"\xef\x01\x00"
+
+
+def _bytecode_is_contract(code) -> bool:
+    raw = _as_bytecode(code)
+    if not raw or _is_eip7702_delegation(raw):
+        return False
+    return True
+
+
+def _blockscout_addr_is_contract(addr_obj) -> bool:
+    """Blockscout flags EIP-7702 delegated EOAs as is_contract; those still score."""
+    if not isinstance(addr_obj, dict):
+        return False
+    proxy = str(addr_obj.get("proxy_type") or "").lower()
+    if proxy == "eip7702":
+        return False
+    return bool(addr_obj.get("is_contract"))
+
+
+def classify_contracts(
+    w3, addresses: set[str], state: dict, *, recheck: bool = False
+) -> set[str]:
+    """Cache eth_getCode results; contracts are excluded from the Act I board.
+
+    EIP-7702 delegated EOAs have temporary code but still sign as wallets —
+    do not treat them like LP/router contracts (that dropped kitchen burns).
+    """
     cached = {a.lower() for a in (state.get("contract_addrs") or []) if isinstance(a, str)}
     known_eoa = {
         a.lower()
@@ -965,19 +1146,24 @@ def classify_contracts(w3, addresses: set[str], state: dict) -> set[str]:
     eoas = set(known_eoa)
     for addr in addresses:
         a = addr.lower()
-        if a in contracts or a in eoas or a in DEV_WALLETS:
+        if a in DEV_WALLETS:
+            continue
+        if not recheck and (a in contracts or a in eoas):
             continue
         if not w3 or not Web3:
             continue
         try:
             code = w3.eth.get_code(Web3.to_checksum_address(a))
-            if code and len(code) > 0:
+            if _bytecode_is_contract(code):
                 contracts.add(a)
+                eoas.discard(a)
             else:
                 eoas.add(a)
+                contracts.discard(a)
         except Exception as e:
             print(f"get_code error {short_addr(a)}: {e}")
-            eoas.add(a)
+            if a not in contracts:
+                eoas.add(a)
     state["contract_addrs"] = sorted(contracts)
     state["eoa_addrs"] = sorted(eoas)
     return contracts
@@ -1013,9 +1199,81 @@ def tracked_wallet_set(state: dict) -> set[str]:
     return activity_wallet_set(state)
 
 
+def burn_score_mult_now() -> float:
+    """Base 1 / $BITE, 2× during the 72h early-eater window if ACT_II_STARTED_AT is set."""
+    if ACT_II_STARTED_AT > 0 and EARLY_EATER_BURN_MULT > 1:
+        end = ACT_II_STARTED_AT + EARLY_EATER_HOURS * 3600
+        if time.time() < end:
+            return BURN_SCORE_MULT * EARLY_EATER_BURN_MULT
+    return BURN_SCORE_MULT
+
+
+def rescale_points_v2(state: dict) -> None:
+    """Remap stored points onto buy 0.01 / sell 0.015 / burn 1.0 + scaled Act I.
+
+    Wager points are added by backfill_wagers / apply_wager_events, not here —
+    so a restart with score_scale already at v2_burn_lead_wager does not
+    double-divide burns or re-apply the 0.001 side-bet.
+    """
+    prev = state.get("score_scale")
+    if prev == SCORE_SCALE:
+        return
+    if prev == SCORE_SCALE_BURN_LEAD:
+        return
+    for entry in (state.get("points") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        buy = float(entry.get("buy_points") or 0)
+        sell = float(entry.get("sell_points") or 0)
+        burn_pts = float(entry.get("burn_points") or 0)
+        burned = float(entry.get("burned_bite") or 0)
+        pts = float(entry.get("points") or 0)
+        if prev == SCORE_SCALE_CENTI:
+            remainder = pts - buy - sell - max(burn_pts, burned * CENTI_BURN_MULT)
+            new_buy, new_sell = buy, sell
+            new_burn = burned * BURN_SCORE_MULT
+            new_pts = remainder * ACCUM_HOLD_SCALE + new_buy + new_sell + new_burn
+        else:
+            remainder = pts - buy - sell - max(burn_pts, burned * LEGACY_BURN_MULT)
+            new_buy = buy * (BUY_SCORE_MULT / LEGACY_BUY_MULT) if LEGACY_BUY_MULT else 0
+            new_sell = (
+                sell * (SELL_SCORE_MULT / LEGACY_SELL_MULT) if LEGACY_SELL_MULT else 0
+            )
+            new_burn = burned * BURN_SCORE_MULT
+            new_pts = remainder * ACCUM_HOLD_SCALE + new_buy + new_sell + new_burn
+        entry["buy_points"] = new_buy
+        entry["sell_points"] = new_sell
+        entry["burn_points"] = new_burn
+        entry["points"] = max(0.0, new_pts)
+        if "accum_points" in entry:
+            entry["accum_points"] = float(entry.get("accum_points") or 0) * ACCUM_HOLD_SCALE
+        if "hold_points" in entry:
+            entry["hold_points"] = float(entry.get("hold_points") or 0) * ACCUM_HOLD_SCALE
+    state["score_scale"] = SCORE_SCALE_BURN_LEAD
+
+
+def sync_burn_points_from_visible(state: dict) -> None:
+    """Score every recorded kitchen burn at BURN_SCORE_MULT, including former dust."""
+    if BURN_SCORE_MULT <= 0:
+        return
+    for entry in (state.get("points") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        burned = float(entry.get("burned_bite") or 0)
+        expected = burned * BURN_SCORE_MULT
+        current = float(entry.get("burn_points") or 0)
+        delta = expected - current
+        if abs(delta) < 1e-6:
+            continue
+        entry["burn_points"] = expected
+        entry["points"] = max(0.0, float(entry.get("points") or 0) + delta)
+
+
 def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict:
     """Sanitized rows for the site — wallets, points, trades only (no TG ids)."""
     ensure_dev_wallets(state)
+    rescale_points_v2(state)
+    sync_burn_points_from_visible(state)
     # Market blob is refreshed in poll/sync_market_sources; keep payload current.
     if not (state.get("market") or {}).get("dexscreener"):
         sync_dexscreener(state)
@@ -1030,11 +1288,26 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
             continue
         pts = float(entry.get("points") or 0)
         trades = int(entry.get("trade_count") or 0)
+        sell_count = int(entry.get("sell_count") or 0)
+        burn_count = int(entry.get("burn_count") or 0)
         bal = int(entry.get("last_balance_raw") or 0)
         is_dev = is_dev_wallet(wallet_l, entry)
         ineligible = is_ineligible_wallet(wallet_l, entry)
-        # Prefer current holders; still keep traders / dev visible
-        if pts <= 0 and trades <= 0 and bal <= 0 and not is_dev:
+        burned_bite = float(entry.get("burned_bite") or 0)
+        wagered_bite = float(entry.get("wagered_bite") or 0)
+        wager_count = int(entry.get("wager_count") or 0)
+        # Prefer current holders; still keep traders / burners / wagerers / dev visible
+        if (
+            pts <= 0
+            and trades <= 0
+            and sell_count <= 0
+            and burn_count <= 0
+            and burned_bite <= 0
+            and wagered_bite <= 0
+            and wager_count <= 0
+            and bal <= 0
+            and not is_dev
+        ):
             continue
         display = entry.get("wallet") or wallet_l
         rows.append(
@@ -1042,8 +1315,17 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
                 "address": display,
                 "score": round(pts, 4),
                 "trades": trades,
+                "sellCount": sell_count,
+                "burnCount": burn_count,
+                "burned": round(burned_bite, 4),
                 "accumPoints": round(float(entry.get("accum_points") or 0), 4),
                 "holdPoints": round(float(entry.get("hold_points") or 0), 4),
+                "buyPoints": round(float(entry.get("buy_points") or 0), 4),
+                "sellPoints": round(float(entry.get("sell_points") or 0), 4),
+                "burnPoints": round(float(entry.get("burn_points") or 0), 4),
+                "wagered": round(wagered_bite, 4),
+                "wagerCount": wager_count,
+                "wagerPoints": round(float(entry.get("wager_points") or 0), 4),
                 "dev": is_dev,
                 "ineligible": ineligible,
                 "badge": "dev" if is_dev else None,
@@ -1072,7 +1354,8 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
     return {
         "updatedAt": datetime.now(timezone.utc).isoformat(),
         "phase": PHASE,
-        "scoring": "act1",
+        "scoring": "act2" if PHASE >= 2 else "act1",
+        "scoreScale": state.get("score_scale") or SCORE_SCALE,
         "tradeFromBlock": TRADE_SCAN_FROM_BLOCK,
         "sources": {
             "blockscout": BLOCKSCOUT_TOKEN_URL,
@@ -1084,6 +1367,7 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
             "prizePoolUsd": supply_stats.get("prize_pool_usd"),
             "aaplPriceUsd": supply_stats.get("aapl_price_usd"),
             "eoaHeldBite": supply_stats.get("eoa_held_bite") or 0,
+            "circulatingSupply": supply_stats.get("eoa_held_bite") or 0,
             "contractHeldBite": supply_stats.get("contract_held_bite") or 0,
             "realisticallyBurnable": supply_stats.get("realistically_burnable") or 0,
             "totalSupply": supply_stats.get("total_supply") or 0,
@@ -1121,11 +1405,11 @@ def read_balance_raw(contract, wallet: str) -> int | None:
 
 def award_act_i_points(contract, state: dict, *, now: datetime | None = None) -> dict:
     """
-    Act I scoring for all activity wallets (trades/holders since launch):
+    Score all activity wallets (trades/holders since launch):
       - Accumulation: +POINTS_PER_BITE_GAINED per whole $BITE balance increase
       - Holding: +1 pt per HOLD_BITE_PER_POINT_PER_HOUR $BITE held per hour
-        (pro-rated by time since last snapshot)
-    Decreases do not claw back points. Kitchen/burns are ignored in Act I.
+      Act II also scores buys (1×), sells (1.5×), burns (50×) via apply_trade_events.
+    Decreases do not claw back points.
     Dev wallets score visibly but stay ineligible to win.
     Telegram /link attaches identity for /points; it is not required to score.
     """
@@ -1241,10 +1525,19 @@ def leaderboard_rows(
             continue
         pts = float(entry.get("points") or 0)
         trades = int(entry.get("trade_count") or 0)
+        sell_count = int(entry.get("sell_count") or 0)
+        burn_count = int(entry.get("burn_count") or 0)
         bal = int(entry.get("last_balance_raw") or 0)
         is_dev = is_dev_wallet(wallet_l, entry)
         ineligible = is_ineligible_wallet(wallet_l, entry)
-        if pts <= 0 and trades <= 0 and bal <= 0 and not is_dev:
+        if (
+            pts <= 0
+            and trades <= 0
+            and sell_count <= 0
+            and burn_count <= 0
+            and bal <= 0
+            and not is_dev
+        ):
             continue
         display = entry.get("wallet") or wallet_l
         rows.append((display, pts, trades, ineligible, is_dev))
@@ -1256,46 +1549,189 @@ def leaderboard_rows(
     return rows[:limit]
 
 
+class LogFetchError(Exception):
+    """RPC eth_getLogs failed — caller must retry, not skip the range."""
+
+    def __init__(self, message: str, *, rate_limited: bool = False):
+        super().__init__(message)
+        self.rate_limited = rate_limited
+
+
+def _is_rate_limit_error(err: BaseException) -> bool:
+    text = str(err).lower()
+    return "429" in text or "too many requests" in text or "rate limit" in text
+
+
 def fetch_transfer_logs(contract, from_block: int, to_block: int) -> list:
     if from_block > to_block:
         return []
-    try:
-        return list(
-            contract.events.Transfer.get_logs(
-                from_block=from_block,
-                to_block=to_block,
-            )
-        )
-    except TypeError:
+    delays = (0, 3, 8, 15, 30, 45, 60)
+    last_err: Exception | None = None
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
         try:
             return list(
                 contract.events.Transfer.get_logs(
-                    fromBlock=from_block,
-                    toBlock=to_block,
+                    from_block=from_block,
+                    to_block=to_block,
                 )
             )
+        except TypeError:
+            try:
+                return list(
+                    contract.events.Transfer.get_logs(
+                        fromBlock=from_block,
+                        toBlock=to_block,
+                    )
+                )
+            except Exception as e:
+                last_err = e
         except Exception as e:
-            print(f"Error fetching events {from_block}-{to_block}: {e}")
-            return []
-    except Exception as e:
-        print(f"Error fetching events {from_block}-{to_block}: {e}")
+            last_err = e
+        if last_err is not None and not _is_rate_limit_error(last_err):
+            print(f"Error fetching events {from_block}-{to_block}: {last_err}")
+            raise LogFetchError(str(last_err)) from last_err
+        print(
+            f"[logs] rate-limited {from_block}-{to_block} "
+            f"(attempt {attempt + 1}/{len(delays)})"
+        )
+    print(f"Error fetching events {from_block}-{to_block}: {last_err}")
+    raise LogFetchError(str(last_err), rate_limited=True) from last_err
+
+
+def fetch_transfer_logs_to(
+    contract, from_block: int, to_block: int, to_addr: str
+) -> list:
+    """Transfer logs with `to` filtered — used to recount burns without a full scan."""
+    if from_block > to_block:
         return []
+    dest = Web3.to_checksum_address(to_addr) if Web3 else to_addr
+    delays = (0, 3, 8, 15, 30, 45, 60)
+    last_err: Exception | None = None
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        try:
+            return list(
+                contract.events.Transfer.get_logs(
+                    from_block=from_block,
+                    to_block=to_block,
+                    argument_filters={"to": dest},
+                )
+            )
+        except TypeError:
+            try:
+                return list(
+                    contract.events.Transfer.get_logs(
+                        fromBlock=from_block,
+                        toBlock=to_block,
+                        argument_filters={"to": dest},
+                    )
+                )
+            except Exception as e:
+                last_err = e
+        except Exception as e:
+            last_err = e
+        if last_err is not None and not _is_rate_limit_error(last_err):
+            print(
+                f"Error fetching burn logs {from_block}-{to_block} to={dest}: {last_err}"
+            )
+            raise LogFetchError(str(last_err)) from last_err
+        print(
+            f"[logs] rate-limited burn {from_block}-{to_block} "
+            f"(attempt {attempt + 1}/{len(delays)})"
+        )
+    print(f"Error fetching burn logs {from_block}-{to_block}: {last_err}")
+    raise LogFetchError(str(last_err), rate_limited=True) from last_err
+
+
+def iter_burn_logs(contract, from_block: int, to_block: int):
+    """Yield (chunk_end, events) for Transfer → kitchen/dead/zero only."""
+    if from_block > to_block:
+        return
+    dests = list(_burn_destinations())
+    b = from_block
+    chunk = max(200, LOG_CHUNK_SIZE)
+    while b <= to_block:
+        end = min(b + chunk - 1, to_block)
+        try:
+            events: list = []
+            for dest in dests:
+                events.extend(fetch_transfer_logs_to(contract, b, end, dest))
+        except LogFetchError as e:
+            if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                print(
+                    f"[dust-burns] backing off 20s on {b}-{end}; keeping chunk={chunk}"
+                )
+                time.sleep(20)
+                continue
+            if chunk > 200 and end - b > 200:
+                chunk = max(200, chunk // 2)
+                print(
+                    f"[dust-burns] shrinking chunk to {chunk} after error on {b}-{end}"
+                )
+                continue
+            print(
+                f"[dust-burns] giving up on {b}–{end}; not advancing past {b - 1}"
+            )
+            return
+        yield end, events
+        b = end + 1
+        time.sleep(0.15)
+
+
+def iter_transfer_logs(contract, from_block: int, to_block: int):
+    """Yield (chunk_end, events). Stops before a range that cannot be fetched."""
+    if from_block > to_block:
+        return
+    b = from_block
+    chunk = max(200, LOG_CHUNK_SIZE)
+    while b <= to_block:
+        end = min(b + chunk - 1, to_block)
+        try:
+            events = fetch_transfer_logs(contract, b, end)
+        except LogFetchError as e:
+            if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                print(
+                    f"[logs] backing off 20s on {b}-{end}; keeping chunk={chunk}"
+                )
+                time.sleep(20)
+                continue
+            if chunk > 200 and end - b > 200:
+                chunk = max(200, chunk // 2)
+                print(f"[logs] shrinking chunk to {chunk} after error on {b}-{end}")
+                continue
+            print(
+                f"[logs] giving up on {b}–{end}; not advancing past {b - 1}"
+            )
+            return
+        yield end, events
+        b = end + 1
+        time.sleep(0.35)
 
 
 def apply_trade_events(
     state: dict, events, tracked: set[str] | None = None, *, w3=None
 ) -> int:
-    """Increment trade_count for EOA buys (Transfer contract → EOA).
+    """Score and count buys, sells, and burns from Transfer events.
 
-    tracked=None → count every eligible recipient (Act I all-activity board).
-    Otherwise only addresses in tracked. Returns hits.
+    Buy = contract → EOA: +1 trade_count, +BUY_SCORE_MULT × BITE amount
+    Sell = EOA → contract: +1 sell_count, +SELL_SCORE_MULT × BITE amount
+    Burn = EOA → kitchen/dead/zero: +1 burn_count, burned_bite += amount
+      (kitchen.bite(), sweep-to-kitchen, and token.burn() / dead).
+      Contract→kitchen (digest) is skipped.
+      Points: +BURN_SCORE_MULT × BITE when the burn meets $MIN_BURN_SCORE_USD
+      (default 0 — all kitchen burns score). Telegram still uses MIN_BURN_USD.
+
+    tracked=None → count every eligible address.
+    Returns total scored events.
     """
     hits = 0
-    dead = DEAD_ADDRESS.lower()
     zero = ZERO_ADDRESS.lower()
+    burn_dests = _burn_destinations()
     contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
     if w3 is not None:
-        # Opportunistically classify event parties we haven't seen
         pending = set()
         for event in events:
             pending.add(event.args["from"].lower())
@@ -1309,27 +1745,99 @@ def apply_trade_events(
         value = int(event.args["value"])
         to_l = to_addr.lower()
         from_l = from_addr.lower()
-        if to_l in excluded or from_l == zero or value <= 0:
+        if from_l == zero or value <= 0:
             continue
-        # Buy = tokens leaving a contract into a non-contract (EOA / dev)
-        if from_l not in contracts:
+        bite_amount = value / 10**18
+
+        wager_l = (META_WAGER_CONTRACT or "").lower()
+        # MetaWager stake / fee / claim are not buys or sells. BetPlaced scores
+        # the EOA who entered; payouts are not a bite.
+        if wager_l and (to_l == wager_l or from_l == wager_l):
             continue
-        if to_l in contracts and to_l not in DEV_WALLETS:
+
+        # Burn before the contract-exclusion skip so kitchen (a contract) counts.
+        if to_l in burn_dests:
+            if from_l in contracts and from_l not in DEV_WALLETS:
+                continue  # contract-to-kitchen (digest), not a user burn
+            if tracked is not None and from_l not in tracked:
+                continue
+            entry = points_entry(state, from_addr)
+            entry["burn_count"] = int(entry.get("burn_count") or 0) + 1
+            entry["burned_bite"] = float(entry.get("burned_bite") or 0) + bite_amount
+            entry["wallet"] = entry.get("wallet") or (
+                Web3.to_checksum_address(from_addr) if Web3 else from_addr
+            )
+            if (
+                _meets_usd_threshold(
+                    value, state, MIN_BURN_SCORE_USD, MIN_BURN_SCORE_RAW
+                )
+                and PHASE >= 1
+                and burn_score_mult_now() > 0
+            ):
+                burn_pts = bite_amount * burn_score_mult_now()
+                entry["burn_points"] = float(entry.get("burn_points") or 0) + burn_pts
+                entry["points"] = float(entry.get("points") or 0) + burn_pts
+            hits += 1
             continue
-        if tracked is not None and to_l not in tracked:
+
+        # Sell before the contract-exclusion skip. Destinations are contracts
+        # (routers/LP), which are excluded from the board as *rows* but must
+        # still credit the seller.
+        if from_l not in contracts and to_l in contracts:
+            if tracked is not None and from_l not in tracked:
+                continue
+            entry = points_entry(state, from_addr)
+            entry["sell_count"] = int(entry.get("sell_count") or 0) + 1
+            entry["wallet"] = entry.get("wallet") or (
+                Web3.to_checksum_address(from_addr) if Web3 else from_addr
+            )
+            if PHASE >= 1 and SELL_SCORE_MULT > 0:
+                sell_pts = bite_amount * SELL_SCORE_MULT
+                entry["sell_points"] = float(entry.get("sell_points") or 0) + sell_pts
+                entry["points"] = float(entry.get("points") or 0) + sell_pts
+            hits += 1
             continue
-        entry = points_entry(state, to_addr)
-        entry["trade_count"] = int(entry.get("trade_count") or 0) + 1
-        entry["wallet"] = entry.get("wallet") or (
-            Web3.to_checksum_address(to_addr) if Web3 else to_addr
-        )
-        hits += 1
+
+        if to_l in excluded:
+            continue
+
+        # Buy: contract → EOA (or DEV)
+        if from_l in contracts and (to_l not in contracts or to_l in DEV_WALLETS):
+            if tracked is not None and to_l not in tracked:
+                continue
+            entry = points_entry(state, to_addr)
+            entry["trade_count"] = int(entry.get("trade_count") or 0) + 1
+            entry["wallet"] = entry.get("wallet") or (
+                Web3.to_checksum_address(to_addr) if Web3 else to_addr
+            )
+            if PHASE >= 1 and BUY_SCORE_MULT > 0:
+                buy_pts = bite_amount * BUY_SCORE_MULT
+                entry["buy_points"] = float(entry.get("buy_points") or 0) + buy_pts
+                entry["points"] = float(entry.get("points") or 0) + buy_pts
+            hits += 1
+            continue
     return hits
+
+
+def _reset_trade_score_fields(entry: dict) -> None:
+    """Drop buy/sell/burn tallies before a full recount. Keep accum/hold."""
+    buy_pts = float(entry.get("buy_points") or 0)
+    sell_pts = float(entry.get("sell_points") or 0)
+    burn_pts = float(entry.get("burn_points") or 0)
+    pts = float(entry.get("points") or 0)
+    entry["points"] = max(0.0, pts - buy_pts - sell_pts - burn_pts)
+    entry["trade_count"] = 0
+    entry["sell_count"] = 0
+    entry["burn_count"] = 0
+    entry["burned_bite"] = 0.0
+    entry["buy_points"] = 0.0
+    entry["sell_points"] = 0.0
+    entry["burn_points"] = 0.0
 
 
 def backfill_trades(w3, contract, state: dict, *, force: bool = False) -> dict:
     """
-    Recount EOA buys from TRADE_SCAN_FROM_BLOCK → tip.
+    Recount EOA buys, sells, and burns from TRADE_SCAN_FROM_BLOCK → tip.
     Runs when trades_backfilled_from / trade_index_mode are stale (or force=True).
     """
     ensure_dev_wallets(state)
@@ -1337,25 +1845,48 @@ def backfill_trades(w3, contract, state: dict, *, force: bool = False) -> dict:
         return state
     already = int(state.get("trades_backfilled_from") or 0)
     mode = state.get("trade_index_mode")
+    # v4 on disk can be a skipped pass (mode flipped without 7702 reclassify).
     if (
         not force
         and already == TRADE_SCAN_FROM_BLOCK
         and mode == TRADE_INDEX_MODE
+        and state.get("trade_index_7702")
     ):
         return state
 
     tip = int(w3.eth.block_number)
     start = max(0, TRADE_SCAN_FROM_BLOCK)
-    print(
-        f"[backfill] recounting EOA buys from block {start} → {tip} "
-        f"(mode={TRADE_INDEX_MODE})"
+    # Resume only an interrupted current-mode recount. Do not reuse last_block
+    # (v3 leaves that near tip, which would skip the whole v4 pass).
+    cursor = int(state.get("trade_index_cursor") or 0)
+    resume = (
+        not force
+        and state.get("trade_index_building") == TRADE_INDEX_MODE
+        and mode != TRADE_INDEX_MODE
+        and cursor >= start
+        and cursor < tip
+        and int(state.get("trades_backfilled_from") or 0) == TRADE_SCAN_FROM_BLOCK
     )
+    scan_from = cursor + 1 if resume else start
+    if scan_from > tip:
+        if mode == TRADE_INDEX_MODE:
+            return state
+        scan_from = start
+        resume = False
+    print(
+        f"[backfill] {'resuming' if resume else 'recounting'} EOA buys/sells/burns "
+        f"from block {scan_from} → {tip} (mode={TRADE_INDEX_MODE}, chunk={LOG_CHUNK_SIZE})"
+    )
+
+    sync_dexscreener(state)
 
     # Seed contract cache from known activity, then classify
     seed = set(activity_wallet_set(state))
     for a in state.get("known_holders") or []:
         if isinstance(a, str):
             seed.add(a.lower())
+    if KITCHEN_CONTRACT:
+        seed.add(KITCHEN_CONTRACT.lower())
     for a in (
         "0x8366a39cc670b4001a1121b8f6a443a643e40951",
         "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044",
@@ -1363,39 +1894,78 @@ def backfill_trades(w3, contract, state: dict, *, force: bool = False) -> dict:
         "0x8f10b468b06c6fd214b65f87778827f7d113f996",
     ):
         seed.add(a)
-    classify_contracts(w3, seed, state)
+    classify_contracts(w3, seed, state, recheck=False)
+    # Recheck cached contracts so v3 EIP-7702 false-positives become EOAs.
+    if not resume:
+        cached_contracts = {
+            a.lower()
+            for a in (state.get("contract_addrs") or [])
+            if isinstance(a, str)
+        }
+        if cached_contracts:
+            print(
+                f"[backfill] rechecking {len(cached_contracts)} cached contracts "
+                "for EIP-7702"
+            )
+            classify_contracts(w3, cached_contracts, state, recheck=True)
 
-    # Reset trade counts before full recount from launch
-    for _wallet_l, entry in (state.get("points") or {}).items():
-        if isinstance(entry, dict):
-            entry["trade_count"] = 0
+    if not resume:
+        state["trade_index_building"] = TRADE_INDEX_MODE
+        state["trade_index_cursor"] = scan_from - 1
+        for _wallet_l, entry in (state.get("points") or {}).items():
+            if isinstance(entry, dict):
+                _reset_trade_score_fields(entry)
+        save_state(state)
 
     total_events = 0
     total_hits = 0
-    b = start
-    chunk = max(200, LOG_CHUNK_SIZE)
-    while b <= tip:
-        end = min(b + chunk - 1, tip)
-        events = fetch_transfer_logs(contract, b, end)
-        if not events and chunk > 500 and end - b > 500:
-            chunk = max(500, chunk // 2)
-            continue
+    scanned_to = scan_from - 1
+    chunks_done = 0
+    burn_dests = _burn_destinations()
+    for end, events in iter_transfer_logs(contract, scan_from, tip):
         total_events += len(events)
         total_hits += apply_trade_events(state, events, tracked=None, w3=w3)
         known = set(a.lower() for a in (state.get("known_holders") or []))
         contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
         for event in events:
             to_l = event.args["to"].lower()
-            if to_l not in (ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower()):
+            from_l = event.args["from"].lower()
+            if to_l in burn_dests:
+                if from_l not in contracts or from_l in DEV_WALLETS:
+                    known.add(from_l)
+            elif to_l not in (ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower()):
                 if to_l not in contracts or to_l in DEV_WALLETS:
                     known.add(to_l)
         state["known_holders"] = list(known)
         state["holder_count"] = max(len(known), int(state.get("holder_count") or 0))
-        b = end + 1
+        scanned_to = end
+        state["trade_index_cursor"] = end
+        chunks_done += 1
+        span = max(1, tip - start)
+        if chunks_done == 1 or chunks_done % 5 == 0 or end >= tip:
+            pct = 100.0 * (end - start + 1) / span
+            print(
+                f"[backfill] {end}/{tip} ({pct:.1f}%) "
+                f"events={total_events} hits={total_hits}"
+            )
+            save_state(state)
+
+    if scanned_to < tip:
+        print(
+            f"[backfill] incomplete ({scanned_to} < tip {tip}) — "
+            "not flipping trade_index_mode; rerun to finish"
+        )
+        if scanned_to >= scan_from:
+            state["trade_index_cursor"] = scanned_to
+            save_state(state)
+        return state
 
     state["trades_backfilled_from"] = TRADE_SCAN_FROM_BLOCK
     state["trade_from_block"] = TRADE_SCAN_FROM_BLOCK
     state["trade_index_mode"] = TRADE_INDEX_MODE
+    state["trade_index_7702"] = True
+    state.pop("trade_index_building", None)
+    state.pop("trade_index_cursor", None)
     state["trader_count"] = len(
         {
             k
@@ -1405,16 +1975,353 @@ def backfill_trades(w3, contract, state: dict, *, force: bool = False) -> dict:
             and k.lower() not in {a.lower() for a in (state.get("contract_addrs") or [])}
         }
     )
-    state["last_block"] = tip
+    state["last_block"] = scanned_to
     sync_market_sources(state, contract=contract)
     write_public_leaderboard(state)
     save_state(state)
     print(
         f"[backfill] done: {total_events} transfers scanned, "
-        f"{total_hits} EOA buy hits, "
+        f"{total_hits} scored events, "
         f"{state.get('trader_count')} unique traders, "
-        f"{state.get('holder_count')} known holders"
+        f"{state.get('holder_count')} known holders, "
+        f"last_block={scanned_to}"
     )
+    return state
+
+
+def backfill_burn_visibility(w3, contract, state: dict) -> dict:
+    """Re-sum ALL user burns into burn_count / burned_bite without touching points.
+
+    v4 skipped kitchen.bite() under MIN_BURN_USD entirely. This pass fills those
+    in so the board can show dust participation. Scored burns keep their points.
+    Scans TRADE_SCAN_FROM_BLOCK → last_block (already-indexed range) so a later
+    poll from last_block+1 does not double-count. Does not bump TRADE_INDEX_MODE.
+    """
+    if not w3 or not contract:
+        return state
+    if state.get("dust_burn_index_mode") == DUST_BURN_INDEX_MODE:
+        return state
+    if state.get("trade_index_mode") != TRADE_INDEX_MODE or not state.get(
+        "trade_index_7702"
+    ):
+        return state
+    end = int(state.get("last_block") or 0)
+    start = max(0, TRADE_SCAN_FROM_BLOCK)
+    if end < start:
+        return state
+
+    cursor = int(state.get("dust_burn_cursor") or (start - 1))
+    totals = state.get("dust_burn_totals")
+    if not isinstance(totals, dict):
+        totals = {}
+    scan_from = cursor + 1 if cursor >= start - 1 else start
+    if scan_from > end:
+        scan_from = start
+        totals = {}
+
+    print(
+        f"[dust-burns] summing kitchen/dead/zero burns {scan_from} → {end} "
+        f"(visibility + score; TG floor ${MIN_BURN_USD:.0f})"
+    )
+
+    seed = set(activity_wallet_set(state))
+    for a in state.get("known_holders") or []:
+        if isinstance(a, str):
+            seed.add(a.lower())
+    if KITCHEN_CONTRACT:
+        seed.add(KITCHEN_CONTRACT.lower())
+    classify_contracts(w3, seed, state, recheck=False)
+    cached_contracts = {
+        a.lower()
+        for a in (state.get("contract_addrs") or [])
+        if isinstance(a, str)
+    }
+    if cached_contracts and not state.get("dust_burn_cursor"):
+        classify_contracts(w3, cached_contracts, state, recheck=True)
+
+    zero = ZERO_ADDRESS.lower()
+    burn_dests = _burn_destinations()
+    scanned_to = scan_from - 1
+    chunks_done = 0
+    hits = 0
+    for chunk_end, events in iter_burn_logs(contract, scan_from, end):
+        contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
+        pending = set()
+        for event in events:
+            pending.add(event.args["from"].lower())
+            pending.add(event.args["to"].lower())
+        if pending:
+            classify_contracts(w3, pending, state)
+            contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
+        for event in events:
+            to_l = event.args["to"].lower()
+            from_l = event.args["from"].lower()
+            value = int(event.args["value"])
+            if to_l not in burn_dests or from_l == zero or value <= 0:
+                continue
+            if from_l in contracts and from_l not in DEV_WALLETS:
+                continue
+            bite_amount = value / 10**18
+            slot = totals.get(from_l)
+            if not isinstance(slot, dict):
+                wallet = event.args["from"]
+                slot = {
+                    "count": 0,
+                    "amount": 0.0,
+                    "wallet": (
+                        Web3.to_checksum_address(wallet) if Web3 else wallet
+                    ),
+                }
+            slot["count"] = int(slot.get("count") or 0) + 1
+            slot["amount"] = float(slot.get("amount") or 0) + bite_amount
+            totals[from_l] = slot
+            hits += 1
+        scanned_to = chunk_end
+        state["dust_burn_cursor"] = chunk_end
+        state["dust_burn_totals"] = totals
+        chunks_done += 1
+        if chunks_done == 1 or chunks_done % 5 == 0 or chunk_end >= end:
+            span = max(1, end - start + 1)
+            pct = 100.0 * (chunk_end - start + 1) / span
+            print(
+                f"[dust-burns] {chunk_end}/{end} ({pct:.1f}%) "
+                f"burn-events={hits} wallets={len(totals)}"
+            )
+            save_state(state)
+
+    if scanned_to < end:
+        print(
+            f"[dust-burns] incomplete ({scanned_to} < {end}) — rerun to finish"
+        )
+        save_state(state)
+        return state
+
+    seen = set()
+    for addr_l, slot in totals.items():
+        if not isinstance(slot, dict):
+            continue
+        wallet = slot.get("wallet") or addr_l
+        entry = points_entry(state, wallet)
+        entry["burn_count"] = int(slot.get("count") or 0)
+        entry["burned_bite"] = float(slot.get("amount") or 0)
+        seen.add(addr_l.lower())
+    for wallet_l, entry in (state.get("points") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        if wallet_l.lower() in seen:
+            continue
+        entry["burn_count"] = 0
+        entry["burned_bite"] = 0.0
+
+    state["dust_burn_index_mode"] = DUST_BURN_INDEX_MODE
+    state.pop("dust_burn_cursor", None)
+    state.pop("dust_burn_totals", None)
+    write_public_leaderboard(state)
+    save_state(state)
+    print(
+        f"[dust-burns] done: {len(seen)} wallets with burns, "
+        f"{hits} burn events (points unchanged)"
+    )
+    return state
+
+
+def _wager_contract(w3):
+    if not w3 or not Web3 or not META_WAGER_CONTRACT:
+        return None
+    try:
+        return w3.eth.contract(
+            address=Web3.to_checksum_address(META_WAGER_CONTRACT),
+            abi=META_WAGER_ABI,
+        )
+    except Exception as e:
+        print(f"[wager] contract init error: {e}")
+        return None
+
+
+def fetch_wager_logs(wager, from_block: int, to_block: int) -> list:
+    if from_block > to_block or wager is None:
+        return []
+    delays = (0, 3, 8, 15, 30, 45, 60)
+    last_err: Exception | None = None
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        try:
+            return list(
+                wager.events.BetPlaced.get_logs(
+                    from_block=from_block,
+                    to_block=to_block,
+                )
+            )
+        except TypeError:
+            try:
+                return list(
+                    wager.events.BetPlaced.get_logs(
+                        fromBlock=from_block,
+                        toBlock=to_block,
+                    )
+                )
+            except Exception as e:
+                last_err = e
+        except Exception as e:
+            last_err = e
+        if last_err is not None and not _is_rate_limit_error(last_err):
+            print(
+                f"[wager] error fetching BetPlaced {from_block}-{to_block}: {last_err}"
+            )
+            raise LogFetchError(str(last_err)) from last_err
+        print(
+            f"[wager] rate-limited BetPlaced {from_block}-{to_block} "
+            f"(attempt {attempt + 1}/{len(delays)})"
+        )
+    print(f"[wager] error fetching BetPlaced {from_block}-{to_block}: {last_err}")
+    raise LogFetchError(str(last_err), rate_limited=True) from last_err
+
+
+def iter_wager_logs(wager, from_block: int, to_block: int):
+    if from_block > to_block or wager is None:
+        return
+    b = from_block
+    chunk = max(200, LOG_CHUNK_SIZE)
+    while b <= to_block:
+        end = min(b + chunk - 1, to_block)
+        try:
+            events = fetch_wager_logs(wager, b, end)
+        except LogFetchError as e:
+            if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                print(f"[wager] backing off 20s on {b}-{end}")
+                time.sleep(20)
+                continue
+            if chunk > 200 and end - b > 200:
+                chunk = max(200, chunk // 2)
+                print(f"[wager] shrinking chunk to {chunk} after error on {b}-{end}")
+                continue
+            print(f"[wager] giving up on {b}–{end}; not advancing past {b - 1}")
+            return
+        yield end, events
+        b = end + 1
+        time.sleep(0.1)
+
+
+def apply_wager_events(state: dict, events, *, w3=None, undo_sells: bool = False) -> int:
+    """Score BetPlaced on the EOA who entered. Gross stake = net + 10% entry fee.
+
+    0.001 pts / $BITE staked — a side bet, not a bite. Contracts are skipped
+    (7702 delegated EOAs still count). If the stake was previously indexed as a
+    sell (EOA → MetaWager Transfer), undo that sell so it is not double-counted.
+    """
+    if WAGER_SCORE_MULT <= 0:
+        return 0
+    hits = 0
+    pending = set()
+    parsed: list[tuple[str, float]] = []
+    for event in events:
+        try:
+            bettor = event.args["bettor"]
+            net = int(event.args["netAmount"])
+            fee = int(event.args["fee"])
+        except Exception:
+            continue
+        if not bettor:
+            continue
+        gross_raw = net + fee
+        if gross_raw <= 0:
+            continue
+        pending.add(bettor.lower())
+        parsed.append((bettor, gross_raw / 10**18))
+    if w3 is not None and pending:
+        classify_contracts(w3, pending, state)
+    contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
+    for bettor, gross in parsed:
+        bettor_l = bettor.lower()
+        if bettor_l in contracts and bettor_l not in DEV_WALLETS:
+            continue
+        entry = points_entry(state, bettor)
+        entry["wallet"] = entry.get("wallet") or (
+            Web3.to_checksum_address(bettor) if Web3 else bettor
+        )
+        if undo_sells:
+            sell_pts = gross * SELL_SCORE_MULT
+            have = float(entry.get("sell_points") or 0)
+            take = min(sell_pts, have)
+            if take > 0:
+                entry["sell_points"] = have - take
+                entry["points"] = max(0.0, float(entry.get("points") or 0) - take)
+            sc = int(entry.get("sell_count") or 0)
+            if sc > 0:
+                entry["sell_count"] = sc - 1
+        entry["wager_count"] = int(entry.get("wager_count") or 0) + 1
+        entry["wagered_bite"] = float(entry.get("wagered_bite") or 0) + gross
+        wager_pts = gross * WAGER_SCORE_MULT
+        entry["wager_points"] = float(entry.get("wager_points") or 0) + wager_pts
+        entry["points"] = float(entry.get("points") or 0) + wager_pts
+        hits += 1
+    return hits
+
+
+def backfill_wagers(w3, state: dict) -> dict:
+    """Index all MetaWager BetPlaced events. Does not bump TRADE_INDEX_MODE."""
+    if state.get("wager_index_mode") == WAGER_INDEX_MODE:
+        if state.get("score_scale") != SCORE_SCALE:
+            state["score_scale"] = SCORE_SCALE
+        return state
+    if not META_WAGER_CONTRACT:
+        state["wager_index_mode"] = WAGER_INDEX_MODE
+        state["score_scale"] = SCORE_SCALE
+        return state
+    wager = _wager_contract(w3)
+    if wager is None:
+        print("[wager] contract unavailable — will retry")
+        return state
+    rescale_points_v2(state)
+    # Flip scale before scoring bets so HTTP/client remap cannot double-add
+    # wagered * 0.001 on top of points the bot is about to credit.
+    state["score_scale"] = SCORE_SCALE
+    end = int(state.get("last_block") or 0)
+    if end <= 0 and w3:
+        try:
+            end = int(w3.eth.block_number)
+        except Exception:
+            end = 0
+    start = max(TRADE_SCAN_FROM_BLOCK, 64_490_000)
+    if end < start:
+        print(f"[wager] wait for last_block ({end}) to pass {start}")
+        return state
+
+    cursor = int(state.get("wager_cursor") or (start - 1))
+    scan_from = cursor + 1
+    if scan_from > end:
+        state["wager_index_mode"] = WAGER_INDEX_MODE
+        state["score_scale"] = SCORE_SCALE
+        state.pop("wager_cursor", None)
+        write_public_leaderboard(state)
+        save_state(state)
+        print(f"[wager] already scanned through {end}; scale={SCORE_SCALE}")
+        return state
+
+    print(
+        f"[wager] indexing BetPlaced {scan_from} → {end} "
+        f"(+{WAGER_SCORE_MULT} pts / $BITE staked on entry)"
+    )
+    scanned_to = scan_from - 1
+    hits = 0
+    for chunk_end, events in iter_wager_logs(wager, scan_from, end):
+        hits += apply_wager_events(state, events, w3=w3, undo_sells=True)
+        scanned_to = chunk_end
+        state["wager_cursor"] = chunk_end
+        save_state(state)
+
+    if scanned_to < end:
+        print(f"[wager] incomplete ({scanned_to} < {end}) — rerun to finish")
+        save_state(state)
+        return state
+
+    state["wager_index_mode"] = WAGER_INDEX_MODE
+    state["score_scale"] = SCORE_SCALE
+    state.pop("wager_cursor", None)
+    write_public_leaderboard(state)
+    save_state(state)
+    print(f"[wager] done: {hits} BetPlaced scored, scale={SCORE_SCALE}")
     return state
 
 
@@ -1451,6 +2358,10 @@ def parse_command(text: str) -> tuple[str | None, str]:
         "tap": "burn",
         "stats": "stats",
         "supply": "stats",
+        "wager": "wager",
+        "odds": "wager",
+        "bet": "wager",
+        "meta wager": "wager",
     }
     for phrase, cmd in natural.items():
         if lower == phrase or lower.startswith(phrase + " "):
@@ -1474,11 +2385,12 @@ def help_copy(*, private: bool = False) -> str:
         "/balance — your $BITE balance\n"
         "/points — your Act I points\n"
         "/leaderboard — top traders by points\n"
+        "/wager — meta wager live odds (Core vs Rot)\n"
         "/stats — supply breakdown + prize pool\n"
         "/burn — burn $BITE on bite.party (or /burn 1000)\n"
         "/ca — contract address + links\n"
         "/buy — how to buy $BITE\n"
-        "Also: check balance / check points / check leaderboard / check stats / how to buy / burn / tap"
+        "Also: check balance / check points / check leaderboard / check stats / how to buy / burn / tap / wager / odds"
     )
 
 
@@ -1516,6 +2428,10 @@ def handle_command(
         "supply": "stats",
         "stat": "stats",
         "info": "stats",
+        "wager": "wager",
+        "bet": "wager",
+        "odds": "wager",
+        "metawager": "wager",
     }
     cmd = aliases.get(cmd, cmd)
     who = f"@{username}" if username else "you"
@@ -1620,6 +2536,51 @@ def handle_command(
             f"🍎 {SITE_URL}"
         )
 
+    if cmd == "wager":
+        w3, _ = get_web3()
+        ws = get_wager_state(w3)
+        if not ws:
+            return (
+                "🍎⚔️🪱 Meta Wager\n"
+                "\n"
+                "The meta wager contract is not available yet.\n"
+                f"Check back at {SITE_URL}"
+            )
+        total_core = ws["totalCore"]
+        total_rot = ws["totalRot"]
+        total = total_core + total_rot
+        core_pct = (ws["coreOddsBps"] / 100) if total > 0 else 50.0
+        rot_pct = 100 - core_pct
+
+        if ws["resolved"]:
+            winner = "🍎 CORE" if ws["winningSide"] == 1 else "🪱 ROT"
+            return (
+                f"🍎⚔️🪱 Meta Wager — RESOLVED\n"
+                f"\n"
+                f"Winner: {winner}\n"
+                f"Core pool: {fmt_amount(total_core)} $BITE\n"
+                f"Rot pool: {fmt_amount(total_rot)} $BITE\n"
+                f"\n"
+                f"Claim your winnings at {SITE_URL}"
+            )
+
+        return {
+            "text": (
+                f"🍎⚔️🪱 Meta Wager — Live Odds\n"
+                f"\n"
+                f"🍎 CORE: {core_pct:.1f}% ({fmt_amount(total_core)} $BITE)\n"
+                f"🪱 ROT: {rot_pct:.1f}% ({fmt_amount(total_rot)} $BITE)\n"
+                f"Total staked: {fmt_amount(total)} $BITE\n"
+                f"\n"
+                f"Will the eaters reach 50% burn, or will time run out?\n"
+                f"Place your bet at {SITE_URL}"
+            ),
+            "reply_markup": _inline_kb(
+                [("🍎 Bet CORE", f"{SITE_URL}/#wager"), ("🪱 Bet ROT", f"{SITE_URL}/#wager")],
+                [("📈 Chart", DEXSCREENER_PAIR_URL)],
+            ),
+        }
+
     if cmd == "ca":
         lines = [
             f"🍎 $BITE token",
@@ -1712,7 +2673,13 @@ def handle_command(
         pts = float(entry.get("points") or 0)
         accum = float(entry.get("accum_points") or 0)
         hold = float(entry.get("hold_points") or 0)
+        buy_pts = float(entry.get("buy_points") or 0)
+        sell_pts = float(entry.get("sell_points") or 0)
+        burn_pts = float(entry.get("burn_points") or 0)
         trades = int(entry.get("trade_count") or 0)
+        sells = int(entry.get("sell_count") or 0)
+        burns = int(entry.get("burn_count") or 0)
+        burned_bite = float(entry.get("burned_bite") or 0)
         rows = leaderboard_rows(state, limit=0)
         eligible_rank = 0
         rank = None
@@ -1729,11 +2696,32 @@ def handle_command(
             rank_txt = f" · rank #{rank}"
         else:
             rank_txt = ""
-        return (
-            f"🏆 {who}: {fmt_points(pts)} pts{rank_txt}\n"
-            f"(accum {fmt_points(accum)} · hold {fmt_points(hold)} · {trades} trades)\n"
-            f"Wallet {short_addr(wallet)}"
-        )
+        lines = [f"🏆 {who}: {fmt_points(pts)} pts{rank_txt}"]
+        # Breakdown
+        parts = []
+        if accum > 0:
+            parts.append(f"accum {fmt_points(accum)}")
+        if hold > 0:
+            parts.append(f"hold {fmt_points(hold)}")
+        if buy_pts > 0:
+            parts.append(f"buys {fmt_points(buy_pts)}")
+        if sell_pts > 0:
+            parts.append(f"sells {fmt_points(sell_pts)}")
+        if burn_pts > 0:
+            parts.append(f"burns {fmt_points(burn_pts)}")
+        if parts:
+            lines.append(f"({' · '.join(parts)})")
+        activity = []
+        if trades > 0:
+            activity.append(f"{trades} buys")
+        if sells > 0:
+            activity.append(f"{sells} sells")
+        if burns > 0:
+            activity.append(f"{burns} burns ({fmt_amount(int(burned_bite * 10**18))} BITE)")
+        if activity:
+            lines.append(f"{' · '.join(activity)}")
+        lines.append(f"Wallet {short_addr(wallet)}")
+        return "\n".join(lines)
 
     if cmd == "leaderboard":
         rows = leaderboard_rows(state)
@@ -1937,6 +2925,32 @@ def get_burn_pct(contract):
         return 0.0, 0, 0
 
 
+def get_wager_state(w3) -> dict | None:
+    """Read MetaWager contract state: totalCore, totalRot, resolved, winningSide, coreOddsBps."""
+    if not w3 or not Web3 or not META_WAGER_CONTRACT:
+        return None
+    try:
+        wager = w3.eth.contract(
+            address=Web3.to_checksum_address(META_WAGER_CONTRACT),
+            abi=META_WAGER_ABI,
+        )
+        total_core = int(wager.functions.totalCore().call())
+        total_rot = int(wager.functions.totalRot().call())
+        is_resolved = bool(wager.functions.resolved().call())
+        winning_side = int(wager.functions.winningSide().call())
+        core_odds_bps = int(wager.functions.coreOddsBps().call())
+        return {
+            "totalCore": total_core,
+            "totalRot": total_rot,
+            "resolved": is_resolved,
+            "winningSide": winning_side,
+            "coreOddsBps": core_odds_bps,
+        }
+    except Exception as e:
+        print(f"[wager] read error: {e}")
+        return None
+
+
 # ── Copy ──
 
 def _inline_kb(*rows: list[tuple[str, str]]) -> dict:
@@ -2122,17 +3136,16 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
         )
 
     transfer_filter: list = []
+    scanned_to = from_block - 1
     if from_block <= current_block:
-        b = from_block
-        chunk = max(200, LOG_CHUNK_SIZE)
-        while b <= current_block:
-            end = min(b + chunk - 1, current_block)
-            part = fetch_transfer_logs(contract, b, end)
-            if not part and chunk > 500 and end - b > 500:
-                chunk = max(500, chunk // 2)
-                continue
+        for end, part in iter_transfer_logs(contract, from_block, current_block):
             transfer_filter.extend(part)
-            b = end + 1
+            scanned_to = end
+        if scanned_to < from_block:
+            print(
+                f"[poll] log fetch incomplete; keeping last_block="
+                f"{state.get('last_block')}"
+            )
 
     known = set(a.lower() for a in (state.get("known_holders") or []))
     burn_pct, total_burned, total_supply = get_burn_pct(contract)
@@ -2164,6 +3177,16 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
 
     # Index EOA buys (contract → wallet), not router/LP inbound noise
     apply_trade_events(state, transfer_filter, tracked=None, w3=w3)
+    if META_WAGER_CONTRACT and scanned_to >= from_block:
+        wager = _wager_contract(w3)
+        if wager is not None:
+            wager_hits = 0
+            for _, events in iter_wager_logs(wager, from_block, scanned_to):
+                wager_hits += apply_wager_events(
+                    state, events, w3=w3, undo_sells=False
+                )
+            if wager_hits:
+                print(f"[wager] poll +{wager_hits} BetPlaced")
 
     for event in transfer_filter:
         from_addr = event.args["from"]
@@ -2172,10 +3195,15 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
 
         to_l = to_addr.lower()
         from_l = from_addr.lower()
-        is_burn = to_l == DEAD_ADDRESS.lower()
+        contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
+        is_burn = to_l in _burn_destinations() and (
+            from_l not in contracts or from_l in DEV_WALLETS
+        )
         is_mintish = from_l == ZERO_ADDRESS.lower()
 
-        if to_l not in (ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower()):
+        if is_burn:
+            known.add(from_l)
+        elif to_l not in (ZERO_ADDRESS.lower(), DEAD_ADDRESS.lower()):
             known.add(to_l)
 
         if is_burn:
@@ -2232,7 +3260,8 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                 print(f"[catch-up] holder milestone {m} suppressed")
             state["last_holder_milestone"] = m
 
-    state["last_block"] = current_block
+    if scanned_to >= from_block:
+        state["last_block"] = scanned_to
     state["last_poll_at"] = datetime.now(timezone.utc).isoformat()
     state["last_burn_pct"] = burn_pct
     state["trade_from_block"] = TRADE_SCAN_FROM_BLOCK
@@ -2259,6 +3288,58 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
         f"{' [catch-up]' if is_catch_up else ''}"
     )
     return state
+
+
+# ── Leaderboard HTTP server (for Railway / remote hosting) ──
+
+_http_state_ref: dict | None = None
+
+
+class _LeaderboardHandler(BaseHTTPRequestHandler):
+    """Tiny handler serving /leaderboard.json and /health from in-memory state."""
+
+    def do_GET(self):
+        if self.path == "/health":
+            self._json_response(200, {"status": "ok"})
+            return
+        if self.path in ("/leaderboard.json", "/leaderboard", "/"):
+            state = _http_state_ref
+            # Stay 503 until the trade index is current so Vercel does not
+            # pick up a partial recount. Wager backfill is a small add-on on
+            # top of v2_burn_lead — keep serving the live board meanwhile.
+            if (
+                state is None
+                or state.get("trade_index_mode") != TRADE_INDEX_MODE
+                or not state.get("trade_index_7702")
+            ):
+                self._json_response(503, {"error": "index not ready"})
+                return
+            payload = public_leaderboard_payload(state, limit=max(LEADERBOARD_TOP_N, 500))
+            self._json_response(200, payload)
+            return
+        self._json_response(404, {"error": "not found"})
+
+    def _json_response(self, code: int, body: dict | list) -> None:
+        data = json.dumps(body, indent=2).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Cache-Control", "public, max-age=15")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, fmt, *args):
+        pass
+
+
+def start_leaderboard_http(state: dict, port: int) -> None:
+    """Start the leaderboard HTTP server in a daemon thread."""
+    global _http_state_ref
+    _http_state_ref = state
+    server = HTTPServer(("0.0.0.0", port), _LeaderboardHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    print(f"[http] leaderboard server on :{port} — /leaderboard.json /health")
 
 
 # ── CLI ──
@@ -2305,7 +3386,7 @@ def main(argv: list[str] | None = None) -> int:
             "Act I: burn Telegram posts deferred until PHASE>=2. "
             f"POST_ACTIVITY={POST_ACTIVITY} (holder milestones still tracked). "
             f"Points: +{POINTS_PER_BITE_GAINED}/BITE gained, "
-            f"hold {HOLD_BITE_PER_POINT_PER_HOUR} BITE·h = 1 pt."
+            f"hold {HOLD_BITE_PER_POINT_PER_HOUR} BITE·h = 1 pt (Act I scaled)."
         )
 
     if args.commands_test:
@@ -2325,11 +3406,26 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     ensure_dev_wallets(state)
+
+    # Start HTTP server early so Railway healthcheck passes during backfill
+    if args.daemon:
+        http_port = os.getenv("PORT") or os.getenv("LEADERBOARD_HTTP_PORT")
+        if http_port:
+            start_leaderboard_http(state, int(http_port))
+
     if not args.test and not args.dry_run:
         try:
             state = backfill_trades(w3, contract, state)
         except Exception as e:
             print(f"[backfill] startup backfill failed (will retry next poll): {e}")
+        try:
+            state = backfill_burn_visibility(w3, contract, state)
+        except Exception as e:
+            print(f"[dust-burns] startup pass failed (will retry next poll): {e}")
+        try:
+            state = backfill_wagers(w3, state)
+        except Exception as e:
+            print(f"[wager] startup pass failed (will retry next poll): {e}")
 
     if args.test:
         if PHASE == 1:
@@ -2351,6 +3447,31 @@ def main(argv: list[str] | None = None) -> int:
         print(f"$BITE bot daemon. Polling every {args.interval}s. dry_run={args.dry_run}")
         while True:
             try:
+                if (
+                    state.get("trade_index_mode") != TRADE_INDEX_MODE
+                    or not state.get("trade_index_7702")
+                ):
+                    # Finish the mode recount before poll() so last_block is
+                    # not jumped to tip on a partial pass (drops burns).
+                    state = backfill_trades(w3, contract, state)
+                    if (
+                        state.get("trade_index_mode") != TRADE_INDEX_MODE
+                        or not state.get("trade_index_7702")
+                    ):
+                        time.sleep(args.interval)
+                        continue
+                if state.get("dust_burn_index_mode") != DUST_BURN_INDEX_MODE:
+                    # Finish visibility recount before poll() so last_block+1
+                    # burns are not double-counted into burn_count.
+                    state = backfill_burn_visibility(w3, contract, state)
+                    if state.get("dust_burn_index_mode") != DUST_BURN_INDEX_MODE:
+                        time.sleep(args.interval)
+                        continue
+                if state.get("wager_index_mode") != WAGER_INDEX_MODE:
+                    state = backfill_wagers(w3, state)
+                    if state.get("wager_index_mode") != WAGER_INDEX_MODE:
+                        time.sleep(args.interval)
+                        continue
                 state = process_telegram_commands(
                     tg_token, contract, state, dry_run=args.dry_run
                 )
@@ -2361,10 +3482,22 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"Poll error: {e}")
             time.sleep(args.interval)
     else:
+        if state.get("dust_burn_index_mode") != DUST_BURN_INDEX_MODE:
+            state = backfill_burn_visibility(w3, contract, state)
+            if state.get("dust_burn_index_mode") != DUST_BURN_INDEX_MODE:
+                print("[dust-burns] not finished — skip poll this run")
+                return 0
+        if state.get("wager_index_mode") != WAGER_INDEX_MODE:
+            state = backfill_wagers(w3, state)
+            if state.get("wager_index_mode") != WAGER_INDEX_MODE:
+                print("[wager] not finished — skip poll this run")
+                return 0
         state = process_telegram_commands(
             tg_token, contract, state, dry_run=args.dry_run
         )
-        state = poll(w3, contract, twitter, tg_token, tg_chat, state, dry_run=args.dry_run)
+        state = poll(
+            w3, contract, twitter, tg_token, tg_chat, state, dry_run=args.dry_run
+        )
     return 0
 
 
@@ -2393,6 +3526,7 @@ def run_commands_test(contract, state: dict) -> int:
         ("buy", ""),
         ("burn", ""),
         ("burn", "1000"),
+        ("wager", ""),
         ("tap", "50000"),
         ("bal", ""),
         ("check balance", ""),

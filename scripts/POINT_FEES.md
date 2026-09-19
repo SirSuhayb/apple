@@ -50,6 +50,6 @@ Leave `buybackEnabled` **false** — pons buybacks vest, they do not burn.
 ## After redirect
 
 - Anyone can call `AppleKitchen.digest()` to split incoming AAPL: 50% buy+burn BITE, 50% prize pot.
-- Set the Uniswap/router with `setRouter(address)` once the pool exists so digests can swap.
+- Set `setRouter(adapter)` to **V4KitchenRouter** (not Universal Router / V2 router) so digests can buy-and-burn on the live v4 pool. See [docs/v4-kitchen-router.md](../docs/v4-kitchen-router.md).
 - When `burned >= coreTarget` before deadline → `revealCore(merkleRoot)` → eaters claim (deployer excluded).
 - If deadline passes first → `revealRot()` → entire pot to deployer only.

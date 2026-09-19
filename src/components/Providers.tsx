@@ -25,13 +25,13 @@ const config = createConfig({
         name: "$BITE",
         description: "Eat the apple to the core.",
         url: SITE_URL,
-        icons: [`${SITE_URL}/icon.png`],
+        icons: [`${SITE_URL}/favicon.png`],
       },
       showQrModal: true,
     }),
     coinbaseWallet({
       appName: "$BITE",
-      appLogoUrl: `${SITE_URL}/icon.png`,
+      appLogoUrl: `${SITE_URL}/favicon.png`,
     }),
   ],
   transports: {

@@ -98,7 +98,12 @@ export function BitePanel({
     <div className="space-y-5">
       {!isConnected ? (
         <div className="space-y-2">
-          {connectors.map((connector) => (
+          {connectors
+            .filter((c) => {
+              if (c.type === "injected" && typeof window !== "undefined" && !(window as unknown as Record<string, unknown>).ethereum) return false;
+              return true;
+            })
+            .map((connector) => (
             <button
               key={connector.uid}
               type="button"

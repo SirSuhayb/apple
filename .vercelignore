@@ -15,3 +15,7 @@ contracts
 .env
 .env.*
 !.env.example
+
+# Withhold /challenge until the contest ships
+src/app/challenge
+public/challenge

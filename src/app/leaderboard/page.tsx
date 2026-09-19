@@ -1,5 +1,6 @@
 import { fetchAct1Leaderboard } from "@/lib/act1-leaderboard";
 import { fetchRaceState } from "@/lib/fetch-race";
+import { sortLeaderboard, weiToTokens } from "@/lib/leaderboard-rank";
 import { resolveSiteAct } from "@/lib/phase";
 import { LeaderboardPage } from "./LeaderboardPage";
 
@@ -18,12 +19,13 @@ export default async function Page() {
   const eaters =
     act1.eaters.length > 0
       ? act1.eaters
-      : [...state.eaters].sort((a, b) => b.score - a.score);
+      : sortLeaderboard(state.eaters);
   return (
     <LeaderboardPage
       eaters={eaters}
       mode="act1"
       supplyStats={act1.supplyStats ?? undefined}
+      coreTarget={weiToTokens(state.coreTarget)}
     />
   );
 }

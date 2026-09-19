@@ -1,50 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { Eater, SupplyStats } from "@/lib/race";
 import { copy } from "@/lib/copy";
+import { useLeaderboardLive } from "@/lib/use-leaderboard";
+import { resolveAppleTotal } from "@/lib/leaderboard-rank";
 import { Leaderboard } from "@/components/Leaderboard";
+import { DigestButton } from "@/components/DigestButton";
 import { SiteFooter } from "@/components/SiteFooter";
-
-const POLL_INTERVAL_MS = 15_000;
-
-function useLeaderboardPolling(
-  initialEaters: Eater[],
-  initialStats: SupplyStats | undefined,
-) {
-  const [eaters, setEaters] = useState(initialEaters);
-  const [supplyStats, setSupplyStats] = useState(initialStats);
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const mountedRef = useRef(true);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch("/api/leaderboard", { cache: "no-store" });
-      if (!res.ok || !mountedRef.current) return;
-      const data = await res.json();
-      if (!mountedRef.current) return;
-      if (Array.isArray(data.eaters)) setEaters(data.eaters);
-      if (data.supplyStats) setSupplyStats(data.supplyStats);
-      if (data.updatedAt) setUpdatedAt(data.updatedAt);
-    } catch {
-      // silent — next poll will retry
-    }
-  }, []);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    const kickoff = setTimeout(refresh, 0);
-    const id = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => {
-      mountedRef.current = false;
-      clearTimeout(kickoff);
-      clearInterval(id);
-    };
-  }, [refresh]);
-
-  return { eaters, supplyStats, updatedAt };
-}
 
 function fmtCompact(n: number): string {
   if (n >= 1_000_000_000)
@@ -109,15 +72,22 @@ export function LeaderboardPage({
   eaters: initialEaters,
   mode = "kitchen",
   supplyStats: initialStats,
+  coreTarget: initialCoreTarget = 0,
 }: {
   eaters: Eater[];
   mode?: "act1" | "kitchen";
   supplyStats?: SupplyStats;
+  coreTarget?: number;
 }) {
   const isAct1 = mode === "act1";
-  const { eaters, supplyStats, updatedAt } = useLeaderboardPolling(
+  const { eaters, supplyStats, coreTarget, updatedAt } = useLeaderboardLive(
     initialEaters,
     initialStats,
+    initialCoreTarget,
+  );
+  const appleTotal = resolveAppleTotal(
+    coreTarget,
+    supplyStats?.totalSupply,
   );
 
   return (
@@ -163,9 +133,14 @@ export function LeaderboardPage({
       <section className="page-gutter flex-1 pb-16">
         <div className="mx-auto max-w-[580px]">
           {supplyStats && supplyStats.totalSupply > 0 && (
-            <LeaderboardSupplyBar stats={supplyStats} />
+            <>
+              <LeaderboardSupplyBar stats={supplyStats} />
+              <div className="mb-6">
+                <DigestButton />
+              </div>
+            </>
           )}
-          <Leaderboard eaters={eaters} mode={mode} />
+          <Leaderboard eaters={eaters} mode={mode} appleTotal={appleTotal} />
         </div>
       </section>
 

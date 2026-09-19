@@ -9,6 +9,9 @@ export type Eater = {
   buyCount: number;
   sellCount: number;
   tapCount: number;
+  /** $BITE staked on MetaWager entry (gross, including 10% fee). */
+  wagered?: number;
+  wagerCount?: number;
   /** Act I: creator/team wallet — shown but cannot win */
   ineligible?: boolean;
   /** Act I: "dev" badge on the board */
@@ -32,6 +35,8 @@ export type SupplyStats = {
   prizePoolUsd: number | null;
   aaplPriceUsd: number | null;
   eoaHeldBite: number;
+  /** Alias of eoaHeldBite — wallet-held circulating, excluding contracts. */
+  circulatingSupply: number;
   contractHeldBite: number;
   realisticallyBurnable: number;
   totalSupply: number;
@@ -73,19 +78,41 @@ export function progressToFrame(progress: number): number {
   return Math.min(FRAME_COUNT - 1, Math.floor(p * FRAME_COUNT));
 }
 
-/** Buy: 1x quote volume. Sell: 1.5x. Tap: k * bite amount. */
-export const TAP_SCORE_K = 50;
+/** Buy: 0.01 / $BITE (moderate). Burn: 1 / $BITE (bigger bite). Sell 1.5× buy. Early-eater 2× on burns. Wager: 0.001 / $BITE staked on entry — a side bet, not a bite. */
+export const BUY_SCORE_K = 0.01;
+export const SELL_SCORE_MULT = 1.5;
+export const SELL_SCORE_K = BUY_SCORE_K * SELL_SCORE_MULT;
+export const TAP_SCORE_K = 1;
+export const WAGER_SCORE_K = 0.001;
+export const EARLY_EATER_BURN_MULT = 2;
+export const ACCUM_HOLD_SCALE = 0.01;
+export const SCORE_SCALE = "v2_burn_lead_wager";
+export const SCORE_SCALE_BURN_LEAD = "v2_burn_lead";
+export const SCORE_SCALE_CENTI = "v2_centi";
+
+/** Original stored points (buy 1×, sell 1.5×, burn 50×). */
+export const LEGACY_BUY_K = 1;
+export const LEGACY_SELL_K = 1.5;
+export const LEGACY_BURN_K = 50;
+/** Intermediate v2_centi burn rate before burn-lead. */
+export const CENTI_BURN_K = 0.1;
 
 export function scoreBuy(quoteVolume: number): number {
-  return quoteVolume;
+  return quoteVolume * BUY_SCORE_K;
 }
 
 export function scoreSell(quoteVolume: number): number {
-  return quoteVolume * 1.5;
+  return quoteVolume * SELL_SCORE_K;
 }
 
-export function scoreTap(biteAmount: number): number {
-  return biteAmount * TAP_SCORE_K;
+export function scoreTap(biteAmount: number, earlyEater = false): number {
+  const base = biteAmount * TAP_SCORE_K;
+  return earlyEater ? base * EARLY_EATER_BURN_MULT : base;
+}
+
+/** Side bet: 0.001 pts per $BITE staked on MetaWager entry (gross). */
+export function scoreWager(biteStaked: number): number {
+  return biteStaked * WAGER_SCORE_K;
 }
 
 /**

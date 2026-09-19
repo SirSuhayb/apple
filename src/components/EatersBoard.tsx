@@ -3,33 +3,23 @@
 import Link from "next/link";
 import type { Eater } from "@/lib/race";
 import { copy } from "@/lib/copy";
-
-function shortAddr(addr: string) {
-  if (addr.length < 10) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function fmtScore(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-}
-
-function burnedLabel(n: number) {
-  return n.toLocaleString(undefined, { maximumFractionDigits: 1 });
-}
-
-function totalTrades(e: Eater) {
-  return e.buyCount + e.sellCount + e.tapCount;
-}
-
-function isIneligible(e: Eater) {
-  return Boolean(e.ineligible) || Boolean(e.dev) || e.badge === "dev";
-}
-
-function isDev(e: Eater) {
-  return Boolean(e.dev) || e.badge === "dev";
-}
+import {
+  HOME_BOARD_LIMIT,
+  isLeaderboardDev,
+  partitionLeaderboard,
+  sameWallet,
+} from "@/lib/leaderboard-rank";
+import { useBoardWallet } from "@/lib/use-board-wallet";
+import {
+  EaterIdentity,
+  EaterName,
+  EaterStats,
+  eaterDomId,
+  fmtScore,
+  youSurfaceClass,
+} from "./LeaderboardRow";
+import { AppleAvatar } from "./AppleAvatar";
+import { YourRankCard, YourRankStickyRow } from "./YourRank";
 
 function DevBadge() {
   return (
@@ -39,72 +29,82 @@ function DevBadge() {
   );
 }
 
-/** Apple Store-style bento leaderboard — points-first with trade counts */
+/** Apple Store-style bento leaderboard — points-first with per-person stats */
 export function EatersBoard({
   eaters,
   mode = "kitchen",
+  appleTotal = 0,
 }: {
   eaters: Eater[];
   mode?: "act1" | "kitchen";
+  /** Core target (same denominator as on-site apple progress). */
+  appleTotal?: number;
 }) {
   const isAct1 = mode === "act1";
+  const you = useBoardWallet();
+  const { eligible, ineligible } = partitionLeaderboard(eaters);
 
   if (!eaters.length) {
     return (
-      <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-10 text-center">
-        <p className="text-[17px] text-[#86868b]">{copy.eaters.empty}</p>
-        {isAct1 && (
-          <p className="mt-2 text-[13px] text-[#86868b]">
-            {copy.leaderboard.emptyHintAct1}
-          </p>
-        )}
+      <div className="grid grid-cols-1 gap-2.5">
+        <YourRankCard eaters={eaters} appleTotal={appleTotal} compact />
+        <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-10 text-center">
+          <p className="text-[17px] text-[#86868b]">{copy.eaters.empty}</p>
+          {isAct1 && (
+            <p className="mt-2 text-[13px] text-[#86868b]">
+              {copy.leaderboard.emptyHintAct1}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
 
-  const sorted = [...eaters].sort((a, b) => {
-    if (isAct1) {
-      const ai = isIneligible(a) ? 1 : 0;
-      const bi = isIneligible(b) ? 1 : 0;
-      if (ai !== bi) return ai - bi;
-    }
-    return b.score - a.score || totalTrades(b) - totalTrades(a);
-  });
-
-  const eligible = isAct1 ? sorted.filter((e) => !isIneligible(e)) : sorted;
-  const ineligible = isAct1 ? sorted.filter((e) => isIneligible(e)) : [];
-  // Home board: top 10 only; full list lives on /leaderboard
-  const topTen = eligible.slice(0, 10);
+  // Home board: top of the full ranked list; remainder lives on /leaderboard
+  const topTen = eligible.slice(0, HOME_BOARD_LIMIT);
   const top = topTen[0];
   const mid = topTen.slice(1, 3);
   const low = topTen.slice(3, 6);
-  const rest = topTen.slice(6, 10);
+  const rest = topTen.slice(6, HOME_BOARD_LIMIT);
   const showDev =
-    isAct1 && ineligible.some((e) => isDev(e))
-      ? ineligible.filter((e) => isDev(e)).slice(0, 1)
+    isAct1 && ineligible.some((e) => isLeaderboardDev(e))
+      ? ineligible.filter((e) => isLeaderboardDev(e)).slice(0, 1)
       : [];
 
   return (
     <div className="grid grid-cols-1 gap-2.5">
+      <YourRankCard eaters={eaters} appleTotal={appleTotal} compact />
+
       {/* #1 */}
       {top && (
-        <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-6">
+        <div
+          id={eaterDomId(top.address)}
+          className={youSurfaceClass(
+            sameWallet(top.address, you),
+            [
+              "rounded-[18px] border border-[#d2d2d7] px-5 py-6",
+              sameWallet(top.address, you) ? "" : "bg-[#f5f5f7]",
+            ].join(" "),
+          )}
+        >
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[44px] font-black leading-none text-[#e53935]">
-                1
-              </div>
-              <div className="mt-1 text-[17px] font-semibold text-[#1d1d1f]">
-                {shortAddr(top.address)}
-              </div>
-              <div className="mt-1 text-xs text-[#86868b]">
-                {isAct1
-                  ? copy.leaderboard.trades(totalTrades(top))
-                  : copy.eaters.rowMeta(
-                      burnedLabel(top.burned),
-                      String(Math.round(top.buyVolume)),
-                      String(Math.round(top.sellVolume)),
-                    )}
+            <div className="flex min-w-0 items-start gap-3">
+              <AppleAvatar address={top.address} size="lg" className="mt-1" />
+              <div className="min-w-0">
+                <div className="text-[44px] font-black leading-none text-[#e53935]">
+                  1
+                </div>
+                <EaterName
+                  address={top.address}
+                  topEater
+                  isYou={sameWallet(top.address, you)}
+                  className="mt-1 text-[17px] font-semibold text-[#1d1d1f]"
+                />
+                <EaterStats
+                  eater={top}
+                  appleTotal={appleTotal}
+                  className="mt-1.5 text-xs"
+                />
               </div>
             </div>
             <div className="text-right">
@@ -124,10 +124,18 @@ export function EatersBoard({
         <div className="grid grid-cols-2 gap-2.5">
           {mid.map((e, i) => {
             const rank = i + 2;
+            const isYou = sameWallet(e.address, you);
             return (
               <div
                 key={e.address}
-                className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-[18px]"
+                id={eaterDomId(e.address)}
+                className={youSurfaceClass(
+                  isYou,
+                  [
+                    "rounded-[18px] border border-[#d2d2d7] px-4 py-[18px]",
+                    isYou ? "" : "bg-[#f5f5f7]",
+                  ].join(" "),
+                )}
               >
                 <div
                   className={[
@@ -137,20 +145,25 @@ export function EatersBoard({
                 >
                   {rank}
                 </div>
-                <div className="mt-1 text-sm font-semibold text-[#1d1d1f]">
-                  {shortAddr(e.address)}
-                </div>
+                <EaterIdentity
+                  address={e.address}
+                  isYou={isYou}
+                  avatarSize="md"
+                  layout="stack"
+                  className="mt-2"
+                  nameClassName="text-sm font-semibold text-[#1d1d1f]"
+                />
                 <div className="mt-0.5 text-xs font-medium tabular-nums text-[#1d1d1f]">
                   {fmtScore(e.score)}{" "}
                   <span className="text-[#86868b]">
                     {copy.leaderboard.pts}
                   </span>
                 </div>
-                {isAct1 && (
-                  <div className="mt-0.5 text-[11px] text-[#86868b]">
-                    {copy.leaderboard.trades(totalTrades(e))}
-                  </div>
-                )}
+                <EaterStats
+                  eater={e}
+                  appleTotal={appleTotal}
+                  className="mt-1"
+                />
               </div>
             );
           })}
@@ -162,21 +175,39 @@ export function EatersBoard({
         <div className="grid grid-cols-3 gap-2.5">
           {low.map((e, i) => {
             const rank = i + 4;
-            const name = shortAddr(e.address);
+            const isYou = sameWallet(e.address, you);
             return (
               <div
                 key={e.address}
-                className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-2.5 py-3 text-center"
+                id={eaterDomId(e.address)}
+                className={youSurfaceClass(
+                  isYou,
+                  [
+                    "rounded-[14px] border border-[#d2d2d7] px-2.5 py-3 text-center",
+                    isYou ? "" : "bg-[#f5f5f7]",
+                  ].join(" "),
+                )}
               >
                 <div className="text-xl font-extrabold text-[#86868b]">
                   {rank}
                 </div>
-                <div className="mt-0.5 text-[11px] font-semibold text-[#1d1d1f]">
-                  {name.length > 12 ? `${name.slice(0, 10)}…` : name}
-                </div>
+                <EaterIdentity
+                  address={e.address}
+                  isYou={isYou}
+                  avatarSize="sm"
+                  layout="stack"
+                  className="mt-1.5"
+                  nameClassName="text-[11px] font-semibold text-[#1d1d1f]"
+                />
                 <div className="mt-0.5 text-[10px] tabular-nums text-[#86868b]">
                   {fmtScore(e.score)} {copy.leaderboard.pts}
                 </div>
+                <EaterStats
+                  eater={e}
+                  appleTotal={appleTotal}
+                  layout="stack"
+                  className="mt-1 items-center text-[10px]"
+                />
               </div>
             );
           })}
@@ -186,43 +217,71 @@ export function EatersBoard({
       {/* #7–10 */}
       {rest.length > 0 && (
         <ul className="mt-1 divide-y divide-[#d2d2d7] rounded-[14px] border border-[#d2d2d7] bg-white">
-          {rest.map((e, i) => (
+          {rest.map((e, i) => {
+            const isYou = sameWallet(e.address, you);
+            return (
             <li
               key={e.address}
-              className="flex items-center justify-between px-4 py-3 text-sm"
+              id={eaterDomId(e.address)}
+              className={youSurfaceClass(
+                isYou,
+                "flex items-center gap-3 px-4 py-3 text-sm first:rounded-t-[14px] last:rounded-b-[14px]",
+              )}
             >
-              <span className="text-[#86868b]">{i + 7}</span>
-              <span className="font-medium text-[#1d1d1f]">
-                {shortAddr(e.address)}
-              </span>
-              <span className="tabular-nums text-[#1d1d1f]">
+              <span className="w-5 shrink-0 text-[#86868b]">{i + 7}</span>
+              <div className="min-w-0 flex-1">
+                <EaterIdentity
+                  address={e.address}
+                  isYou={isYou}
+                  avatarSize="sm"
+                  nameClassName="font-medium text-[#1d1d1f]"
+                />
+                <EaterStats eater={e} appleTotal={appleTotal} className="mt-0.5" />
+              </div>
+              <span className="shrink-0 tabular-nums text-[#1d1d1f]">
                 {fmtScore(e.score)}
               </span>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
+
+      <YourRankStickyRow eaters={eaters} appleTotal={appleTotal} />
 
       {/* Dev / ineligible — visible, not ranked (home: show Dev only) */}
       {showDev.length > 0 && (
         <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa]">
-          {showDev.map((e) => (
+          {showDev.map((e) => {
+            const isYou = sameWallet(e.address, you);
+            return (
             <li
               key={e.address}
-              className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
+              id={eaterDomId(e.address)}
+              className={youSurfaceClass(
+                isYou,
+                "flex items-center gap-2 px-4 py-3 text-sm first:rounded-t-[14px] last:rounded-b-[14px]",
+              )}
             >
-              <span className="w-6 text-[11px] font-semibold uppercase text-[#86868b]">
+              <span className="w-6 shrink-0 text-[11px] font-semibold uppercase text-[#86868b]">
                 —
               </span>
-              <span className="min-w-0 flex-1 truncate font-medium text-[#1d1d1f]">
-                {shortAddr(e.address)}
-                {isDev(e) && <DevBadge />}
-              </span>
-              <span className="tabular-nums text-[#1d1d1f]">
+              <div className="min-w-0 flex-1">
+                <EaterIdentity
+                  address={e.address}
+                  isYou={isYou}
+                  avatarSize="sm"
+                  nameClassName="font-medium text-[#1d1d1f]"
+                />
+                {isLeaderboardDev(e) && <DevBadge />}
+                <EaterStats eater={e} appleTotal={appleTotal} className="mt-0.5" />
+              </div>
+              <span className="shrink-0 tabular-nums text-[#1d1d1f]">
                 {fmtScore(e.score)}
               </span>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
@@ -234,7 +293,7 @@ export function EatersBoard({
         >
           {copy.leaderboard.viewAll}
         </Link>
-        {eligible.length > 10 && (
+        {eligible.length > HOME_BOARD_LIMIT && (
           <p className="mt-2 text-[12px] text-[#86868b]">
             {copy.leaderboard.viewAllHint}
           </p>

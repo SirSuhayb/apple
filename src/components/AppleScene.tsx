@@ -17,9 +17,12 @@ type AppleSceneProps = {
   rot: boolean;
   quietPreview?: boolean;
   juicePulse?: number;
-  /** Orbit/spin — off for Act I time-lapse; on for later race acts. */
+  /** User drag-orbit — off for Act I time-lapse; on for later race acts. */
   enableOrbit?: boolean;
 };
+
+/** One gentle revolution every 34s — bite comes around without getting dizzy. */
+const IDLE_SPIN_PERIOD_SEC = 34;
 
 const FRAME_URL = (n: number) => `/apple/frames/${n}.glb`;
 
@@ -39,7 +42,14 @@ const FLOOR_Y = -0.58;
  * (fov 33, z=3.9, face yaw/pitch below) matches frame 0, then refined against
  * exported still rasters so frame tops stay within ~1–2px. Re-bake with
  * scripts/bake-apple-fit-scales.mjs (+ still pass) if the GLBs change.
+ *
+ * HERO_APPLE_SCALE is a post-bake presence bump vs the original live size.
+ * 1.18 was the first 18% lift; 1.27 is ~7.5% more on top of that
+ * (1.18 × 1.075). Applied inside normalize so the shared floor /
+ * ContactShadows stay put.
  */
+const HERO_APPLE_SCALE = 1.27;
+
 const FRAME_FIT_SCALE = [
   0.05257256, // 0 whole
   0.052427, // 1
@@ -72,7 +82,7 @@ const APPLE_FACE_PITCH = 0.05;
  * Flesh-only: FLESH_ROUGHNESS (near original matte; no red tint / metalness)
  */
 /** Extra HSL saturation on skin texels (1 = none). */
-const SATURATION_BOOST = 1.45;
+const SATURATION_BOOST = 1.95;
 /** Skin texel roughness written into roughnessMap (source roughness ≈ 1). */
 const ROUGHNESS_SCALE = 0.32;
 /** Flesh / bite-cavity texel roughness — keep matte, not plastic. */
@@ -81,7 +91,7 @@ const FLESH_ROUGHNESS = 0.92;
  * Multiplied onto skin texels only (lower G/B → richer red).
  * Never applied to flesh/cream pixels.
  */
-const RED_TINT = new THREE.Color(1.22, 0.58, 0.52);
+const RED_TINT = new THREE.Color(1.32, 0.5, 0.44);
 /** Mild env response; roughnessMap keeps flesh from going glossy. */
 const ENV_INTENSITY = 1.15;
 
@@ -118,7 +128,7 @@ function normalizeAppleRoot(source: THREE.Object3D, frame: number): THREE.Group 
     FRAME_FIT_SCALE.length - 1,
     Math.max(0, Math.floor(frame)),
   );
-  const fitScale = FRAME_FIT_SCALE[idx]!;
+  const fitScale = FRAME_FIT_SCALE[idx]! * HERO_APPLE_SCALE;
 
   const wrap = new THREE.Group();
   const scaled = new THREE.Group();
@@ -216,8 +226,9 @@ type PolishedMaps = {
 
 /** Saturate/tint red skin texels; leave flesh; build roughnessMap (skin shiny, flesh matte). */
 function polishSkinAlbedoMaps(map: THREE.Texture): PolishedMaps | null {
-  if (map.userData._skinPolishedMaps) {
-    return map.userData._skinPolishedMaps as PolishedMaps;
+  const polishKey = `_skinPolished_${SATURATION_BOOST}_${RED_TINT.r}_${RED_TINT.g}_${RED_TINT.b}`;
+  if (map.userData[polishKey]) {
+    return map.userData[polishKey] as PolishedMaps;
   }
   const img = map.image as
     | HTMLImageElement
@@ -270,7 +281,7 @@ function polishSkinAlbedoMaps(map: THREE.Texture): PolishedMaps | null {
       const boosted = hslToRgb(
         hh,
         Math.min(1, ss * SATURATION_BOOST),
-        Math.min(0.58, ll * 1.03),
+        Math.min(0.64, ll * 1.06),
       );
       r = r * (1 - skin) + boosted[0] * skin;
       g = g * (1 - skin) + boosted[1] * skin;
@@ -307,7 +318,7 @@ function polishSkinAlbedoMaps(map: THREE.Texture): PolishedMaps | null {
   roughness.needsUpdate = true;
 
   const polished = { albedo, roughness };
-  map.userData._skinPolishedMaps = polished;
+  map.userData[polishKey] = polished;
   return polished;
 }
 
@@ -335,11 +346,13 @@ function polishAppleMaterials(root: THREE.Object3D) {
       m.metalness = m.userData._origMetalness as number;
 
       if (isAppleGltfMaterial(m, mesh.name || "") && m.map) {
-        if (!m.userData._skinPolished) {
+        const polishKey = `_skinPolished_${SATURATION_BOOST}`;
+        if (m.userData._skinPolishedKey !== polishKey) {
           const polished = polishSkinAlbedoMaps(m.map);
           if (polished) {
             m.map = polished.albedo;
             m.roughnessMap = polished.roughness;
+            m.userData._skinPolishedKey = polishKey;
             m.userData._skinPolished = true;
           }
         }
@@ -376,7 +389,7 @@ function ProceduralApple({
   return (
     <group
       position={[0, 0.22, 0]}
-      scale={0.95}
+      scale={0.95 * HERO_APPLE_SCALE}
       rotation={[APPLE_FACE_PITCH, 0, 0]}
     >
       <mesh castShadow>
@@ -608,6 +621,41 @@ function RotOverlay({
   );
 }
 
+function usePrefersReducedMotion() {
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => setReduced(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return reduced;
+}
+
+/** Slow turntable so the bite cavity comes around. Camera stays put. */
+function IdleTurntable({
+  enabled,
+  children,
+}: {
+  enabled: boolean;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  const started = useRef(false);
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+    if (!started.current) {
+      // Begin already on the eaten side — early Eydeet frames hide the nibble.
+      ref.current.rotation.y = 0.7;
+      started.current = true;
+    }
+    if (!enabled) return;
+    ref.current.rotation.y += (delta * Math.PI * 2) / IDLE_SPIN_PERIOD_SEC;
+  });
+  return <group ref={ref}>{children}</group>;
+}
+
 function SceneContent({
   frame,
   rot,
@@ -615,7 +663,8 @@ function SceneContent({
   juicePulse,
   enableOrbit = false,
   useGltf,
-}: AppleSceneProps & { useGltf: boolean }) {
+  idleSpin = true,
+}: AppleSceneProps & { useGltf: boolean; idleSpin?: boolean }) {
   return (
     <>
       <ambientLight intensity={0.95} />
@@ -624,19 +673,23 @@ function SceneContent({
       <hemisphereLight args={["#ffffff", "#e8e8ed", 0.38]} />
       <Suspense fallback={null}>
         <Environment preset="studio" environmentIntensity={0.4} />
-        {useGltf ? (
-          <GltfApple
-            frame={frame}
-            rot={rot}
-            quietPreview={quietPreview}
-          />
-        ) : (
-          <ProceduralApple
-            frame={frame}
-            rot={rot}
-            quietPreview={quietPreview}
-          />
-        )}
+      </Suspense>
+      <Suspense fallback={null}>
+        <IdleTurntable enabled={idleSpin}>
+          {useGltf ? (
+            <GltfApple
+              frame={frame}
+              rot={rot}
+              quietPreview={quietPreview}
+            />
+          ) : (
+            <ProceduralApple
+              frame={frame}
+              rot={rot}
+              quietPreview={quietPreview}
+            />
+          )}
+        </IdleTurntable>
       </Suspense>
       {useGltf && <RotOverlay rot={rot} quietPreview={quietPreview} />}
       <JuiceBurst pulse={juicePulse ?? 0} />
@@ -663,7 +716,10 @@ function SceneContent({
   );
 }
 
-/** Fill most of the square; keep a clear margin under the soft shadow. */
+/**
+ * Slight 3/4 from the right so the left-side bite reads; keep the baked
+ * silhouette scale (fov 33 / z≈3.9). IdleTurntable reveals the rest.
+ */
 function ResponsiveCamera() {
   const { camera, size } = useThree();
   useEffect(() => {
@@ -671,7 +727,7 @@ function ResponsiveCamera() {
     const narrow = size.width < 640;
     const short = size.height < 380;
     persp.fov = narrow ? 36 : short ? 35 : 33;
-    persp.position.set(0, 0.12, narrow ? 4.05 : short ? 4.2 : 3.9);
+    persp.position.set(0.55, 0.18, narrow ? 4.05 : short ? 4.2 : 3.9);
     persp.lookAt(0, 0.1, 0);
     persp.updateProjectionMatrix();
   }, [camera, size.width, size.height]);
@@ -696,6 +752,7 @@ export function AppleScene({
   }, [hasGltf]);
 
   const useGltf = hasGltf === true;
+  const reduceMotion = usePrefersReducedMotion();
 
   return (
     <div
@@ -706,7 +763,7 @@ export function AppleScene({
     >
       <Canvas
         shadows
-        camera={{ position: [0, 0.12, 3.9], fov: 33, near: 0.1, far: 50 }}
+        camera={{ position: [0.55, 0.18, 3.9], fov: 33, near: 0.1, far: 50 }}
         gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
         onCreated={({ gl }) => {
           gl.setClearColor("#000000", 0);
@@ -716,6 +773,7 @@ export function AppleScene({
           height: "100%",
           display: "block",
           overflow: "visible",
+          filter: "saturate(1.18)",
         }}
       >
         <ResponsiveCamera />
@@ -726,6 +784,7 @@ export function AppleScene({
           juicePulse={juicePulse}
           enableOrbit={enableOrbit}
           useGltf={useGltf}
+          idleSpin={!reduceMotion}
         />
       </Canvas>
       {hasGltf === false && (

@@ -1,31 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Eater } from "@/lib/race";
 import { copy } from "@/lib/copy";
-
-function shortAddr(addr: string) {
-  if (addr.length < 10) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function fmtScore(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 10_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
-}
-
-function totalTrades(e: Eater) {
-  return e.buyCount + e.sellCount + e.tapCount;
-}
-
-function isDev(e: Eater) {
-  return Boolean(e.dev) || e.badge === "dev" || Boolean(e.ineligible && e.dev);
-}
-
-function isIneligible(e: Eater) {
-  return Boolean(e.ineligible) || isDev(e);
-}
+import {
+  isLeaderboardDev,
+  matchesAddressQuery,
+  partitionLeaderboard,
+  sameWallet,
+  sortLeaderboardBy,
+  tradeCount,
+  type LeaderboardSortKey,
+} from "@/lib/leaderboard-rank";
+import { useBoardWallet } from "@/lib/use-board-wallet";
+import {
+  EaterIdentity,
+  EaterName,
+  EaterStats,
+  eaterDomId,
+  fmtScore,
+  youSurfaceClass,
+} from "./LeaderboardRow";
+import { AppleAvatar } from "./AppleAvatar";
+import { YourRankCard } from "./YourRank";
 
 function DevBadge() {
   return (
@@ -35,52 +32,70 @@ function DevBadge() {
   );
 }
 
-type SortKey = "score" | "trades" | "burned";
-
 export function Leaderboard({
   eaters,
   mode = "kitchen",
+  appleTotal = 0,
 }: {
   eaters: Eater[];
   mode?: "act1" | "kitchen";
+  /** Core target (same denominator as on-site apple progress). */
+  appleTotal?: number;
 }) {
   const isAct1 = mode === "act1";
-  const [sortBy, setSortBy] = useState<SortKey>("score");
+  const [sortBy, setSortBy] = useState<LeaderboardSortKey>("score");
+  const [query, setQuery] = useState("");
+  const you = useBoardWallet();
 
-  // Filter out zero-score wallets — only show players with points
-  const withScore = eaters.filter((e) => e.score > 0 || isIneligible(e));
+  const { eligible: rankedEligible, ineligible: ineligibleList } = useMemo(
+    () => partitionLeaderboard(eaters),
+    [eaters],
+  );
+  const eligibleSorted = useMemo(
+    () => sortLeaderboardBy(rankedEligible, sortBy),
+    [rankedEligible, sortBy],
+  );
+  const ineligibleSorted = useMemo(
+    () => sortLeaderboardBy(ineligibleList, sortBy),
+    [ineligibleList, sortBy],
+  );
+  const sortRank = useMemo(() => {
+    const map = new Map<string, number>();
+    eligibleSorted.forEach((e, i) => map.set(e.address.toLowerCase(), i + 1));
+    return map;
+  }, [eligibleSorted]);
+  const searching = query.trim().length > 0;
+  const eligible = searching
+    ? eligibleSorted.filter((e) => matchesAddressQuery(e.address, query))
+    : eligibleSorted;
+  const ineligibleVisible = searching
+    ? ineligibleSorted.filter((e) => matchesAddressQuery(e.address, query))
+    : ineligibleSorted;
+  const podium = searching ? [] : eligible.slice(0, 3);
+  const restEligible = searching ? eligible : eligible.slice(3);
+  const noSearchHits =
+    searching && eligible.length === 0 && ineligibleVisible.length === 0;
 
-  const sorted = [...withScore].sort((a, b) => {
-    const ai = isIneligible(a) ? 1 : 0;
-    const bi = isIneligible(b) ? 1 : 0;
-    if (ai !== bi) return ai - bi;
-    if (sortBy === "trades") return totalTrades(b) - totalTrades(a);
-    if (sortBy === "burned" && !isAct1) return b.burned - a.burned;
-    return b.score - a.score;
-  });
-
-  const eligible = sorted.filter((e) => !isIneligible(e) && e.score > 0);
-  const ineligibleList = sorted.filter((e) => isIneligible(e));
-  const podium = eligible.slice(0, 3);
-  const restEligible = eligible.slice(3);
-
-  const statTotal = eligible.reduce(
+  const statTotal = rankedEligible.reduce(
     (acc, e) => ({
       points: acc.points + e.score,
-      trades: acc.trades + totalTrades(e),
+      trades: acc.trades + tradeCount(e),
     }),
     { points: 0, trades: 0 },
   );
 
   if (!eaters.length) {
     return (
-      <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-14 text-center">
-        <p className="text-[17px] text-[#86868b]">{copy.leaderboard.empty}</p>
-        <p className="mt-2 text-[13px] text-[#86868b]">
-          {isAct1
-            ? copy.leaderboard.emptyHintAct1
-            : copy.leaderboard.emptyHint}
-        </p>
+      <div className="space-y-6">
+        <YourRankCard eaters={eaters} appleTotal={appleTotal} />
+        <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-14 text-center">
+          <p className="text-[17px] text-[#86868b]">{copy.leaderboard.empty}</p>
+          <p className="mt-2 text-[13px] text-[#86868b]">
+            {isAct1
+              ? copy.leaderboard.emptyHintAct1
+              : copy.leaderboard.emptyHint}
+          </p>
+        </div>
       </div>
     );
   }
@@ -93,6 +108,8 @@ export function Leaderboard({
 
   return (
     <div className="space-y-6">
+      <YourRankCard eaters={eaters} appleTotal={appleTotal} />
+
       {/* Stats bar */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-4 text-center">
@@ -112,6 +129,31 @@ export function Leaderboard({
           </div>
         </div>
       </div>
+
+      {/* Address search — matches full 0x or the shortened form */}
+      <label className="block">
+        <span className="sr-only">{copy.leaderboard.searchPlaceholder}</span>
+        <div className="flex items-center gap-2 rounded-[14px] border border-[#d2d2d7] bg-white px-3 py-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={copy.leaderboard.searchPlaceholder}
+            autoComplete="off"
+            spellCheck={false}
+            className="min-w-0 flex-1 bg-transparent text-[15px] text-[#1d1d1f] outline-none placeholder:text-[#86868b]"
+          />
+          {searching ? (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="shrink-0 text-[13px] font-medium text-[#2997ff] hover:text-[#0077ed]"
+            >
+              {copy.leaderboard.searchClear}
+            </button>
+          ) : null}
+        </div>
+      </label>
 
       {/* Sort tabs */}
       <div className="flex gap-1.5 rounded-full border border-[#d2d2d7] bg-[#f5f5f7] p-1">
@@ -136,85 +178,129 @@ export function Leaderboard({
       {podium.length >= 1 && (
         <div className="grid grid-cols-3 items-end gap-2.5">
           {podium.length >= 2 ? (
-            <PodiumCard eater={podium[1]} rank={2} act1={isAct1} />
+            <PodiumCard
+              eater={podium[1]}
+              rank={2}
+              appleTotal={appleTotal}
+              isYou={sameWallet(podium[1].address, you)}
+            />
           ) : (
             <div />
           )}
-          <PodiumCard eater={podium[0]} rank={1} hero act1={isAct1} />
+          <PodiumCard
+            eater={podium[0]}
+            rank={1}
+            hero
+            appleTotal={appleTotal}
+            isYou={sameWallet(podium[0].address, you)}
+          />
           {podium.length >= 3 ? (
-            <PodiumCard eater={podium[2]} rank={3} act1={isAct1} />
+            <PodiumCard
+              eater={podium[2]}
+              rank={3}
+              appleTotal={appleTotal}
+              isYou={sameWallet(podium[2].address, you)}
+            />
           ) : (
             <div />
           )}
         </div>
       )}
 
-      {/* Rows 4+ eligible */}
+      {noSearchHits && (
+        <div className="rounded-[14px] border border-[#d2d2d7] bg-[#f5f5f7] px-4 py-8 text-center text-[15px] text-[#86868b]">
+          {copy.leaderboard.searchEmpty}
+        </div>
+      )}
+
+      {/* Eligible rows (4+ by default; all matches while searching) */}
       {restEligible.length > 0 && (
         <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-[#d2d2d7] bg-white">
-          {restEligible.map((e, i) => (
-            <li
-              key={e.address}
-              className="flex items-center gap-3 px-4 py-3.5"
-            >
-              <span className="w-7 text-center text-sm font-bold tabular-nums text-[#86868b]">
-                {i + 4}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-[#1d1d1f]">
-                  {shortAddr(e.address)}
-                </div>
-                {!isAct1 && (
-                  <div className="mt-0.5 flex gap-2 text-[11px] text-[#86868b]">
-                    <span>{e.buyCount}B</span>
-                    <span>{e.sellCount}S</span>
-                    <span>{e.tapCount}T</span>
-                  </div>
+          {restEligible.map((e) => {
+            const isYou = sameWallet(e.address, you);
+            const rank = sortRank.get(e.address.toLowerCase()) ?? "—";
+            return (
+              <li
+                key={e.address}
+                id={eaterDomId(e.address)}
+                className={youSurfaceClass(
+                  isYou,
+                  "flex items-center gap-3 px-4 py-3.5 first:rounded-t-[14px] last:rounded-b-[14px]",
                 )}
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
-                  {fmtScore(e.score)}
+              >
+                <span className="w-7 text-center text-sm font-bold tabular-nums text-[#86868b]">
+                  {rank}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <EaterIdentity
+                    address={e.address}
+                    isYou={isYou}
+                    avatarSize="sm"
+                    nameClassName="text-sm font-semibold text-[#1d1d1f]"
+                  />
+                  <EaterStats
+                    eater={e}
+                    appleTotal={appleTotal}
+                    className="mt-0.5"
+                  />
                 </div>
-                <div className="text-[11px] text-[#86868b]">
-                  {copy.leaderboard.trades(totalTrades(e))}
+                <div className="text-right">
+                  <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
+                    {fmtScore(e.score)}
+                  </div>
+                  <div className="text-[11px] text-[#86868b]">
+                    {copy.leaderboard.pts}
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 
       {/* Ineligible / Dev — visible, not ranked */}
-      {ineligibleList.length > 0 && (
+      {ineligibleVisible.length > 0 && (
         <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa]">
-          {ineligibleList.map((e) => (
-            <li
-              key={e.address}
-              className="flex items-center gap-3 px-4 py-3.5"
-            >
-              <span className="w-7 text-center text-[11px] font-semibold uppercase tracking-wide text-[#86868b]">
-                —
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-[#1d1d1f]">
-                  {shortAddr(e.address)}
-                  {isDev(e) && <DevBadge />}
+          {ineligibleVisible.map((e) => {
+            const isYou = sameWallet(e.address, you);
+            return (
+              <li
+                key={e.address}
+                id={eaterDomId(e.address)}
+                className={youSurfaceClass(
+                  isYou,
+                  "flex items-center gap-3 px-4 py-3.5 first:rounded-t-[14px] last:rounded-b-[14px]",
+                )}
+              >
+                <span className="w-7 text-center text-[11px] font-semibold uppercase tracking-wide text-[#86868b]">
+                  —
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-[#1d1d1f]">
+                    <AppleAvatar address={e.address} size="sm" />
+                    <EaterName address={e.address} isYou={isYou} />
+                    {isLeaderboardDev(e) && <DevBadge />}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-[#86868b]">
+                    {copy.leaderboard.ineligible}
+                  </div>
+                  <EaterStats
+                    eater={e}
+                    appleTotal={appleTotal}
+                    className="mt-0.5"
+                  />
                 </div>
-                <div className="mt-0.5 text-[11px] text-[#86868b]">
-                  {copy.leaderboard.ineligible}
+                <div className="text-right">
+                  <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
+                    {fmtScore(e.score)}
+                  </div>
+                  <div className="text-[11px] text-[#86868b]">
+                    {copy.leaderboard.pts}
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-bold tabular-nums text-[#1d1d1f]">
-                  {fmtScore(e.score)}
-                </div>
-                <div className="text-[11px] text-[#86868b]">
-                  {copy.leaderboard.trades(totalTrades(e))}
-                </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -224,9 +310,14 @@ export function Leaderboard({
           {copy.leaderboard.scoring.eyebrow}
         </p>
         <div className="space-y-1 text-[13px] text-[#6e6e73]">
+          <p>{copy.leaderboard.scoring.buy}</p>
+          <p>{copy.leaderboard.scoring.sell}</p>
+          <p>{copy.leaderboard.scoring.tap}</p>
+          <p>{copy.leaderboard.scoring.wager}</p>
           <p>{copy.leaderboard.scoring.accum}</p>
           <p>{copy.leaderboard.scoring.hold}</p>
           <p>{copy.leaderboard.scoring.burn}</p>
+          <p>{copy.leaderboard.scoring.tapFloor}</p>
           <p>{copy.leaderboard.scoring.tradesAct1}</p>
         </div>
       </div>
@@ -249,12 +340,14 @@ function PodiumCard({
   eater,
   rank,
   hero,
-  act1,
+  appleTotal,
+  isYou,
 }: {
   eater: Eater;
   rank: 1 | 2 | 3;
   hero?: boolean;
-  act1?: boolean;
+  appleTotal: number;
+  isYou?: boolean;
 }) {
   const colors = {
     1: "text-[#e53935]",
@@ -264,10 +357,15 @@ function PodiumCard({
 
   return (
     <div
-      className={[
-        "rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-3 text-center",
-        hero ? "py-6" : "py-4",
-      ].join(" ")}
+      id={eaterDomId(eater.address)}
+      className={youSurfaceClass(
+        Boolean(isYou),
+        [
+          "rounded-[18px] border border-[#d2d2d7] px-3 text-center",
+          isYou ? "" : "bg-[#f5f5f7]",
+          hero ? "py-6" : "py-4",
+        ].join(" "),
+      )}
     >
       <div
         className={[
@@ -278,14 +376,18 @@ function PodiumCard({
       >
         {rank}
       </div>
-      <div
-        className={[
-          "mt-1 truncate font-semibold text-[#1d1d1f]",
+      <EaterIdentity
+        address={eater.address}
+        topEater={rank === 1}
+        isYou={isYou}
+        avatarSize={hero ? "lg" : "md"}
+        layout="stack"
+        className="mt-2"
+        nameClassName={[
+          "justify-center font-semibold text-[#1d1d1f]",
           hero ? "text-[15px]" : "text-[12px]",
         ].join(" ")}
-      >
-        {shortAddr(eater.address)}
-      </div>
+      />
       <div
         className={[
           "mt-1 font-bold tabular-nums text-[#1d1d1f]",
@@ -297,11 +399,12 @@ function PodiumCard({
           {copy.leaderboard.pts}
         </span>
       </div>
-      <div className="mt-1 text-[10px] text-[#86868b]">
-        {act1
-          ? copy.leaderboard.trades(totalTrades(eater))
-          : `${eater.buyCount}B · ${eater.sellCount}S · ${eater.tapCount}T`}
-      </div>
+      <EaterStats
+        eater={eater}
+        appleTotal={appleTotal}
+        layout="stack"
+        className="mt-1.5 items-center text-[10px]"
+      />
     </div>
   );
 }

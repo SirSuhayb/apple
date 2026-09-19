@@ -39,6 +39,8 @@ Redeploy the site (`npx vercel --prod`). Restart the bot daemon.
 On pons (token admin): set **creator fee recipient** → kitchen address.  
 Keep **buybackEnabled = false**. After fees accumulate, kitchen `digest()` splits 50/50 burn/prize.
 
+Buy-and-burn uses [V4KitchenRouter](./v4-kitchen-router.md) at `0xE219BA4608B66280d8FD00f6A89f6e7Df3955E48`. Do **not** `setRouter` to Universal Router. Owner (sirsu.eth) still needs to send `setRouter(adapter)` — deploy did not wire it.
+
 ## First burn on bite.party
 
 1. Refresh site — badge should move to Act II / burns open

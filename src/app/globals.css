@@ -133,3 +133,30 @@ body {
     padding-inline: 4rem;
   }
 }
+/* Grocery PLU sticker — public/sticker.png, on the lower-right cheek. */
+.apple-sticker {
+  position: absolute;
+  top: 40%;
+  left: 55%;
+  z-index: 2;
+  width: 7.25rem;
+  rotate: -6deg;
+  translate: 0 -4px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.apple-sticker-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 3px 8px rgba(29, 29, 31, 0.16));
+}
+
+@media (min-width: 640px) {
+  .apple-sticker {
+    top: 39%;
+    left: 57%;
+    width: 8.15rem;
+  }
+}

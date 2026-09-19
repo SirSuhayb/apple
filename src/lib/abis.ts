@@ -150,6 +150,151 @@ export const erc20Abi = [
   },
 ] as const;
 
+export const metaWagerAbi = [
+  {
+    type: "function",
+    name: "betCore",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "betRot",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "resolve",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "claim",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "totalCore",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "totalRot",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "resolved",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "winningSide",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint8" }],
+  },
+  {
+    type: "function",
+    name: "coreOddsBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "pendingPayout",
+    stateMutability: "view",
+    inputs: [{ name: "bettor", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "bets",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [
+      { name: "core", type: "uint256" },
+      { name: "rot", type: "uint256" },
+      { name: "claimed", type: "bool" },
+    ],
+  },
+  {
+    type: "function",
+    name: "feeBps",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "feeCollected",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "event",
+    name: "BetPlaced",
+    inputs: [
+      { name: "bettor", type: "address", indexed: true },
+      { name: "side", type: "uint8", indexed: false },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Resolved",
+    inputs: [
+      { name: "winner", type: "uint8", indexed: false },
+      { name: "winPool", type: "uint256", indexed: false },
+      { name: "losePool", type: "uint256", indexed: false },
+      { name: "fee", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "Claimed",
+    inputs: [
+      { name: "bettor", type: "address", indexed: true },
+      { name: "payout", type: "uint256", indexed: false },
+    ],
+  },
+] as const;
+
+export const ponsFeeEscrowAbi = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "recipient", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "balanceOfToken",
+    stateMutability: "view",
+    inputs: [
+      { name: "recipient", type: "address" },
+      { name: "token", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+] as const;
+
 export const bondingCurveAbi = [
   {
     type: "function",

@@ -34,7 +34,42 @@ export const BITE_TOKEN = (parseAddress(process.env.NEXT_PUBLIC_BITE_TOKEN) ??
   "0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9") as Address;
 export const BITE_CURVE = parseAddress(process.env.NEXT_PUBLIC_BITE_CURVE);
 export const BITE_POOL = parseAddress(process.env.NEXT_PUBLIC_BITE_POOL);
-export const APPLE_KITCHEN = parseAddress(process.env.NEXT_PUBLIC_APPLE_KITCHEN);
+export const APPLE_KITCHEN = (parseAddress(process.env.NEXT_PUBLIC_APPLE_KITCHEN) ??
+  "0x56fEb999D829761C787581413605bf88F5Cd81e0") as Address;
+
+/** Ops/marketing wallet for the swap integrator-fee split. sirsu.eth / Dev. */
+export const SWAP_OPS_RECIPIENT = (parseAddress(
+  process.env.NEXT_PUBLIC_SWAP_OPS_RECIPIENT,
+) ?? "0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E") as Address;
+
+/** Pons V2 fee escrow (claimable creator fees; display-only, never auto-claimed). */
+export const PONS_FEE_ESCROW = (parseAddress(
+  process.env.NEXT_PUBLIC_PONS_FEE_ESCROW,
+) ?? "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e") as Address;
+
+export const DEXSCREENER_PAIR_ID =
+  process.env.NEXT_PUBLIC_DEXSCREENER_PAIR_ID ??
+  "0x76d38162a8ef7da08c92777299fbbfe02748eea05e7cd125131a537b3f08f15c";
+
+/** Uniswap v4 pool id (same bytes as Dexscreener pair). */
+export const V4_POOL_ID = DEXSCREENER_PAIR_ID;
+
+/** Uniswap v4 PositionManager on Robinhood — LP create txs must target this. */
+export const UNISWAP_POSITION_MANAGER =
+  (parseAddress(process.env.NEXT_PUBLIC_UNISWAP_POSITION_MANAGER) ??
+    "0x58daec3116aae6D93017bAAea7749052E8a04fA7") as Address;
+
+/** Uniswap v4 PoolManager on Robinhood — used to list this pool's LP NFTs. */
+export const UNISWAP_POOL_MANAGER =
+  (parseAddress(process.env.NEXT_PUBLIC_UNISWAP_POOL_MANAGER) ??
+    "0x8366a39CC670B4001A1121B8F6A443A643e40951") as Address;
+
+/** First Initialize of the BITE/AAPL v4 pool — log scans start here. */
+export const V4_POOL_INIT_BLOCK = 63_818_427n;
+
+/** Home + /leaderboard poll the same live board (eaters + supply breakdown). */
+export const LEADERBOARD_POLL_MS = 15_000;
+export const META_WAGER = parseAddress(process.env.NEXT_PUBLIC_META_WAGER);
 export const DEPLOYER = parseAddress(process.env.NEXT_PUBLIC_DEPLOYER);
 
 /** Live pons launchpad for $BITE (path is `/launchpad/:ca` — `/token/:ca` 404s). */
@@ -111,8 +146,8 @@ export const META_WAGER_THRESHOLD = parseNumber(
 
 /**
  * Swap CTA surface for Trade / Buy.
- * - `pons` (default): deep-link to pons launchpad (works today)
- * - `uniswap` (opt-in): SwapModal deep-link / optional iframe after Uniswap allowlists us
+ * - `native` (default): in-site AAPL↔$BITE quote + swap via Uniswap Trading API proxy
+ * - `pons`: deep-link to pons launchpad
  *
  * Robinhood Chain (`chain=robinhood`) is supported on app.uniswap.org, but `/embed`
  * is gated by Uniswap’s `frame-ancestors` allowlist — bite.party is not on it, so the
@@ -120,8 +155,8 @@ export const META_WAGER_THRESHOLD = parseNumber(
  */
 export const SWAP_PROVIDER = (() => {
   const raw = process.env.NEXT_PUBLIC_SWAP_PROVIDER?.trim().toLowerCase();
-  if (raw === "uniswap") return "uniswap" as const;
-  return "pons" as const;
+  if (raw === "pons") return "pons" as const;
+  return "native" as const;
 })();
 
 /**
@@ -148,6 +183,16 @@ export const SWAP_EMBED_URL =
 export const SWAP_OPEN_URL =
   process.env.NEXT_PUBLIC_SWAP_OPEN_URL ??
   `https://app.uniswap.org/swap?chain=${UNISWAP_CHAIN}&inputCurrency=${AAPL_TOKEN}&outputCurrency=${BITE_TOKEN}`;
+
+export const SWAP_OPEN_REVERSE_URL =
+  process.env.NEXT_PUBLIC_SWAP_OPEN_REVERSE_URL ??
+  `https://app.uniswap.org/swap?chain=${UNISWAP_CHAIN}&inputCurrency=${BITE_TOKEN}&outputCurrency=${AAPL_TOKEN}`;
+
+export const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.bite.party";
+
+/** Static apple-themed card until per-player OG images exist. */
+export const SHARE_OG_IMAGE = "/social_media/biteTaken.png";
 
 /** @deprecated Prefer `copy` from `@/lib/copy` */
 export const siteConfig = {

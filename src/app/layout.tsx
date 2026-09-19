@@ -29,11 +29,13 @@ export const metadata: Metadata = {
     siteName: copy.brand,
     title: copy.meta.title,
     description: copy.meta.description,
+    images: [{ url: "/social_media/biteTaken.png" }],
   },
   twitter: {
     card: "summary_large_image",
     title: copy.meta.title,
     description: copy.meta.description,
+    images: ["/social_media/biteTaken.png"],
   },
 };
 

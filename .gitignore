@@ -39,8 +39,12 @@ yarn-error.log*
 .venv-bots/
 bots/.bite_bot_state.json
 **/.bite_bot_state.json
+bots/.daemon.log
 # Commit public/data/act1-leaderboard.json so Vercel serves Act I ranks.
 # Bot overwrites it locally; re-deploy or set BITE_LEADERBOARD_URL for live sync.
+
+# railway
+.railway/
 
 # vercel
 .vercel

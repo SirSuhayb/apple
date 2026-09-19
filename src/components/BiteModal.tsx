@@ -15,7 +15,10 @@ import { appleKitchenAbi, erc20Abi } from "@/lib/abis";
 import { robinhoodChain } from "@/lib/chain";
 import { APPLE_KITCHEN, BITE_TOKEN, KITCHEN_READY } from "@/lib/config";
 import { copy } from "@/lib/copy";
-import { progressToFrame, scoreTap } from "@/lib/race";
+import { progressToFrame, scoreTap, type Eater } from "@/lib/race";
+import { rankAfterExtraScore } from "@/lib/leaderboard-rank";
+import { sharePageUrl } from "@/lib/share";
+import { ShareActions } from "./ShareActions";
 
 type Step = "connect" | "amount" | "burning" | "complete";
 
@@ -57,6 +60,8 @@ type BiteModalProps = {
   onBiteComplete: (result: BiteResult) => void;
   /** Pre-fill amount from URL deep link (e.g. #burn?amount=1000) */
   prefillAmount?: string | null;
+  eaters?: Eater[];
+  earlyEater?: boolean;
 };
 
 export function BiteModal({
@@ -65,6 +70,8 @@ export function BiteModal({
   currentProgress,
   onBiteComplete,
   prefillAmount,
+  eaters = [],
+  earlyEater = false,
 }: BiteModalProps) {
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors: rawConnectors, isPending: connecting } = useConnect();
@@ -144,7 +151,7 @@ export function BiteModal({
 
   function finishBite(value: bigint, demo: boolean) {
     const eth = Number(formatEther(value));
-    const points = Math.round(scoreTap(eth));
+    const points = scoreTap(eth, earlyEater);
     const bump = Math.min(0.08, Math.max(0.01, eth / 50_000));
     const progress = Math.min(1, currentProgress + bump);
     const payload: BiteResult = {
@@ -238,7 +245,12 @@ export function BiteModal({
               {copy.tap.modal.stepConnect}
             </p>
             <div className="space-y-2">
-              {connectors.map((connector) => {
+              {connectors
+                .filter((c) => {
+                  if (c.type === "injected" && typeof window !== "undefined" && !(window as unknown as Record<string, unknown>).ethereum) return false;
+                  return true;
+                })
+                .map((connector) => {
                 const isWC = connector.type === "walletConnect";
                 return (
                   <button
@@ -407,7 +419,11 @@ export function BiteModal({
               {copy.tap.confirm(result.amountLabel)}
             </p>
             <p className="text-2xl font-semibold tracking-tight text-[#1d1d1f]">
-              {copy.tap.modal.completePoints(result.points.toLocaleString())}
+              {copy.tap.modal.completePoints(
+                result.points.toLocaleString(undefined, {
+                  maximumFractionDigits: 2,
+                }),
+              )}
             </p>
             <p className="text-[15px] text-[#6e6e73]">
               {copy.tap.modal.completeProgress(
@@ -419,6 +435,18 @@ export function BiteModal({
                 {copy.tap.modal.demoNote}
               </p>
             )}
+            <ShareActions
+              className="mt-2 text-left"
+              text={copy.share.burn(
+                result.amountLabel,
+                rankAfterExtraScore(eaters, address, result.points) ?? undefined,
+              )}
+              url={sharePageUrl({
+                burn: result.amountLabel.replace(/,/g, ""),
+                rank: rankAfterExtraScore(eaters, address, result.points),
+                you: address,
+              })}
+            />
             <button
               type="button"
               onClick={onClose}

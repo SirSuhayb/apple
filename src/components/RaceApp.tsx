@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Eater, RaceState, SupplyStats } from "@/lib/race";
@@ -9,6 +10,7 @@ import { buildDemoRaceState } from "@/lib/demo-state";
 import {
   BITE_TOKEN,
   DAY_ONE_PLAYTHROUGH,
+  LEADERBOARD_POLL_MS,
   PONS_TOKEN_URL,
   SWAP_PROVIDER,
 } from "@/lib/config";
@@ -23,6 +25,8 @@ import {
 import { resolvePhaseFlags, type SiteAct } from "@/lib/phase";
 import { BiteModal, type BiteResult } from "./BiteModal";
 import { Countdown } from "./Countdown";
+import { useLeaderboardLive } from "@/lib/use-leaderboard";
+import { resolveAppleTotal, weiToTokens } from "@/lib/leaderboard-rank";
 import { EatersBoard } from "./EatersBoard";
 import {
   MetaWagerEmpty,
@@ -32,6 +36,7 @@ import {
 import { PhaseBar } from "./PhaseBar";
 import { SiteFooter } from "./SiteFooter";
 import { SwapModal } from "./SwapModal";
+import { DigestButton } from "./DigestButton";
 
 const AppleScene = dynamic(
   () => import("./AppleScene").then((m) => m.AppleScene),
@@ -46,6 +51,22 @@ const AppleScene = dynamic(
 );
 
 const FRAME_MS = 550;
+
+/** Cream produce sticker — sits on the hero apple's lower-right cheek. */
+function AppleProduceSticker() {
+  return (
+    <div className="apple-sticker" aria-hidden>
+      <Image
+        src="/sticker.png"
+        alt=""
+        width={401}
+        height={274}
+        className="apple-sticker-img"
+        priority
+      />
+    </div>
+  );
+}
 
 function PhaseBanner({
   act,
@@ -162,7 +183,7 @@ function ContractBlock({
           </button>
         </div>
       </div>
-      <div className="mt-[22px]">
+      <div className="mt-[22px] flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
         {tradingOpen ? (
           <button
             type="button"
@@ -349,6 +370,7 @@ function SupplyStatsCard({ stats }: { stats: SupplyStats }) {
           </div>
         ))}
       </div>
+      <DigestButton />
     </div>
   );
 }
@@ -362,7 +384,16 @@ export function RaceApp({
   act1Eaters?: Eater[];
 }) {
   const [state, setState] = useState(initial);
-  const [act1Board, setAct1Board] = useState(act1Eaters);
+  const {
+    eaters: liveEaters,
+    supplyStats: liveSupply,
+    coreTarget: liveCoreTarget,
+    refresh: refreshBoard,
+  } = useLeaderboardLive(
+    act1Eaters,
+    initial.supplyStats,
+    weiToTokens(initial.coreTarget),
+  );
   const [supplyStats, setSupplyStats] = useState<SupplyStats | null>(
     initial.supplyStats ?? null,
   );
@@ -407,33 +438,14 @@ export function RaceApp({
     }
   }, []);
 
-  const refreshAct1 = useCallback(async () => {
-    try {
-      const res = await fetch("/api/leaderboard", { cache: "no-store" });
-      if (!res.ok) return;
-      const next = (await res.json()) as {
-        eaters?: Eater[];
-        scoring?: string;
-        supplyStats?: SupplyStats | null;
-      };
-      if (next.scoring === "act1" && Array.isArray(next.eaters)) {
-        setAct1Board(next.eaters);
-      }
-      if (next.supplyStats) setSupplyStats(next.supplyStats);
-    } catch {
-      // keep current
-    }
-  }, []);
-
   useEffect(() => {
-    const id = setInterval(refresh, 12_000);
+    const id = setInterval(refresh, LEADERBOARD_POLL_MS);
     return () => clearInterval(id);
   }, [refresh]);
 
   useEffect(() => {
-    const id = setInterval(refreshAct1, 20_000);
-    return () => clearInterval(id);
-  }, [refreshAct1]);
+    if (liveSupply) setSupplyStats(liveSupply);
+  }, [liveSupply]);
 
   // Act I: looping stop-motion 0→9→0…
   useEffect(() => {
@@ -456,7 +468,10 @@ export function RaceApp({
         (result.progress * 100).toFixed(1),
       ),
     }));
-    if (!result.demo) void refresh();
+    if (!result.demo) {
+      void refresh();
+      void refreshBoard();
+    }
   };
 
   const flags = useMemo(
@@ -485,20 +500,22 @@ export function RaceApp({
   const tagline = heroTagline(flags.act, state.phase);
   const raceEnded = state.phase === "core" || state.phase === "rot";
 
-  // Prologue empty; Act I = trades/points from bot; Act II+ kitchen eaters
-  // All acts: inclusive leaderboard (Act I points/trades carry into Act II+)
-  const boardEaters =
-    flags.act === 0 ? [] : act1Board.length > 0 ? act1Board : state.eaters;
+  // Same live rows as /leaderboard — mini board is just the top of that list.
+  const boardEaters = liveEaters;
   const boardMode: "act1" | "kitchen" = "act1";
+  const appleTotal = resolveAppleTotal(
+    liveCoreTarget || weiToTokens(state.coreTarget),
+    supplyStats?.totalSupply,
+  );
 
-  /** Day 1 default: pons deep-link. Opt-in Uniswap modal via NEXT_PUBLIC_SWAP_PROVIDER=uniswap. */
+  /** Default: in-site AAPL↔$BITE swap. NEXT_PUBLIC_SWAP_PROVIDER=pons keeps the launchpad deep-link. */
   const openBuy = () => {
     if (!flags.tradingOpen) return;
-    if (SWAP_PROVIDER === "uniswap") {
-      setSwapOpen(true);
+    if (SWAP_PROVIDER === "pons") {
+      window.open(PONS_TOKEN_URL, "_blank", "noreferrer");
       return;
     }
-    window.open(PONS_TOKEN_URL, "_blank", "noreferrer");
+    setSwapOpen(true);
   };
 
   const openBite = () => {
@@ -592,12 +609,20 @@ export function RaceApp({
             onKeyDown={
               flags.burnsOpen && !raceEnded
                 ? (e) => {
-                    if (e.key === "Enter" || e.key === " ") openBite();
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openBite();
+                    }
                   }
                 : undefined
             }
             role={flags.burnsOpen && !raceEnded ? "button" : undefined}
             tabIndex={flags.burnsOpen && !raceEnded ? 0 : undefined}
+            aria-label={
+              flags.burnsOpen && !raceEnded
+                ? `${copy.hero.sticker.action} ${copy.hero.sticker.detail}`
+                : undefined
+            }
           >
             <AppleScene
               frame={displayFrame}
@@ -606,12 +631,8 @@ export function RaceApp({
               juicePulse={juicePulse}
               enableOrbit={flags.act >= 2 && !DAY_ONE_PLAYTHROUGH}
             />
+            <AppleProduceSticker />
           </div>
-          {flags.burnsOpen && !raceEnded && (
-            <p className="mt-1 text-[13px] text-[#86868b]">
-              {copy.hero.appleLabel}
-            </p>
-          )}
         </div>
 
         <div className="animate-rise-delay-2 mt-3 flex flex-wrap items-center justify-center gap-3.5">
@@ -784,8 +805,12 @@ export function RaceApp({
               {flags.act <= 1 ? copy.eaters.intro[1] : copy.eaters.introAct2[1]}
             </span>
           </p>
-          <EatersBoard eaters={boardEaters} mode={boardMode} />
-          {flags.act === 0 && (
+          <EatersBoard
+            eaters={boardEaters}
+            mode={boardMode}
+            appleTotal={appleTotal}
+          />
+          {flags.act === 0 && boardEaters.length === 0 && (
             <p className="mt-3 text-center text-[13px] text-[#86868b] italic">
               {copy.eaters.emptyHintPrologue}
             </p>
@@ -893,7 +918,10 @@ export function RaceApp({
             : copy.take.headlinePrologue}
         </h2>
         <div className="mt-6">
-          <ContractBlock onBuy={openBuy} tradingOpen={flags.tradingOpen} />
+          <ContractBlock
+            onBuy={openBuy}
+            tradingOpen={flags.tradingOpen}
+          />
         </div>
       </section>
 
@@ -906,10 +934,12 @@ export function RaceApp({
           currentProgress={state.progress}
           onBiteComplete={onBiteComplete}
           prefillAmount={prefillAmount}
+          eaters={boardEaters}
+          earlyEater={flags.earlyEaterActive}
         />
       )}
 
-      {SWAP_PROVIDER === "uniswap" && (
+      {SWAP_PROVIDER !== "pons" && (
         <SwapModal open={swapOpen} onClose={() => setSwapOpen(false)} />
       )}
     </div>
