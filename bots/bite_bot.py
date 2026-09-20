@@ -9,6 +9,7 @@ updates burn state, may post holder milestones / notable buys, and awards
 accumulation/holding points for all wallets with trade/hold activity since
 TRADE_SCAN_FROM_BLOCK. Telegram /link is optional identity for /points.
 Commands: /link, /balance, /points, /leaderboard (daemon polls getUpdates).
+Admin DM: /kitchen (or /report) — kitchen + swap fee skim (TELEGRAM_ADMIN_CHAT_ID only).
 Act II+ (PHASE>=2): burn trades, tap burns, and burn milestones are posted.
 
 Run from repo root:
@@ -3332,6 +3333,10 @@ def parse_command(text: str) -> tuple[str | None, str]:
         "tap": "burn",
         "stats": "stats",
         "supply": "stats",
+        "kitchen": "kitchen",
+        "kitchen stats": "kitchen",
+        "swap stats": "kitchen",
+        "report": "kitchen",
         "wager": "wager",
         "odds": "wager",
         "bet": "wager",
@@ -3346,26 +3351,33 @@ def parse_command(text: str) -> tuple[str | None, str]:
     return None, ""
 
 
-def help_copy(*, private: bool = False) -> str:
+def help_copy(*, private: bool = False, admin: bool = False) -> str:
     link_line = (
         "Paste your 0x… wallet here (DM only) — or /link 0x…"
         if private
         else "DM me your 0x… wallet to link (don't paste addresses in the group)"
     )
-    return (
-        "🍎 $BITE commands (Act I)\n"
-        f"{link_line}\n"
-        "/unlink — remove your link\n"
-        "/balance — your $BITE balance\n"
-        "/points — your Act I points\n"
-        "/leaderboard — top traders by points\n"
-        "/wager — meta wager live odds (Core vs Rot)\n"
-        "/stats — supply breakdown + prize pool\n"
-        "/burn — burn $BITE on bite.party (or /burn 1000)\n"
-        "/ca — contract address + links\n"
-        "/buy — how to buy $BITE\n"
+    lines = [
+        "🍎 $BITE commands (Act I)",
+        link_line,
+        "/unlink — remove your link",
+        "/balance — your $BITE balance",
+        "/points — your Act I points",
+        "/leaderboard — top traders by points",
+        "/wager — meta wager live odds (Core vs Rot)",
+        "/stats — supply breakdown + prize pool",
+        "/burn — burn $BITE on bite.party (or /burn 1000)",
+        "/ca — contract address + links",
+        "/buy — how to buy $BITE",
+    ]
+    if admin and private:
+        lines.append(
+            "/kitchen — admin: live kitchen + swap/fee skim (also /report)"
+        )
+    lines.append(
         "Also: check balance / check points / check leaderboard / check stats / how to buy / burn / tap / wager / odds"
     )
+    return "\n".join(lines)
 
 
 def is_private_chat(chat: dict | None) -> bool:
@@ -3381,7 +3393,8 @@ def handle_command(
     contract,
     state: dict,
     private: bool = True,
-) -> str:
+    chat_id=None,
+) -> str | dict | None:
     cmd = (cmd or "").lower()
     aliases = {
         "bal": "balance",
@@ -3402,6 +3415,11 @@ def handle_command(
         "supply": "stats",
         "stat": "stats",
         "info": "stats",
+        "kitchen": "kitchen",
+        "report": "kitchen",
+        "kitchenstats": "kitchen",
+        "swapstats": "kitchen",
+        "adminreport": "kitchen",
         "wager": "wager",
         "bet": "wager",
         "odds": "wager",
@@ -3409,9 +3427,34 @@ def handle_command(
     }
     cmd = aliases.get(cmd, cmd)
     who = f"@{username}" if username else "you"
+    admin = is_telegram_admin(tg_user_id, chat_id)
 
     if cmd == "help":
-        return help_copy(private=private)
+        return help_copy(private=private, admin=admin)
+
+    if cmd == "kitchen":
+        # Admin-only kitchen + swap report. Never post the body to the public channel.
+        if not admin:
+            return None
+        w3, bite = get_web3()
+        bite = bite or contract
+        try:
+            if w3 and bite:
+                sync_dexscreener(state)
+                sync_supply_stats(state, w3=w3, contract=bite)
+        except Exception as e:
+            print(f"[kitchen-cmd] market refresh warning: {e}")
+        try:
+            text = build_admin_report(state, w3, bite)
+        except Exception as e:
+            print(f"[kitchen-cmd] build failed: {e}")
+            return "Could not build kitchen report — check bot logs."
+        # Always deliver to the admin DM chat, even if the command was typed in a group.
+        return {
+            "text": text,
+            "parse_mode": "Markdown",
+            "admin_dm": True,
+        }
 
     if cmd == "burn":
         burn_pct = float(state.get("last_burn_pct") or 0)
@@ -3754,7 +3797,7 @@ def handle_command(
         lines.append(f"\n{SITE_URL}/leaderboard")
         return "\n".join(lines)
 
-    return help_copy(private=private)
+    return help_copy(private=private, admin=admin)
 
 
 def process_telegram_commands(
@@ -3764,7 +3807,7 @@ def process_telegram_commands(
     *,
     dry_run: bool = False,
 ) -> dict:
-    """Poll getUpdates and reply to /balance /points /leaderboard /link (and aliases)."""
+    """Poll getUpdates and reply to /balance /points /leaderboard /link /kitchen (and aliases)."""
     if not token or dry_run:
         return state
     offset = int(state.get("tg_update_offset") or 0)
@@ -3833,12 +3876,41 @@ def process_telegram_commands(
             contract=contract,
             state=state,
             private=private,
+            chat_id=chat_id,
         )
+        if reply is None:
+            # Unauthorized /kitchen etc. — no reply (no leak to channel).
+            continue
         if isinstance(reply, dict):
             _text = reply.get("text", "")
             _markup = reply.get("reply_markup")
             _photo = reply.get("photo_url")
             _parse = reply.get("parse_mode")
+            # Admin kitchen/report: always DM TELEGRAM_ADMIN_CHAT_ID, never the public chat.
+            if reply.get("admin_dm"):
+                admin_chat = get_admin_chat_id()
+                if not admin_chat:
+                    print("[kitchen-cmd] TELEGRAM_ADMIN_CHAT_ID missing — skip send")
+                    continue
+                target = admin_chat
+                reply_to = msg_id if private and str(chat_id) == str(admin_chat) else None
+                tg_send(
+                    token,
+                    target,
+                    _text,
+                    reply_to_message_id=reply_to,
+                    reply_markup=_markup,
+                    parse_mode=_parse,
+                )
+                if not private and str(chat_id) != str(admin_chat):
+                    # Brief ack in the group without leaking numbers.
+                    tg_send(
+                        token,
+                        chat_id,
+                        "📊 Kitchen report sent to your DM.",
+                        reply_to_message_id=msg_id,
+                    )
+                continue
             if _photo:
                 tg_send_photo(
                     token, chat_id, _photo, _text,
@@ -4349,6 +4421,20 @@ def get_admin_chat_id() -> str | None:
     """Private Telegram chat for ops reports. Never falls back to the public channel."""
     chat = TELEGRAM_ADMIN_CHAT_ID or os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip()
     return chat or None
+
+
+def is_telegram_admin(tg_user_id, chat_id=None) -> bool:
+    """True when the sender (or chat) matches TELEGRAM_ADMIN_CHAT_ID."""
+    admin = get_admin_chat_id()
+    if not admin:
+        return False
+    admin_s = str(admin).strip()
+    for candidate in (tg_user_id, chat_id):
+        if candidate is None:
+            continue
+        if str(candidate).strip() == admin_s:
+            return True
+    return False
 
 
 def _fmt_token(raw: int, decimals: int = 18, *, places: int = 4) -> str:
