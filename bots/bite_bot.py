@@ -14,6 +14,7 @@ Act II+ (PHASE>=2): burn trades, tap burns, and burn milestones are posted.
 Run from repo root:
   python -m bots --test
   python -m bots --commands-test
+  python -m bots --admin-report
   python -m bots --daemon
   python -m bots
 """
@@ -130,6 +131,61 @@ PONS_FEE_ESCROW_ABI = [
         "type": "function",
     },
 ]
+
+# Kitchen view helpers for admin DM reports (burn progress + digest prize).
+KITCHEN_VIEW_ABI = [
+    {
+        "inputs": [],
+        "name": "burned",
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "coreTarget",
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "deadline",
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "phase",
+        "outputs": [{"type": "uint8"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "prizePool",
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+    {
+        "inputs": [],
+        "name": "progressBps",
+        "outputs": [{"type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function",
+    },
+]
+
+# Private admin DM reports (kitchen + swap/fee skim). Reuses TELEGRAM_BOT_TOKEN.
+# TELEGRAM_CHAT_ID stays the public channel; DMs go to TELEGRAM_ADMIN_CHAT_ID.
+TELEGRAM_ADMIN_CHAT_ID = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip()
+# Default every 6 hours. Set 0 to disable scheduled DMs (still allow --admin-report).
+ADMIN_REPORT_INTERVAL_SEC = int(os.getenv("ADMIN_REPORT_INTERVAL_SEC", "21600"))
+# First-run / forced lookback when no prior report block is stored (~6h @ ~1s blocks).
+ADMIN_REPORT_LOOKBACK_BLOCKS = int(os.getenv("ADMIN_REPORT_LOOKBACK_BLOCKS", "25000"))
+_KITCHEN_PHASE_NAMES = {0: "None", 1: "Racing", 2: "Core", 3: "Rot"}
 
 # Notable Transfer→EOA posts (rough buy proxy). Explicit opt-in only to avoid spam
 # on phase transitions or daemon restarts. Set POST_ACTIVITY=1 in .env deliberately.
@@ -4234,6 +4290,448 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
     return state
 
 
+# ── Admin DM report (kitchen + swap/fee skim) ──
+
+def get_admin_chat_id() -> str | None:
+    """Private Telegram chat for ops reports. Never falls back to the public channel."""
+    chat = TELEGRAM_ADMIN_CHAT_ID or os.getenv("TELEGRAM_ADMIN_CHAT_ID", "").strip()
+    return chat or None
+
+
+def _fmt_token(raw: int, decimals: int = 18, *, places: int = 4) -> str:
+    val = raw / (10**decimals)
+    if val >= 1_000_000:
+        return f"{val / 1_000_000:.2f}M"
+    if val >= 1_000:
+        return f"{val / 1_000:.2f}K"
+    if val >= 1:
+        return f"{val:.{places}f}"
+    if val > 0:
+        return f"{val:.6f}"
+    return "0"
+
+
+def _fmt_usd(val: float | None) -> str:
+    if val is None:
+        return "—"
+    if abs(val) >= 1000:
+        return f"${val:,.0f}"
+    return f"${val:,.2f}"
+
+
+def _kitchen_contract(w3):
+    if not w3 or not Web3 or not KITCHEN_CONTRACT:
+        return None
+    return w3.eth.contract(
+        address=Web3.to_checksum_address(KITCHEN_CONTRACT),
+        abi=KITCHEN_VIEW_ABI,
+    )
+
+
+def read_kitchen_live(w3, bite_contract) -> dict:
+    """Live kitchen balances + burn progress + digestable AAPL + escrow claimable."""
+    out: dict = {
+        "kitchen": KITCHEN_CONTRACT,
+        "bite_balance_raw": 0,
+        "burned_raw": 0,
+        "burned_effective_raw": 0,
+        "core_target_raw": 0,
+        "progress_bps": 0,
+        "progress_bps_effective": 0,
+        "phase": None,
+        "phase_name": "—",
+        "deadline": 0,
+        "seconds_left": None,
+        "aapl_balance_raw": 0,
+        "prize_pool_raw": 0,
+        "digestable_aapl_raw": 0,
+        "escrow_claimable_aapl_raw": 0,
+        "escrow_ok": False,
+        "errors": [],
+    }
+    if not w3 or not Web3 or not KITCHEN_CONTRACT:
+        out["errors"].append("no kitchen/web3")
+        return out
+
+    kitchen_addr = Web3.to_checksum_address(KITCHEN_CONTRACT)
+    kc = _kitchen_contract(w3)
+
+    if bite_contract is not None:
+        try:
+            out["bite_balance_raw"] = int(
+                bite_contract.functions.balanceOf(kitchen_addr).call()
+            )
+        except Exception as e:
+            out["errors"].append(f"BITE balanceOf: {e}")
+
+    if kc is not None:
+        for key, fn in (
+            ("burned_raw", "burned"),
+            ("core_target_raw", "coreTarget"),
+            ("progress_bps", "progressBps"),
+            ("prize_pool_raw", "prizePool"),
+            ("deadline", "deadline"),
+        ):
+            try:
+                out[key] = int(getattr(kc.functions, fn)().call())
+            except Exception as e:
+                out["errors"].append(f"kitchen.{fn}: {e}")
+        try:
+            phase = int(kc.functions.phase().call())
+            out["phase"] = phase
+            out["phase_name"] = _KITCHEN_PHASE_NAMES.get(phase, str(phase))
+        except Exception as e:
+            out["errors"].append(f"kitchen.phase: {e}")
+
+    if out["deadline"]:
+        now = int(time.time())
+        out["seconds_left"] = max(0, int(out["deadline"]) - now)
+
+    # progressBps is burned/coreTarget only (excludes sweep BITE sitting in kitchen).
+    # Match site: burned + kitchen BITE balance vs coreTarget.
+    burned_eff = int(out["burned_raw"]) + int(out["bite_balance_raw"])
+    target = int(out["core_target_raw"])
+    if target > 0:
+        out["progress_bps_effective"] = min(10_000, (burned_eff * 10_000) // target)
+    else:
+        out["progress_bps_effective"] = int(out.get("progress_bps") or 0)
+    out["burned_effective_raw"] = burned_eff
+
+    if AAPL_TOKEN:
+        try:
+            aapl = w3.eth.contract(
+                address=Web3.to_checksum_address(AAPL_TOKEN),
+                abi=ERC20_ABI,
+            )
+            out["aapl_balance_raw"] = int(aapl.functions.balanceOf(kitchen_addr).call())
+        except Exception as e:
+            out["errors"].append(f"AAPL balanceOf: {e}")
+
+    free = max(0, int(out["aapl_balance_raw"]) - int(out["prize_pool_raw"]))
+    out["digestable_aapl_raw"] = free
+
+    if PONS_FEE_ESCROW and AAPL_TOKEN:
+        try:
+            escrow = w3.eth.contract(
+                address=Web3.to_checksum_address(PONS_FEE_ESCROW),
+                abi=PONS_FEE_ESCROW_ABI,
+            )
+            out["escrow_claimable_aapl_raw"] = int(
+                escrow.functions.balanceOfToken(
+                    kitchen_addr,
+                    Web3.to_checksum_address(AAPL_TOKEN),
+                ).call()
+            )
+            out["escrow_ok"] = True
+        except Exception as e:
+            out["errors"].append(f"escrow claimable: {e}")
+
+    return out
+
+
+def _sum_transfers_to(
+    token_contract,
+    to_addr: str,
+    from_block: int,
+    to_block: int,
+    *,
+    protocol_from: set[str],
+) -> dict:
+    """Sum ERC-20 Transfer → to_addr, split by protocol-from vs other."""
+    totals = {
+        "protocol_raw": 0,
+        "other_raw": 0,
+        "protocol_n": 0,
+        "other_n": 0,
+        "from_block": from_block,
+        "to_block": to_block,
+    }
+    if not token_contract or from_block > to_block:
+        return totals
+    b = from_block
+    chunk = max(200, LOG_CHUNK_SIZE)
+    try:
+        while b <= to_block:
+            end = min(b + chunk - 1, to_block)
+            try:
+                events = fetch_transfer_logs_to(token_contract, b, end, to_addr)
+            except LogFetchError as e:
+                if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                    time.sleep(20)
+                    continue
+                if chunk > 200 and end - b > 200:
+                    chunk = max(200, chunk // 2)
+                    continue
+                totals["error"] = str(e)
+                return totals
+            totals["to_block"] = end
+            for ev in events:
+                raw = int(ev.args["value"])
+                frm = str(ev.args["from"]).lower()
+                if frm in protocol_from:
+                    totals["protocol_raw"] += raw
+                    totals["protocol_n"] += 1
+                else:
+                    totals["other_raw"] += raw
+                    totals["other_n"] += 1
+            b = end + 1
+            time.sleep(0.1)
+    except Exception as e:
+        totals["error"] = str(e)
+    return totals
+
+
+def _resolve_fee_scan_range(w3, state: dict) -> tuple[int, int]:
+    tip = int(w3.eth.block_number)
+    prev = int(state.get("last_admin_report_block") or 0)
+    if prev > 0 and prev < tip:
+        return prev + 1, tip
+    # First run: cap lookback so a cold start doesn't stall the daemon for minutes.
+    lookback = max(1000, min(ADMIN_REPORT_LOOKBACK_BLOCKS, 12_000))
+    return max(TRADE_SCAN_FROM_BLOCK, tip - lookback), tip
+
+
+def aggregate_indexed_trades(state: dict) -> dict:
+    """Best-effort tallies from the bot's points/trade index (not pure fee accounting)."""
+    buys = sells = burns = 0
+    burned_bite = 0.0
+    for entry in (state.get("points") or {}).values():
+        if not isinstance(entry, dict):
+            continue
+        buys += int(entry.get("trade_count") or 0)
+        sells += int(entry.get("sell_count") or 0)
+        burns += int(entry.get("burn_count") or 0)
+        try:
+            burned_bite += float(entry.get("burned_bite") or 0)
+        except (TypeError, ValueError):
+            pass
+    return {
+        "buy_events": buys,
+        "sell_events": sells,
+        "burn_events": burns,
+        "burned_bite": burned_bite,
+    }
+
+
+def build_admin_report(state: dict, w3, bite_contract) -> str:
+    """Compose a private Telegram DM with kitchen + swap/fee stats."""
+    now = datetime.now(timezone.utc)
+    kitchen = read_kitchen_live(w3, bite_contract)
+    supply = state.get("supply_stats") or {}
+    dex = (state.get("market") or {}).get("dexscreener") or {}
+    trades = aggregate_indexed_trades(state)
+
+    bite_px = None
+    try:
+        bite_px = float(dex.get("priceUsd") or 0) or None
+    except (TypeError, ValueError):
+        bite_px = None
+    if bite_px is None:
+        try:
+            bite_px = float(supply.get("bite_price_usd") or 0) or None
+        except (TypeError, ValueError):
+            pass
+    aapl_px = None
+    try:
+        aapl_px = float(supply.get("aapl_price_usd") or 0) or None
+    except (TypeError, ValueError):
+        pass
+
+    bite_bal = int(kitchen["bite_balance_raw"])
+    burned_eff = int(kitchen["burned_effective_raw"])
+    target = int(kitchen["core_target_raw"])
+    progress = int(kitchen.get("progress_bps_effective") or 0) / 100
+    aapl_bal = int(kitchen["aapl_balance_raw"])
+    prize = int(kitchen["prize_pool_raw"])
+    digestable = int(kitchen["digestable_aapl_raw"])
+    escrow = int(kitchen["escrow_claimable_aapl_raw"])
+    # Displayed prize = kitchen AAPL wallet + escrow claimable (matches site).
+    # prizePool is the digest-locked subset of kitchen AAPL.
+    display_prize = aapl_bal + escrow
+    display_prize_usd = (display_prize / 10**18) * aapl_px if aapl_px else None
+
+    secs_left = kitchen.get("seconds_left")
+    if secs_left is None:
+        deadline_txt = "—"
+    else:
+        days = secs_left // 86400
+        hrs = (secs_left % 86400) // 3600
+        deadline_txt = f"{days}d {hrs}h left" if secs_left > 0 else "expired"
+
+    vol_h24 = dex.get("volumeH24")
+    try:
+        vol_h24_f = float(vol_h24) if vol_h24 is not None else None
+    except (TypeError, ValueError):
+        vol_h24_f = None
+    # Theoretical upper bound if ALL pair volume were in-app at 0.5% — not measured fees.
+    skim_upper = (vol_h24_f * 0.005) if vol_h24_f is not None else None
+
+    fee_lines: list[str] = []
+    fee_note = (
+        "Inbound Transfer→kitchen over the report window. "
+        "Protocol-from BITE/AAPL ≈ integrator fee skim + router hops; "
+        "other-from BITE ≈ user bites/sweeps. Not exact Trading API fee accounting."
+    )
+    if w3 and Web3 and KITCHEN_CONTRACT and bite_contract is not None:
+        from_b, to_b = _resolve_fee_scan_range(w3, state)
+        protocol = _protocol_hold_addrs() | set(_DEFAULT_PROTOCOL_ADDRS)
+        # Kitchen itself / dead are not fee senders.
+        protocol.discard(KITCHEN_CONTRACT.lower())
+        protocol.discard(DEAD_ADDRESS.lower())
+        protocol.discard(ZERO_ADDRESS.lower())
+
+        bite_in = _sum_transfers_to(
+            bite_contract, KITCHEN_CONTRACT, from_b, to_b, protocol_from=protocol
+        )
+        aapl_in = {"protocol_raw": 0, "other_raw": 0, "protocol_n": 0, "other_n": 0}
+        if AAPL_TOKEN:
+            aapl_c = w3.eth.contract(
+                address=Web3.to_checksum_address(AAPL_TOKEN),
+                abi=ERC20_ABI,
+            )
+            aapl_in = _sum_transfers_to(
+                aapl_c, KITCHEN_CONTRACT, from_b, to_b, protocol_from=protocol
+            )
+
+        blocks = f"{from_b}→{to_b}"
+        fee_lines = [
+            f"Window: blocks `{blocks}`",
+            f"BITE from routers/contracts: {_fmt_token(bite_in['protocol_raw'])} "
+            f"({bite_in['protocol_n']} txs)"
+            + (
+                f" (~{_fmt_usd((bite_in['protocol_raw'] / 10**18) * bite_px)})"
+                if bite_px
+                else ""
+            ),
+            f"BITE from other (bites/sweeps): {_fmt_token(bite_in['other_raw'])} "
+            f"({bite_in['other_n']} txs)",
+            f"AAPL from routers/contracts: {_fmt_token(aapl_in['protocol_raw'])} "
+            f"({aapl_in['protocol_n']} txs)"
+            + (
+                f" (~{_fmt_usd((aapl_in['protocol_raw'] / 10**18) * aapl_px)})"
+                if aapl_px
+                else ""
+            ),
+            f"AAPL from other: {_fmt_token(aapl_in['other_raw'])} "
+            f"({aapl_in['other_n']} txs)",
+        ]
+        if bite_in.get("error") or aapl_in.get("error"):
+            fee_lines.append(
+                f"Scan note: {bite_in.get('error') or aapl_in.get('error')}"
+            )
+    else:
+        fee_lines = ["(chain unavailable — skipped inbound fee scan)"]
+
+    lines = [
+        f"🍎 *Kitchen + swap report*",
+        f"_{now.strftime('%Y-%m-%d %H:%M')} UTC_",
+        "",
+        "*Kitchen*",
+        f"Phase: `{kitchen['phase_name']}` · deadline {deadline_txt}",
+        f"Progress: *{progress:.2f}%* "
+        f"({_fmt_token(burned_eff)} / {_fmt_token(target)} BITE)",
+        f"kitchen.burned(): {_fmt_token(int(kitchen['burned_raw']))}",
+        f"BITE sitting in kitchen: {_fmt_token(bite_bal)}",
+        f"AAPL in kitchen: {_fmt_token(aapl_bal)}"
+        + (f" (prizePool locked {_fmt_token(prize)})" if prize else ""),
+        f"Digestable AAPL (free − prizePool): {_fmt_token(digestable)}",
+        f"Pons escrow claimable: {_fmt_token(escrow)}"
+        + (" ✓" if kitchen.get("escrow_ok") else " (fallback/err)"),
+        f"Displayed prize (kitchen AAPL + escrow): {_fmt_token(display_prize)}"
+        + (f" (~{_fmt_usd(display_prize_usd)})" if display_prize_usd else ""),
+        "",
+        "*Swap / fee skim (best-effort)*",
+        fee_note,
+        *fee_lines,
+        "",
+        "*Market / index context*",
+        f"Dex pair vol 24h: {_fmt_usd(vol_h24_f)}",
+        f"0.5% of that vol (upper bound if 100% in-app): {_fmt_usd(skim_upper)}",
+        f"Indexed buys/sells/burns: "
+        f"{trades['buy_events']} / {trades['sell_events']} / {trades['burn_events']}",
+        f"BITE {_fmt_usd(bite_px)}" if bite_px else "BITE price: —",
+        f"AAPL {_fmt_usd(aapl_px)}" if aapl_px else "AAPL price: —",
+        "",
+        f"[Site]({SITE_URL}) · [Chart]({DEXSCREENER_PAIR_URL})",
+        f"`{KITCHEN_CONTRACT}`",
+    ]
+    if kitchen.get("errors"):
+        lines.append("")
+        lines.append("_Read errors: " + "; ".join(kitchen["errors"][:3]) + "_")
+    return "\n".join(lines)
+
+
+def maybe_send_admin_report(
+    state: dict,
+    w3,
+    bite_contract,
+    tg_token: str | None,
+    *,
+    dry_run: bool = False,
+    force: bool = False,
+) -> dict:
+    """DM TELEGRAM_ADMIN_CHAT_ID on interval (or force). Never posts to the public channel."""
+    admin_chat = get_admin_chat_id()
+    if not admin_chat and not dry_run:
+        if force:
+            print(
+                "[admin-report] TELEGRAM_ADMIN_CHAT_ID not set — "
+                "DM the bot, then read chat.id from getUpdates "
+                "(https://api.telegram.org/bot<TOKEN>/getUpdates)."
+            )
+        return state
+
+    interval = ADMIN_REPORT_INTERVAL_SEC
+    if not force and interval <= 0:
+        return state
+
+    last_raw = state.get("last_admin_report_at") or ""
+    if not force and last_raw:
+        try:
+            last_dt = datetime.fromisoformat(str(last_raw).replace("Z", "+00:00"))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            elapsed = (datetime.now(timezone.utc) - last_dt).total_seconds()
+            if elapsed < interval:
+                return state
+        except (TypeError, ValueError):
+            pass
+
+    if not tg_token and not dry_run:
+        print("[admin-report] no TELEGRAM_BOT_TOKEN — skip")
+        return state
+
+    try:
+        text = build_admin_report(state, w3, bite_contract)
+    except Exception as e:
+        print(f"[admin-report] build failed: {e}")
+        return state
+
+    sent = tg_send(
+        tg_token,
+        admin_chat or "ADMIN",
+        text,
+        dry_run=dry_run,
+        parse_mode="Markdown",
+    )
+    if sent or dry_run:
+        state["last_admin_report_at"] = datetime.now(timezone.utc).isoformat()
+        try:
+            if w3:
+                state["last_admin_report_block"] = int(w3.eth.block_number)
+        except Exception:
+            pass
+        if not dry_run:
+            save_state(state)
+        print(
+            f"[admin-report] {'dry-run ' if dry_run else ''}sent to admin chat "
+            f"(interval={interval}s)"
+        )
+    else:
+        print("[admin-report] send failed — will retry next interval")
+    return state
+
+
 # ── Leaderboard HTTP server (for Railway / remote hosting) ──
 
 _http_state_ref: dict | None = None
@@ -4309,12 +4807,23 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Dry-run command handlers (link/balance/points/leaderboard) without Telegram",
     )
+    parser.add_argument(
+        "--admin-report",
+        action="store_true",
+        help="Send one kitchen+swap stats DM to TELEGRAM_ADMIN_CHAT_ID and exit",
+    )
     args = parser.parse_args(argv)
 
     twitter = None if args.dry_run or args.smoke or args.commands_test else get_twitter()
     tg_token, tg_chat = (
-        (None, None) if args.dry_run or args.smoke or args.commands_test else get_telegram()
+        (None, None)
+        if args.dry_run or args.smoke or args.commands_test
+        else get_telegram()
     )
+    # Admin report only needs the bot token (DM chat is separate from public channel).
+    if args.admin_report and not args.dry_run and not tg_token:
+        tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip() or None
+        tg_chat = os.getenv("TELEGRAM_CHAT_ID", "").strip() or None
     w3, contract = get_web3()
     state = load_state()
 
@@ -4349,6 +4858,34 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:
             print(f"Smoke failed: {e}")
             return 1
+
+    if args.admin_report:
+        if not args.dry_run and not tg_token:
+            print(
+                "Cannot --admin-report without TELEGRAM_BOT_TOKEN. "
+                "Also set TELEGRAM_ADMIN_CHAT_ID to your private chat id."
+            )
+            return 1
+        if not get_admin_chat_id() and not args.dry_run:
+            print(
+                "TELEGRAM_ADMIN_CHAT_ID not set.\n"
+                "1) Message your orchard bot in Telegram (open a DM).\n"
+                "2) GET https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getUpdates\n"
+                "3) Copy message.chat.id (your user id) into TELEGRAM_ADMIN_CHAT_ID.\n"
+                "   (Same bot as TELEGRAM_BOT_TOKEN — do not create a new bot.)"
+            )
+            return 1
+        # Refresh prices / supply once so the report is useful offline.
+        if w3 and contract and not args.dry_run:
+            try:
+                sync_dexscreener(state)
+                sync_supply_stats(state, w3=w3, contract=contract)
+            except Exception as e:
+                print(f"[admin-report] market refresh warning: {e}")
+        state = maybe_send_admin_report(
+            state, w3, contract, tg_token, dry_run=args.dry_run, force=True
+        )
+        return 0
 
     ensure_dev_wallets(state)
 
@@ -4434,6 +4971,12 @@ def main(argv: list[str] | None = None) -> int:
                 state = poll(
                     w3, contract, twitter, tg_token, tg_chat, state, dry_run=args.dry_run
                 )
+                try:
+                    state = maybe_send_admin_report(
+                        state, w3, contract, tg_token, dry_run=args.dry_run
+                    )
+                except Exception as e:
+                    print(f"[admin-report] error: {e}")
             except Exception as e:
                 print(f"Poll error: {e}")
             time.sleep(args.interval)
