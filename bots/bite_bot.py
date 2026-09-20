@@ -919,9 +919,34 @@ def http_get_json(url: str, timeout: int = 30) -> dict | list | None:
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", errors="replace")[:240]
+        except Exception:
+            pass
+        print(f"[http] {url[:72]}… HTTP {e.code} {body}")
+        if body:
+            try:
+                parsed = json.loads(body)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                pass
+        return None
     except Exception as e:
         print(f"[http] {url[:72]}… {e}")
         return None
+
+
+def _blockscout_payload_ok(data) -> bool:
+    """Reject credit/auth error bodies that still parse as JSON objects."""
+    if not isinstance(data, dict):
+        return False
+    err = data.get("error") or data.get("message")
+    if isinstance(err, str) and err.strip():
+        return False
+    return True
 
 
 def blockscout_get(path: str, params: dict | None = None) -> dict | list | None:
@@ -965,11 +990,31 @@ def sync_dexscreener(state: dict) -> dict:
     return state
 
 
+def _fallback_rpc_holders(state: dict, *, contract=None, reason: str) -> dict:
+    print(f"[blockscout] {reason} — falling back to RPC holder sync")
+    if contract is not None:
+        return sync_rpc_holder_balances(state, contract=contract)
+    # Without RPC, drop the frozen Blockscout snapshot so points can move.
+    state.pop("current_token_holders", None)
+    state["current_token_holders_complete"] = False
+    market = state.setdefault("market", {})
+    bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
+    bs["source"] = "stale"
+    bs["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    eoa_count = count_eoa_holders(state)
+    state["holder_count"] = eoa_count
+    bs["holdersEoa"] = eoa_count
+    return state
+
+
 def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     """
     Sync current token holders from Blockscout Pro API.
     Seeds balances / contract flags; EOAs get hold points from launch time
     when they have no snapshot yet. Contracts stay off the board (except DEV).
+
+    On API credit/auth failure, falls back to RPC balanceOf + getCode so
+    holder_count cannot freeze on a stale current_token_holders snapshot.
     """
     market = state.setdefault("market", {})
     bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
@@ -977,15 +1022,21 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     bs["tokenUrl"] = BLOCKSCOUT_TOKEN_URL
 
     if not BLOCKSCOUT_API_KEY:
-        print("[blockscout] BLOCKSCOUT_API_KEY unset — skip holders sync")
-        return state
+        return _fallback_rpc_holders(
+            state, contract=contract, reason="BLOCKSCOUT_API_KEY unset"
+        )
 
     counters = blockscout_get(f"/tokens/{BITE_CONTRACT}/counters")
-    if isinstance(counters, dict):
+    if _blockscout_payload_ok(counters):
         bs["transfersCount"] = counters.get("transfers_count")
         # Explorer "holders" = any address with balance > 0, including LP/contracts.
         # Do not promote that to holder_count (FOMO-style overcount).
         bs["holdersCount"] = counters.get("token_holders_count")
+    elif counters is not None:
+        err = counters.get("error") or counters.get("message") or "unknown"
+        return _fallback_rpc_holders(
+            state, contract=contract, reason=f"counters error: {err}"
+        )
 
     holders: list[dict] = []
     params: dict = {"items_count": 50}
@@ -993,10 +1044,14 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     holder_page_cap = 80
     finished = False
     truncated = False
+    api_error = None
+    w3 = _w3_from_contract(contract)
     while pages < holder_page_cap:
         pages += 1
         data = blockscout_get(f"/tokens/{BITE_CONTRACT}/holders", params)
-        if not isinstance(data, dict):
+        if not _blockscout_payload_ok(data):
+            if isinstance(data, dict) and (data.get("error") or data.get("message")):
+                api_error = data.get("error") or data.get("message")
             truncated = True
             break
         items = data.get("items") or []
@@ -1013,9 +1068,19 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
                 is_contract = _blockscout_addr_is_contract(addr_obj)
             if not isinstance(addr, str) or not ADDR_RE.match(addr):
                 continue
+            addr_l = addr.lower()
+            # Re-check explorer contract flags — EIP-7702 is often is_contract=true
+            # without a reliable proxy_type, which permanently poisoned contract_addrs.
+            if is_contract and w3 and Web3 and addr_l not in DEV_WALLETS:
+                try:
+                    code = w3.eth.get_code(Web3.to_checksum_address(addr_l))
+                    if not _bytecode_is_contract(code):
+                        is_contract = False
+                except Exception as e:
+                    print(f"[blockscout] get_code {short_addr(addr_l)}: {e}")
             holders.append(
                 {
-                    "address": addr.lower(),
+                    "address": addr_l,
                     "value": str(it.get("value") or "0"),
                     "is_contract": is_contract,
                 }
@@ -1030,10 +1095,15 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     else:
         truncated = True
 
+    if api_error:
+        return _fallback_rpc_holders(
+            state, contract=contract, reason=f"holders error: {api_error}"
+        )
+
     if not holders:
-        print("[blockscout] holders sync returned 0 rows")
-        bs["updatedAt"] = datetime.now(timezone.utc).isoformat()
-        return state
+        return _fallback_rpc_holders(
+            state, contract=contract, reason="holders sync returned 0 rows"
+        )
 
     complete = finished and not truncated
     contracts = {a.lower() for a in (state.get("contract_addrs") or []) if isinstance(a, str)}
@@ -1049,6 +1119,14 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
         present.add(addr)
         if is_contract and addr not in DEV_WALLETS:
             contracts.add(addr)
+            eoas.discard(addr)
+            known.add(addr)
+            # Still seed balance so RPC fallback candidates stay complete.
+            bal = _raw_balance(h.get("value"))
+            entry = points_entry(state, addr)
+            entry["wallet"] = Web3.to_checksum_address(addr) if Web3 else addr
+            entry["last_balance_raw"] = bal
+            entry["last_snapshot_at"] = now.isoformat()
             continue
         if is_contract and addr in DEV_WALLETS:
             contracts.add(addr)  # still flagged, but board-eligible via DEV
@@ -1097,12 +1175,16 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     bs["holdersTotal"] = len(holders)
     bs["holdersComplete"] = complete
     bs["synced"] = len(holders)
+    bs["source"] = "blockscout"
     bs["updatedAt"] = now.isoformat()
     print(
         f"[blockscout] holders synced: {len(holders)} total, "
         f"{eoa_count} EOA (explorer holders_count={bs.get('holdersCount')}"
         f"{'' if complete else ', truncated'})"
     )
+    # Incomplete pages still leave a frozen-ish snapshot risk — heal via RPC.
+    if not complete and contract is not None:
+        return sync_rpc_holder_balances(state, contract=contract)
     return state
 
 
@@ -1273,10 +1355,163 @@ def _blockscout_addr_is_contract(addr_obj) -> bool:
     """Blockscout flags EIP-7702 delegated EOAs as is_contract; those still score."""
     if not isinstance(addr_obj, dict):
         return False
-    proxy = str(addr_obj.get("proxy_type") or "").lower()
-    if proxy == "eip7702":
+    proxy = str(addr_obj.get("proxy_type") or "").lower().replace("-", "").replace("_", "")
+    if "eip7702" in proxy or proxy in ("7702", "delegated"):
         return False
+    # Some explorer payloads put the designator under implementations / name.
+    for key in ("name", "ens_domain_name", "implementation_name"):
+        label = str(addr_obj.get(key) or "").lower()
+        if "eip-7702" in label or "eip7702" in label:
+            return False
     return bool(addr_obj.get("is_contract"))
+
+
+def _w3_from_contract(contract):
+    if contract is None:
+        return None
+    return getattr(contract, "w3", None)
+
+
+def _holder_candidate_addrs(state: dict) -> set[str]:
+    """Addresses that may currently hold BITE (for RPC recount)."""
+    out: set[str] = set()
+    for key in ("known_holders", "eoa_addrs", "contract_addrs"):
+        for a in state.get(key) or []:
+            if isinstance(a, str) and ADDR_RE.match(a):
+                out.add(a.lower())
+    for wallet_l, entry in (state.get("points") or {}).items():
+        if isinstance(wallet_l, str) and ADDR_RE.match(wallet_l):
+            out.add(wallet_l.lower())
+        if isinstance(entry, dict):
+            w = entry.get("wallet")
+            if isinstance(w, str) and ADDR_RE.match(w):
+                out.add(w.lower())
+    for h in state.get("current_token_holders") or []:
+        if not isinstance(h, dict):
+            continue
+        addr = str(h.get("address") or "").lower()
+        if ADDR_RE.match(addr):
+            out.add(addr)
+    out |= _protocol_hold_addrs()
+    return out
+
+
+def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
+    """Recount holders via balanceOf + eth_getCode when Blockscout is unavailable.
+
+    Clears stale Blockscout EIP-7702 false-positives in contract_addrs.
+    """
+    w3 = _w3_from_contract(contract)
+    if not contract or not w3 or not Web3:
+        print("[rpc-holders] no contract/w3 — cannot refresh holder snapshot")
+        return state
+
+    market = state.setdefault("market", {})
+    bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
+    now = datetime.now(timezone.utc)
+    interval = int(os.getenv("RPC_HOLDER_SYNC_INTERVAL_SEC", "180"))
+    last_raw = state.get("rpc_holders_synced_at")
+    if (
+        last_raw
+        and state.get("current_token_holders_complete")
+        and isinstance(state.get("current_token_holders"), list)
+        and state.get("current_token_holders")
+        and bs.get("source") == "rpc"
+    ):
+        try:
+            last_dt = datetime.fromisoformat(str(last_raw))
+            if last_dt.tzinfo is None:
+                last_dt = last_dt.replace(tzinfo=timezone.utc)
+            if (now - last_dt).total_seconds() < max(30, interval):
+                eoa_count = count_eoa_holders(state)
+                state["holder_count"] = eoa_count
+                bs["holdersEoa"] = eoa_count
+                return state
+        except Exception:
+            pass
+
+    candidates = sorted(_holder_candidate_addrs(state))
+    if not candidates:
+        print("[rpc-holders] no candidate addresses")
+        return state
+
+    # Recheck cached contracts so EIP-7702 mislabels become EOAs again.
+    classify_contracts(w3, set(candidates), state, recheck=True)
+    contracts = {
+        a.lower()
+        for a in (state.get("contract_addrs") or [])
+        if isinstance(a, str)
+    }
+    eoas = {
+        a.lower() for a in (state.get("eoa_addrs") or []) if isinstance(a, str)
+    }
+    known = {
+        a.lower()
+        for a in (state.get("known_holders") or [])
+        if isinstance(a, str)
+    }
+    protocol = _protocol_hold_addrs()
+    holders: list[dict] = []
+    checked = 0
+    for addr in candidates:
+        bal = read_balance_raw(contract, addr)
+        if bal is None:
+            continue
+        checked += 1
+        is_protocol = addr in protocol and addr not in DEV_WALLETS
+        is_contract = is_protocol or (addr in contracts and addr not in DEV_WALLETS)
+        if is_contract:
+            contracts.add(addr)
+            eoas.discard(addr)
+        else:
+            eoas.add(addr)
+            contracts.discard(addr)
+        holders.append(
+            {
+                "address": addr,
+                "value": str(bal),
+                "is_contract": is_contract,
+            }
+        )
+        known.add(addr)
+        entry = points_entry(state, addr)
+        entry["wallet"] = Web3.to_checksum_address(addr)
+        entry["last_balance_raw"] = bal
+        entry["last_snapshot_at"] = now.isoformat()
+        if addr in DEV_WALLETS:
+            entry["dev"] = True
+            entry["ineligible"] = True
+
+    present_pos = {
+        h["address"] for h in holders if _raw_balance(h.get("value")) > 0
+    }
+    checked_set = {h["address"] for h in holders}
+    for wallet_l, entry in (state.get("points") or {}).items():
+        if not isinstance(entry, dict) or not isinstance(wallet_l, str):
+            continue
+        key = wallet_l.lower()
+        if key in checked_set and key not in present_pos:
+            entry["last_balance_raw"] = 0
+
+    state["current_token_holders"] = holders
+    state["current_token_holders_complete"] = True
+    state["contract_addrs"] = sorted(contracts | (protocol - set(DEV_WALLETS)))
+    state["eoa_addrs"] = sorted(eoas - protocol)
+    state["known_holders"] = sorted(known)
+    state["rpc_holders_synced_at"] = now.isoformat()
+    eoa_count = count_eoa_holders(state)
+    state["holder_count"] = eoa_count
+    bs["holdersEoa"] = eoa_count
+    bs["holdersTotal"] = len(present_pos)
+    bs["holdersComplete"] = True
+    bs["synced"] = len(holders)
+    bs["source"] = "rpc"
+    bs["updatedAt"] = now.isoformat()
+    print(
+        f"[rpc-holders] checked={checked}/{len(candidates)} "
+        f"bal>0={bs['holdersTotal']} EOA={eoa_count}"
+    )
+    return state
 
 
 def classify_contracts(

@@ -1,0 +1,14 @@
+# Railway hosts the $BITE Python bot only — never the Next.js site (that's Vercel).
+# A Nixpacks/Node build will serve next start, /health 404s, and stale leaderboard JSON.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "bots/Dockerfile"
+watchPatterns = ["bots/**", "railway.toml"]
+
+[deploy]
+startCommand = "python -m bots --daemon"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

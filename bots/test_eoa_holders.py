@@ -7,6 +7,8 @@ import unittest
 from bite_bot import (
     DEAD_ADDRESS,
     KITCHEN_CONTRACT,
+    _blockscout_addr_is_contract,
+    _blockscout_payload_ok,
     all_time_recipients,
     count_eoa_holders,
     eoa_holder_balances,
@@ -68,6 +70,28 @@ class EoaHolderDefinitionTests(unittest.TestCase):
         }
         self.assertEqual(count_eoa_holders(state), 1)
         self.assertEqual(eoa_holder_balances(state)[0][0], EOA.lower())
+
+    def test_blockscout_payload_rejects_credit_errors(self):
+        self.assertFalse(_blockscout_payload_ok({"error": "Out of credits"}))
+        self.assertFalse(_blockscout_payload_ok(None))
+        self.assertTrue(_blockscout_payload_ok({"items": []}))
+
+    def test_blockscout_eip7702_not_treated_as_contract(self):
+        self.assertFalse(
+            _blockscout_addr_is_contract(
+                {"hash": EOA, "is_contract": True, "proxy_type": "eip7702"}
+            )
+        )
+        self.assertFalse(
+            _blockscout_addr_is_contract(
+                {"hash": EOA, "is_contract": True, "proxy_type": "EIP-7702"}
+            )
+        )
+        self.assertTrue(
+            _blockscout_addr_is_contract(
+                {"hash": POOL, "is_contract": True, "proxy_type": None}
+            )
+        )
 
 
 if __name__ == "__main__":

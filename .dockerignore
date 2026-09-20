@@ -1,0 +1,20 @@
+# Secrets and local state — never bake into the Railway image
+**/.env
+**/.env.*
+!**/.env.example
+!bots/.env.example
+bots/.bite_bot_state.json
+bots/.daemon.log
+
+# Next.js site — Railway must not copy or run this
+node_modules
+.next
+src
+public
+contracts
+scripts
+out
+build
+.git
+.vercel
+.venv-bots
