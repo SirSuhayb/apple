@@ -992,18 +992,19 @@ def sync_dexscreener(state: dict) -> dict:
 
 def _fallback_rpc_holders(state: dict, *, contract=None, reason: str) -> dict:
     print(f"[blockscout] {reason} — falling back to RPC holder sync")
-    if contract is not None:
-        return sync_rpc_holder_balances(state, contract=contract)
-    # Without RPC, drop the frozen Blockscout snapshot so points can move.
+    # Drop the frozen Blockscout snapshot *before* any RPC work so the
+    # public board immediately recounts from points (not a stale 173-row list).
     state.pop("current_token_holders", None)
     state["current_token_holders_complete"] = False
     market = state.setdefault("market", {})
     bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
-    bs["source"] = "stale"
-    bs["updatedAt"] = datetime.now(timezone.utc).isoformat()
     eoa_count = count_eoa_holders(state)
     state["holder_count"] = eoa_count
     bs["holdersEoa"] = eoa_count
+    bs["source"] = "rpc" if contract is not None else "stale"
+    bs["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    if contract is not None:
+        return sync_rpc_holder_balances(state, contract=contract)
     return state
 
 
@@ -1446,7 +1447,9 @@ def _holder_candidate_addrs(state: dict) -> set[str]:
 def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
     """Recount holders via balanceOf + eth_getCode when Blockscout is unavailable.
 
-    Clears stale Blockscout EIP-7702 false-positives in contract_addrs.
+    Incremental: each call spends at most RPC_HOLDER_SYNC_BUDGET_SEC so the
+    daemon keeps polling / serving health. Clears stale Blockscout snapshots
+    immediately so holder_count is not frozen on an old row list.
     """
     w3 = _w3_from_contract(contract)
     if not contract or not w3 or not Web3:
@@ -1456,13 +1459,15 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
     market = state.setdefault("market", {})
     bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
     now = datetime.now(timezone.utc)
+    # Unfreeze before any RPC — prefer points until this pass finishes.
+    state.pop("current_token_holders", None)
+    state["current_token_holders_complete"] = False
     interval = int(os.getenv("RPC_HOLDER_SYNC_INTERVAL_SEC", "180"))
+    budget_sec = float(os.getenv("RPC_HOLDER_SYNC_BUDGET_SEC", "20"))
     last_raw = state.get("rpc_holders_synced_at")
     if (
         last_raw
-        and state.get("current_token_holders_complete")
-        and isinstance(state.get("current_token_holders"), list)
-        and state.get("current_token_holders")
+        and state.get("rpc_holders_pass_complete")
         and bs.get("source") == "rpc"
     ):
         try:
@@ -1482,8 +1487,15 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
         print("[rpc-holders] no candidate addresses")
         return state
 
-    # Recheck cached contracts so EIP-7702 mislabels become EOAs again.
-    classify_contracts(w3, set(candidates), state, recheck=True)
+    # Only recheck cached "contracts" (EIP-7702 false positives) — not every EOA.
+    suspect = {
+        a.lower()
+        for a in (state.get("contract_addrs") or [])
+        if isinstance(a, str) and a.lower() not in _protocol_hold_addrs()
+    }
+    if suspect:
+        classify_contracts(w3, suspect, state, recheck=True)
+
     contracts = {
         a.lower()
         for a in (state.get("contract_addrs") or [])
@@ -1498,9 +1510,27 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
         if isinstance(a, str)
     }
     protocol = _protocol_hold_addrs()
-    holders: list[dict] = []
+    # Resume chunked pass across polls.
+    cursor = int(state.get("rpc_holders_cursor") or 0)
+    if cursor < 0 or cursor >= len(candidates):
+        cursor = 0
+        state["rpc_holders_partial"] = []
+    partial = state.get("rpc_holders_partial")
+    if not isinstance(partial, list):
+        partial = []
+    holders_by_addr = {
+        str(h.get("address") or "").lower(): h
+        for h in partial
+        if isinstance(h, dict) and ADDR_RE.match(str(h.get("address") or ""))
+    }
     checked = 0
-    for addr in candidates:
+    started = datetime.now(timezone.utc)
+    idx = cursor
+    while idx < len(candidates):
+        if (datetime.now(timezone.utc) - started).total_seconds() >= max(5.0, budget_sec):
+            break
+        addr = candidates[idx]
+        idx += 1
         bal = read_balance_raw(contract, addr)
         if bal is None:
             continue
@@ -1513,13 +1543,11 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
         else:
             eoas.add(addr)
             contracts.discard(addr)
-        holders.append(
-            {
-                "address": addr,
-                "value": str(bal),
-                "is_contract": is_contract,
-            }
-        )
+        holders_by_addr[addr] = {
+            "address": addr,
+            "value": str(bal),
+            "is_contract": is_contract,
+        }
         known.add(addr)
         entry = points_entry(state, addr)
         entry["wallet"] = Web3.to_checksum_address(addr)
@@ -1529,34 +1557,49 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
             entry["dev"] = True
             entry["ineligible"] = True
 
-    present_pos = {
-        h["address"] for h in holders if _raw_balance(h.get("value")) > 0
-    }
-    checked_set = {h["address"] for h in holders}
-    for wallet_l, entry in (state.get("points") or {}).items():
-        if not isinstance(entry, dict) or not isinstance(wallet_l, str):
-            continue
-        key = wallet_l.lower()
-        if key in checked_set and key not in present_pos:
-            entry["last_balance_raw"] = 0
+    complete = idx >= len(candidates)
+    holders = list(holders_by_addr.values())
+    state["rpc_holders_cursor"] = 0 if complete else idx
+    state["rpc_holders_partial"] = [] if complete else holders
+    state["rpc_holders_pass_complete"] = complete
 
-    state["current_token_holders"] = holders
-    state["current_token_holders_complete"] = True
-    state["contract_addrs"] = sorted(contracts | (protocol - set(DEV_WALLETS)))
-    state["eoa_addrs"] = sorted(eoas - protocol)
-    state["known_holders"] = sorted(known)
-    state["rpc_holders_synced_at"] = now.isoformat()
+    if complete:
+        present_pos = {
+            h["address"] for h in holders if _raw_balance(h.get("value")) > 0
+        }
+        checked_set = {h["address"] for h in holders}
+        for wallet_l, entry in (state.get("points") or {}).items():
+            if not isinstance(entry, dict) or not isinstance(wallet_l, str):
+                continue
+            key = wallet_l.lower()
+            if key in checked_set and key not in present_pos:
+                entry["last_balance_raw"] = 0
+
+        state["current_token_holders"] = holders
+        state["current_token_holders_complete"] = True
+        state["contract_addrs"] = sorted(contracts | (protocol - set(DEV_WALLETS)))
+        state["eoa_addrs"] = sorted(eoas - protocol)
+        state["known_holders"] = sorted(known)
+        state["rpc_holders_synced_at"] = now.isoformat()
+        bs["holdersTotal"] = len(present_pos)
+        bs["holdersComplete"] = True
+        bs["synced"] = len(holders)
+    else:
+        # Partial pass: keep points-based count; persist progress.
+        state["contract_addrs"] = sorted(contracts | (protocol - set(DEV_WALLETS)))
+        state["eoa_addrs"] = sorted(eoas - protocol)
+        state["known_holders"] = sorted(known)
+        bs["holdersComplete"] = False
+        bs["synced"] = len(holders)
+
     eoa_count = count_eoa_holders(state)
     state["holder_count"] = eoa_count
     bs["holdersEoa"] = eoa_count
-    bs["holdersTotal"] = len(present_pos)
-    bs["holdersComplete"] = True
-    bs["synced"] = len(holders)
     bs["source"] = "rpc"
     bs["updatedAt"] = now.isoformat()
     print(
-        f"[rpc-holders] checked={checked}/{len(candidates)} "
-        f"bal>0={bs['holdersTotal']} EOA={eoa_count}"
+        f"[rpc-holders] checked+{checked} cursor={idx}/{len(candidates)} "
+        f"EOA={eoa_count}{' complete' if complete else ' (chunked)'}"
     )
     return state
 
@@ -4200,10 +4243,11 @@ class _LeaderboardHandler(BaseHTTPRequestHandler):
     """Tiny handler serving /leaderboard.json and /health from in-memory state."""
 
     def do_GET(self):
-        if self.path == "/health":
+        path = (self.path or "/").split("?", 1)[0]
+        if path == "/health":
             self._json_response(200, {"status": "ok"})
             return
-        if self.path in ("/leaderboard.json", "/leaderboard", "/"):
+        if path in ("/leaderboard.json", "/leaderboard", "/"):
             state = _http_state_ref
             # Stay 503 until the trade index is current so Vercel does not
             # pick up a partial recount. Wager backfill is a small add-on on

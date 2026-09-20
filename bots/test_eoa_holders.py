@@ -93,6 +93,27 @@ class EoaHolderDefinitionTests(unittest.TestCase):
             )
         )
 
+    def test_fallback_clears_frozen_snapshot_without_rpc(self):
+        from bite_bot import _fallback_rpc_holders
+
+        state = {
+            "current_token_holders": [
+                {"address": EOA, "value": str(10**18), "is_contract": False},
+            ],
+            "current_token_holders_complete": True,
+            "points": {
+                EOA: {"last_balance_raw": 10**18},
+                EOA2: {"last_balance_raw": 2 * 10**18},
+            },
+            "known_holders": [EOA, EOA2],
+            "contract_addrs": [],
+            "market": {},
+        }
+        _fallback_rpc_holders(state, contract=None, reason="test")
+        self.assertNotIn("current_token_holders", state)
+        self.assertEqual(state["holder_count"], 2)
+        self.assertEqual(state["market"]["blockscout"]["holdersEoa"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
