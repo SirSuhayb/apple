@@ -108,11 +108,42 @@ class EoaHolderDefinitionTests(unittest.TestCase):
             "known_holders": [EOA, EOA2],
             "contract_addrs": [],
             "market": {},
+            "supply_stats": {"holder_count": 1},
         }
         _fallback_rpc_holders(state, contract=None, reason="test")
         self.assertNotIn("current_token_holders", state)
         self.assertEqual(state["holder_count"], 2)
         self.assertEqual(state["market"]["blockscout"]["holdersEoa"], 2)
+        self.assertEqual(state["supply_stats"]["holder_count"], 2)
+
+    def test_rpc_interval_preserves_completed_snapshot(self):
+        from bite_bot import sync_rpc_holder_balances
+        from datetime import datetime, timezone
+        from unittest.mock import MagicMock
+
+        rows = [
+            {"address": EOA, "value": str(10**18), "is_contract": False},
+            {"address": EOA2, "value": str(2 * 10**18), "is_contract": False},
+        ]
+        state = {
+            "current_token_holders": rows,
+            "current_token_holders_complete": True,
+            "rpc_holders_pass_complete": True,
+            "rpc_holders_synced_at": datetime.now(timezone.utc).isoformat(),
+            "points": {
+                EOA: {"last_balance_raw": 10**18},
+                EOA2: {"last_balance_raw": 2 * 10**18},
+            },
+            "known_holders": [EOA, EOA2],
+            "contract_addrs": [],
+            "eoa_addrs": [EOA, EOA2],
+            "market": {"blockscout": {"source": "rpc"}},
+        }
+        contract = MagicMock()
+        contract.w3 = MagicMock()
+        out = sync_rpc_holder_balances(state, contract=contract)
+        self.assertEqual(out.get("current_token_holders"), rows)
+        self.assertEqual(out["holder_count"], 2)
 
 
 if __name__ == "__main__":

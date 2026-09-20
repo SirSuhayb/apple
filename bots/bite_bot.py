@@ -1046,6 +1046,39 @@ def sync_dexscreener(state: dict) -> dict:
     return state
 
 
+def _reclassify_cached_contracts(w3, state: dict, *, budget_sec: float = 8.0) -> int:
+    """Re-check cached contract_addrs for EIP-7702 false positives (budgeted)."""
+    if not w3 or not Web3:
+        return 0
+    protocol = _protocol_hold_addrs()
+    suspects = [
+        a.lower()
+        for a in (state.get("contract_addrs") or [])
+        if isinstance(a, str) and a.lower() not in protocol
+    ]
+    if not suspects:
+        return 0
+    # Prefer not-yet-cleared suspects; skip ones already confirmed EOA this process.
+    eoas = {
+        a.lower() for a in (state.get("eoa_addrs") or []) if isinstance(a, str)
+    }
+    pending = [a for a in suspects if a not in eoas]
+    if not pending:
+        return 0
+    started = datetime.now(timezone.utc)
+    batch: set[str] = set()
+    for addr in pending:
+        if (datetime.now(timezone.utc) - started).total_seconds() >= max(2.0, budget_sec):
+            break
+        batch.add(addr)
+        if len(batch) >= 40:
+            classify_contracts(w3, batch, state, recheck=True)
+            batch.clear()
+    if batch:
+        classify_contracts(w3, batch, state, recheck=True)
+    return len(pending)
+
+
 def _fallback_rpc_holders(state: dict, *, contract=None, reason: str) -> dict:
     print(f"[blockscout] {reason} — falling back to RPC holder sync")
     # Drop the frozen Blockscout snapshot *before* any RPC work so the
@@ -1054,11 +1087,18 @@ def _fallback_rpc_holders(state: dict, *, contract=None, reason: str) -> dict:
     state["current_token_holders_complete"] = False
     market = state.setdefault("market", {})
     bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
+    w3 = _w3_from_contract(contract)
+    # Unstick EIP-7702 wallets poisoned into contract_addrs before publishing.
+    if w3 is not None:
+        _reclassify_cached_contracts(w3, state, budget_sec=8.0)
     eoa_count = count_eoa_holders(state)
     state["holder_count"] = eoa_count
     bs["holdersEoa"] = eoa_count
     bs["source"] = "rpc" if contract is not None else "stale"
     bs["updatedAt"] = datetime.now(timezone.utc).isoformat()
+    ss = state.get("supply_stats")
+    if isinstance(ss, dict):
+        ss["holder_count"] = eoa_count
     if contract is not None:
         return sync_rpc_holder_balances(state, contract=contract)
     return state
@@ -1515,15 +1555,16 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
     market = state.setdefault("market", {})
     bs = market.setdefault("blockscout", {"tokenUrl": BLOCKSCOUT_TOKEN_URL})
     now = datetime.now(timezone.utc)
-    # Unfreeze before any RPC — prefer points until this pass finishes.
-    state.pop("current_token_holders", None)
-    state["current_token_holders_complete"] = False
     interval = int(os.getenv("RPC_HOLDER_SYNC_INTERVAL_SEC", "180"))
     budget_sec = float(os.getenv("RPC_HOLDER_SYNC_BUDGET_SEC", "20"))
     last_raw = state.get("rpc_holders_synced_at")
+    # Interval short-circuit *before* wiping a completed snapshot.
     if (
         last_raw
         and state.get("rpc_holders_pass_complete")
+        and state.get("current_token_holders_complete")
+        and isinstance(state.get("current_token_holders"), list)
+        and state.get("current_token_holders")
         and bs.get("source") == "rpc"
     ):
         try:
@@ -1538,19 +1579,25 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
         except Exception:
             pass
 
+    # Unfreeze Blockscout rows while a chunked RPC pass is in flight.
+    state.pop("current_token_holders", None)
+    state["current_token_holders_complete"] = False
+
     candidates = sorted(_holder_candidate_addrs(state))
     if not candidates:
         print("[rpc-holders] no candidate addresses")
         return state
 
-    # Only recheck cached "contracts" (EIP-7702 false positives) — not every EOA.
-    suspect = {
-        a.lower()
-        for a in (state.get("contract_addrs") or [])
-        if isinstance(a, str) and a.lower() not in _protocol_hold_addrs()
-    }
-    if suspect:
-        classify_contracts(w3, suspect, state, recheck=True)
+    # Resume chunked pass across polls.
+    cursor = int(state.get("rpc_holders_cursor") or 0)
+    if cursor < 0 or cursor >= len(candidates):
+        cursor = 0
+        state["rpc_holders_partial"] = []
+    # Reclassify EIP-7702 false positives only when starting a pass — doing
+    # hundreds of eth_getCode calls every 30s poll starved the balanceOf chunk
+    # and left the daemon stuck mid-pass (source=rpc, count frozen).
+    if cursor == 0:
+        _reclassify_cached_contracts(w3, state, budget_sec=min(8.0, budget_sec))
 
     contracts = {
         a.lower()
@@ -1566,11 +1613,6 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
         if isinstance(a, str)
     }
     protocol = _protocol_hold_addrs()
-    # Resume chunked pass across polls.
-    cursor = int(state.get("rpc_holders_cursor") or 0)
-    if cursor < 0 or cursor >= len(candidates):
-        cursor = 0
-        state["rpc_holders_partial"] = []
     partial = state.get("rpc_holders_partial")
     if not isinstance(partial, list):
         partial = []
@@ -1653,6 +1695,9 @@ def sync_rpc_holder_balances(state: dict, *, contract=None) -> dict:
     bs["holdersEoa"] = eoa_count
     bs["source"] = "rpc"
     bs["updatedAt"] = now.isoformat()
+    ss = state.get("supply_stats")
+    if isinstance(ss, dict):
+        ss["holder_count"] = eoa_count
     print(
         f"[rpc-holders] checked+{checked} cursor={idx}/{len(candidates)} "
         f"EOA={eoa_count}{' complete' if complete else ' (chunked)'}"
@@ -4047,8 +4092,12 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
     ensure_dev_wallets(state)
 
     # Refresh Dexscreener pricing BEFORE processing events so USD filters work.
+    # Also refresh holders before buy alerts so Telegram/site never post a
+    # volume-persisted stale holderCount (e.g. frozen 173) on the first poll.
     if not dry_run:
         sync_dexscreener(state)
+        sync_blockscout_holders(state, contract=contract)
+        sync_supply_stats(state, w3=w3, contract=contract)
 
     current_block = w3.eth.block_number
     if state["last_block"] > 0:
@@ -4247,13 +4296,7 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
     state["last_burn_pct"] = burn_pct
     state["trade_from_block"] = TRADE_SCAN_FROM_BLOCK
 
-    # Refresh Blockscout holders (Dexscreener already synced above)
-    if not dry_run:
-        sync_blockscout_holders(state, contract=contract)
-
-    # Calculate supply breakdown (prize pool, EOA vs contract held, burnable)
-    if not dry_run:
-        sync_supply_stats(state, w3=w3, contract=contract)
+    # Holders / supply already refreshed at poll start (before buy alerts).
 
     holder_count = int(
         (state.get("supply_stats") or {}).get("holder_count")
@@ -4888,6 +4931,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ensure_dev_wallets(state)
+
+    # Drop a volume-persisted Blockscout EOA snapshot immediately so the early
+    # HTTP server cannot keep serving a frozen holderCount (e.g. 173) while the
+    # first poll's RPC pass catches up. Points + EIP-7702 reclassify run in poll.
+    if isinstance(state.get("current_token_holders"), list):
+        bs = (state.get("market") or {}).get("blockscout") or {}
+        # Only clear when we are not on a fresh completed RPC snapshot.
+        if bs.get("source") != "rpc" or not state.get("rpc_holders_pass_complete"):
+            state.pop("current_token_holders", None)
+            state["current_token_holders_complete"] = False
+            eoa_now = count_eoa_holders(state)
+            state["holder_count"] = eoa_now
+            ss = state.get("supply_stats")
+            if isinstance(ss, dict):
+                ss["holder_count"] = eoa_now
+            print(f"[startup] cleared stale holder snapshot → EOA={eoa_now}")
 
     # Start HTTP server early so Railway healthcheck passes during backfill
     if args.daemon:
