@@ -174,6 +174,11 @@ export function MetaWagerLive() {
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const onWrongChain = isConnected && chainId !== robinhoodChain.id;
+  const [connectorsReady, setConnectorsReady] = useState(false);
+
+  useEffect(() => {
+    setConnectorsReady(true);
+  }, []);
 
   // ── User bet data ──
   const { data: userBet } = useReadContract({
@@ -323,6 +328,7 @@ export function MetaWagerLive() {
             <div className="mt-3.5 space-y-2">
               {connectors
                 .filter((c) => {
+                  if (!connectorsReady) return true;
                   if (
                     c.type === "injected" &&
                     typeof window !== "undefined" &&

@@ -168,7 +168,7 @@ export function resolvePhaseFlags(input: {
   };
 }
 
-/** Act I–III labels (Prologue is separate in PhaseBar) */
+/** Act I–III labels (Prologue is a separate narrative act) */
 export const PHASE_LABELS = [
   "Finding the apple",
   "First bite",

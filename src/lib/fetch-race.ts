@@ -14,6 +14,7 @@ import {
 import { copy } from "./copy";
 import { emptyLiveScaffold, buildDemoRaceState } from "./demo-state";
 import { fetchAct1Leaderboard } from "./act1-leaderboard";
+import { fetchDecaySnapshot } from "./fetch-decay";
 import {
   type RacePhase,
   type RaceState,
@@ -48,7 +49,7 @@ export async function fetchRaceState(): Promise<RaceState> {
       Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60;
     let potAapl = BigInt(0);
     let kitchenPhase = 0;
-    let lastEatAt = Math.floor(Date.now() / 1000);
+    let lastEatAt = 0;
 
     try {
       totalSupply = await client.readContract({
@@ -79,6 +80,8 @@ export async function fetchRaceState(): Promise<RaceState> {
     );
     burnable = computed.burnable;
     coreTarget = computed.coreTarget;
+
+    const weatherPromise = fetchDecaySnapshot().catch(() => null);
 
     if (APPLE_KITCHEN) {
       const [b, ct, dl, ph, pot, kitchenBiteBalance] = await Promise.all([
@@ -130,8 +133,12 @@ export async function fetchRaceState(): Promise<RaceState> {
     const clamped = Math.min(1, Math.max(0, progress));
     const now = Math.floor(Date.now() / 1000);
     const secondsLeft = Math.max(0, deadline - now);
-    const quietRotPreview = now - lastEatAt > 48 * 60 * 60;
     const phase = phaseFromKitchen(kitchenPhase, clamped, secondsLeft);
+
+    const weather = await weatherPromise;
+    lastEatAt = weather?.lastEatAt && weather.lastEatAt > 0 ? weather.lastEatAt : 0;
+    const quietRotPreview = weather?.quietRotPreview ?? false;
+    const decay = weather?.decay ?? 0;
 
     // Use real bot leaderboard data instead of demo eaters
     let realEaters: RaceState["eaters"] = [];
@@ -158,6 +165,9 @@ export async function fetchRaceState(): Promise<RaceState> {
       secondsLeft,
       lastEatAt,
       quietRotPreview,
+      decay,
+      decayBreakdown: weather?.breakdown,
+      lastEatSource: weather?.lastEatSource ?? null,
       potAapl: formatEther(potAapl),
       eaters: realEaters.length > 0 ? realEaters : scaffold.eaters,
       tape: [],

@@ -61,6 +61,7 @@ yarn-error.log*
 bots/.bite_bot_state.json
 **/.bite_bot_state.json
 bots/.daemon.log
+bots/data/decay-highwater.json
 # Commit public/data/act1-leaderboard.json so Vercel serves Act I ranks.
 # Bot overwrites it locally; re-deploy or set BITE_LEADERBOARD_URL for live sync.
 

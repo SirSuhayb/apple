@@ -10,10 +10,12 @@ import { buildDemoRaceState } from "@/lib/demo-state";
 import {
   BITE_TOKEN,
   DAY_ONE_PLAYTHROUGH,
+  DECAY_PREVIEW_OVERRIDE,
   LEADERBOARD_POLL_MS,
   PONS_TOKEN_URL,
   SWAP_PROVIDER,
 } from "@/lib/config";
+import { isLocalDecayHost, parseDecayOverride } from "@/lib/decay";
 import {
   contractAddressDisplay,
   copy,
@@ -28,12 +30,12 @@ import { Countdown } from "./Countdown";
 import { useLeaderboardLive } from "@/lib/use-leaderboard";
 import { resolveAppleTotal, weiToTokens } from "@/lib/leaderboard-rank";
 import { EatersBoard } from "./EatersBoard";
+import { AppleConditionBanner } from "./AppleConditionBanner";
 import {
   MetaWagerEmpty,
   MetaWagerInfo,
   MetaWagerLive,
 } from "./MetaWager";
-import { PhaseBar } from "./PhaseBar";
 import { SiteFooter } from "./SiteFooter";
 import { SwapModal } from "./SwapModal";
 import { DigestButton } from "./DigestButton";
@@ -403,6 +405,18 @@ export function RaceApp({
 
   const [playFrame, setPlayFrame] = useState(0);
   const [prefillAmount, setPrefillAmount] = useState<string | null>(null);
+  const [qaDecay, setQaDecay] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isLocalDecayHost()) return;
+    const fromQuery = parseDecayOverride(
+      new URLSearchParams(window.location.search).get("decay"),
+    );
+    const fromEnv = parseDecayOverride(DECAY_PREVIEW_OVERRIDE);
+    if (fromQuery != null || fromEnv != null) {
+      setQaDecay(fromQuery ?? fromEnv);
+    }
+  }, []);
 
   // Deep links: #swap opens native swap; #burn / #burn?amount=X opens burn section
   useEffect(() => {
@@ -472,6 +486,8 @@ export function RaceApp({
       progress: result.progress,
       appleFrame: result.appleFrame,
       lastEatAt: Math.floor(Date.now() / 1000),
+      decay: Math.round((prev.decay ?? 0) * 0.25),
+      quietRotPreview: false,
       message: copy.toasts.burned(
         result.amountLabel,
         (result.progress * 100).toFixed(1),
@@ -495,10 +511,14 @@ export function RaceApp({
     [state.progress, state.eaters.length, state.phase, state.secondsLeft, state.deadline],
   );
 
-  const rot =
-    state.phase === "rot" ||
-    (state.quietRotPreview && state.phase === "racing");
-  const displayFrame = DAY_ONE_PLAYTHROUGH ? playFrame : state.appleFrame;
+  const legalRot = state.phase === "rot";
+  const liveDecay = Number.isFinite(state.decay) ? state.decay : 0;
+  const displayDecay = qaDecay ?? liveDecay;
+  const wrinkleNudge =
+    !DAY_ONE_PLAYTHROUGH && !legalRot && displayDecay >= 72 ? 1 : 0;
+  const displayFrame = DAY_ONE_PLAYTHROUGH
+    ? playFrame
+    : Math.min(FRAME_COUNT - 1, state.appleFrame + wrinkleNudge);
   const displayProgress = DAY_ONE_PLAYTHROUGH
     ? playFrame / (FRAME_COUNT - 1)
     : state.progress;
@@ -579,7 +599,7 @@ export function RaceApp({
         </div>
       </header>
 
-      <PhaseBar act={flags.act} />
+      <AppleConditionBanner decay={displayDecay} />
 
       <PhaseBanner
         act={flags.act}
@@ -635,13 +655,18 @@ export function RaceApp({
           >
             <AppleScene
               frame={displayFrame}
-              rot={state.phase === "rot"}
-              quietPreview={rot && state.phase !== "rot"}
+              rot={legalRot}
+              decay={displayDecay}
               juicePulse={juicePulse}
               enableOrbit={flags.act >= 2 && !DAY_ONE_PLAYTHROUGH}
             />
             <AppleProduceSticker />
           </div>
+          {qaDecay != null && (
+            <p className="mt-2 text-[11px] font-medium tracking-wide text-[#86868b] uppercase">
+              {copy.decay.qaChip(String(qaDecay))}
+            </p>
+          )}
         </div>
 
         <div className="animate-rise-delay-2 mt-3 flex flex-wrap items-center justify-center gap-3.5">

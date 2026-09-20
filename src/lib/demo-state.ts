@@ -5,6 +5,7 @@ import {
   isLive,
 } from "./config";
 import { copy } from "./copy";
+import { scoreDecay } from "./decay";
 import {
   type RaceState,
   computeCoreTarget,
@@ -116,6 +117,16 @@ export function buildDemoRaceState(): RaceState {
     Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60;
   const now = Math.floor(Date.now() / 1000);
   const lastEatAt = now - 12 * 60;
+  const weather = scoreDecay({
+    nowSec: now,
+    lastEatAt,
+    volumeH24: 42_000,
+    volumeH6: 18_000,
+    peakVolumeH24: 235_125,
+    peakVolumeH6: 235_125,
+    mcapUsd: 16_700,
+    peakMcapUsd: 37_706,
+  });
 
   return {
     phase: "preview",
@@ -130,7 +141,10 @@ export function buildDemoRaceState(): RaceState {
     deadline,
     secondsLeft: Math.max(0, deadline - now),
     lastEatAt,
-    quietRotPreview: false,
+    quietRotPreview: weather.quietRotPreview,
+    decay: weather.decay,
+    decayBreakdown: weather.breakdown,
+    lastEatSource: "kitchen",
     potAapl: "0",
     eaters: DEMO_EATERS,
     tape: [

@@ -15,11 +15,22 @@ import { FRAME_COUNT } from "@/lib/race";
 type AppleSceneProps = {
   frame: number;
   rot: boolean;
+  /** @deprecated Prefer `decay` 0–100. Maps to ~35 weather. */
   quietPreview?: boolean;
+  /** Visual weather 0–100. Not kitchen revealRot. */
+  decay?: number;
   juicePulse?: number;
   /** User drag-orbit — off for Act I time-lapse; on for later race acts. */
   enableOrbit?: boolean;
 };
+
+function weatherStrength(rot: boolean, decay?: number, quietPreview?: boolean): number {
+  if (rot) return 1;
+  if (typeof decay === "number" && Number.isFinite(decay)) {
+    return Math.min(1, Math.max(0, decay / 100));
+  }
+  return quietPreview ? 0.35 : 0;
+}
 
 /** One gentle revolution every 34s — bite comes around without getting dizzy. */
 const IDLE_SPIN_PERIOD_SEC = 34;
@@ -144,8 +155,8 @@ function normalizeAppleRoot(source: THREE.Object3D, frame: number): THREE.Group 
   return wrap;
 }
 
-function appleColor(rot: boolean, quietPreview?: boolean) {
-  const strength = rot ? 1 : quietPreview ? 0.35 : 0;
+function appleColor(rot: boolean, decay?: number, quietPreview?: boolean) {
+  const strength = weatherStrength(rot, decay, quietPreview);
   const base = new THREE.Color("#e01820");
   const rotten = new THREE.Color("#5c3a1a");
   return base.clone().lerp(rotten, strength * 0.85);
@@ -376,13 +387,16 @@ function ProceduralApple({
   frame,
   rot,
   quietPreview,
+  decay,
 }: {
   frame: number;
   rot: boolean;
   quietPreview?: boolean;
+  decay?: number;
 }) {
   const bite = frame / (FRAME_COUNT - 1);
-  const color = appleColor(rot, quietPreview);
+  const color = appleColor(rot, decay, quietPreview);
+  const weather = weatherStrength(rot, decay, quietPreview);
   const biteRadius = 0.35 + bite * 0.55;
   const biteOffset = 0.55 - bite * 0.15;
 
@@ -396,8 +410,8 @@ function ProceduralApple({
         <sphereGeometry args={[1, 48, 48]} />
         <meshStandardMaterial
           color={color}
-          roughness={0.32 + (rot ? 0.35 : 0)}
-          metalness={0.12}
+          roughness={0.32 + weather * 0.38}
+          metalness={0.12 * (1 - weather)}
         />
       </mesh>
 
@@ -455,8 +469,8 @@ function ProceduralApple({
         </mesh>
       )}
 
-      {(rot || quietPreview) &&
-        Array.from({ length: rot ? 18 : 8 }).map((_, i) => (
+      {rot &&
+        Array.from({ length: 18 }).map((_, i) => (
           <mesh
             key={i}
             position={[
@@ -481,8 +495,10 @@ function applyRotTint(
   root: THREE.Object3D,
   rot: boolean,
   quietPreview?: boolean,
+  decay?: number,
 ) {
   polishAppleMaterials(root);
+  const strength = weatherStrength(rot, decay, quietPreview);
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
     if (!mesh.isMesh) return;
@@ -493,10 +509,10 @@ function applyRotTint(
       const base = m.userData._baseColor as THREE.Color;
       m.color.copy(base);
       m.roughness = m.userData._baseRoughness as number;
-      if (rot || quietPreview) {
-        const strength = rot ? 1 : 0.35;
-        m.color.lerp(new THREE.Color("#5c3a1a"), strength * 0.7);
-        m.roughness = Math.min(1, m.roughness + strength * 0.3);
+      if (strength > 0.01) {
+        m.color.lerp(new THREE.Color("#5c3a1a"), strength * 0.72);
+        m.color.offsetHSL(0, -0.18 * strength, -0.08 * strength);
+        m.roughness = Math.min(1, m.roughness + strength * 0.34);
       }
       m.needsUpdate = true;
     });
@@ -508,11 +524,13 @@ function GltfAppleFrame({
   visible,
   rot,
   quietPreview,
+  decay,
 }: {
   frame: number;
   visible: boolean;
   rot: boolean;
   quietPreview?: boolean;
+  decay?: number;
 }) {
   const path = FRAME_URL(frame);
   const { scene } = useGLTF(path, true, true);
@@ -522,8 +540,8 @@ function GltfAppleFrame({
   }, [scene, frame]);
 
   useEffect(() => {
-    applyRotTint(normalized, rot, quietPreview);
-  }, [normalized, rot, quietPreview]);
+    applyRotTint(normalized, rot, quietPreview, decay);
+  }, [normalized, rot, quietPreview, decay]);
 
   // Keep every stage mounted under the same parent pose; only visibility flips.
   // Remounting a new GLB each tick was a second source of perceived size pops.
@@ -534,10 +552,12 @@ function GltfApple({
   frame,
   rot,
   quietPreview,
+  decay,
 }: {
   frame: number;
   rot: boolean;
   quietPreview?: boolean;
+  decay?: number;
 }) {
   return (
     <group
@@ -551,6 +571,7 @@ function GltfApple({
           visible={i === frame}
           rot={rot}
           quietPreview={quietPreview}
+          decay={decay}
         />
       ))}
     </group>
@@ -591,13 +612,13 @@ function JuiceBurst({ pulse }: { pulse: number }) {
 
 function RotOverlay({
   rot,
-  quietPreview,
 }: {
   rot: boolean;
   quietPreview?: boolean;
+  decay?: number;
 }) {
-  if (!rot && !quietPreview) return null;
-  const count = rot ? 22 : 10;
+  if (!rot) return null;
+  const count = 22;
   return (
     <group>
       {Array.from({ length: count }).map((_, i) => (
@@ -660,6 +681,7 @@ function SceneContent({
   frame,
   rot,
   quietPreview,
+  decay,
   juicePulse,
   enableOrbit = false,
   useGltf,
@@ -672,7 +694,11 @@ function SceneContent({
       <directionalLight position={[-4, 3, -2]} intensity={0.45} />
       <hemisphereLight args={["#ffffff", "#e8e8ed", 0.38]} />
       <Suspense fallback={null}>
-        <Environment preset="studio" environmentIntensity={0.4} />
+        <Environment
+          preset="studio"
+          background={false}
+          environmentIntensity={0.4}
+        />
       </Suspense>
       <Suspense fallback={null}>
         <IdleTurntable enabled={idleSpin}>
@@ -681,17 +707,19 @@ function SceneContent({
               frame={frame}
               rot={rot}
               quietPreview={quietPreview}
+              decay={decay}
             />
           ) : (
             <ProceduralApple
               frame={frame}
               rot={rot}
               quietPreview={quietPreview}
+              decay={decay}
             />
           )}
         </IdleTurntable>
       </Suspense>
-      {useGltf && <RotOverlay rot={rot} quietPreview={quietPreview} />}
+      {useGltf && <RotOverlay rot={rot} />}
       <JuiceBurst pulse={juicePulse ?? 0} />
       <ContactShadows
         position={[0, -0.88, 0]}
@@ -738,6 +766,7 @@ export function AppleScene({
   frame,
   rot,
   quietPreview,
+  decay,
   juicePulse,
   enableOrbit = false,
 }: AppleSceneProps) {
@@ -762,18 +791,19 @@ export function AppleScene({
       ].join(" ")}
     >
       <Canvas
-        shadows
+        shadows={{ type: THREE.PCFShadowMap }}
         camera={{ position: [0.55, 0.18, 3.9], fov: 33, near: 0.1, far: 50 }}
         gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true }}
-        onCreated={({ gl }) => {
+        onCreated={({ gl, scene }) => {
           gl.setClearColor("#000000", 0);
+          scene.background = null;
         }}
         style={{
           width: "100%",
           height: "100%",
           display: "block",
           overflow: "visible",
-          filter: "saturate(1.18)",
+          background: "transparent",
         }}
       >
         <ResponsiveCamera />
@@ -781,6 +811,7 @@ export function AppleScene({
           frame={safeFrame}
           rot={rot}
           quietPreview={quietPreview}
+          decay={decay}
           juicePulse={juicePulse}
           enableOrbit={enableOrbit}
           useGltf={useGltf}

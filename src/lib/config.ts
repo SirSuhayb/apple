@@ -162,6 +162,13 @@ export const META_WAGER_THRESHOLD = parseNumber(
 );
 
 /**
+ * Localhost QA only — force visual decay 0–100 (or `fresh` / `quiet`).
+ * Query `?decay=` wins. Never use this for kitchen revealRot / wager resolve.
+ */
+export const DECAY_PREVIEW_OVERRIDE =
+  process.env.NEXT_PUBLIC_DECAY_PREVIEW?.trim() || "";
+
+/**
  * Swap CTA surface for Trade / Buy.
  * - `native` (default): in-site buy $BITE (AAPL/USDG/WETH/ETH) + sell to AAPL via Uniswap Trading API proxy
  * - `pons`: deep-link to pons launchpad

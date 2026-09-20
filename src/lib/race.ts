@@ -1,3 +1,7 @@
+import type { DecayBreakdown } from "./decay";
+
+export type { DecayBreakdown };
+
 export type EatKind = "buy" | "sell" | "tap" | "kitchen";
 
 export type Eater = {
@@ -66,6 +70,10 @@ export type RaceState = {
   secondsLeft: number;
   lastEatAt: number;
   quietRotPreview: boolean;
+  /** Visual decay 0–100. Not kitchen revealRot. */
+  decay: number;
+  decayBreakdown?: DecayBreakdown;
+  lastEatSource?: "kitchen" | "v4" | "inferred" | null;
   potAapl: string;
   eaters: Eater[];
   tape: RaceEvent[];

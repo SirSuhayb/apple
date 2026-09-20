@@ -147,6 +147,41 @@ export const copy = {
       "The farmer is the deployer. The eaters are you. This is not a metaphor. It is fruit.",
   },
 
+  decay: {
+    bannerFresh: "The apple is fresh.",
+    bannerRotting: "The apple is rotting.",
+    statusFresh: "Fresh",
+    statusRotting: "Rotting",
+    tooltipLabel: "Fresh or Rotten",
+    modalTitle: "Fresh or Rotten",
+    modalPrev: "Back",
+    modalNext: "Next",
+    modalDone: "Done",
+    slides: [
+      {
+        title: "Keep the apple fresh",
+        body: [
+          "When the market is active, the apple stays fresh to eat. Frequent activity keeps the decay at bay. Low activity lets the rot in.",
+        ],
+      },
+      {
+        title: "Or the apple rots over time",
+        body: [
+          "The apple begins to turn brown when the market is quiet. When trading volume and the market cap slumps, the rot follows.",
+        ],
+      },
+      {
+        title: "The floor rises every week",
+        body: [
+          "The ATH of each week determines the floor of the next week. This week's floor is 50k. Next week's is 150k. Below the floor, the rot grows.",
+        ],
+      },
+    ] as const,
+    eatenLabel: "Eaten",
+    eatenPct: (pct: string) => `${pct}% eaten`,
+    qaChip: (n: string) => `QA decay ${n} — localhost only`,
+  },
+
   metaWager: {
     eyebrow: "The meta wager",
     emptyTitle: "Core or rot?",
