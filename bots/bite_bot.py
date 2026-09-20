@@ -1169,6 +1169,53 @@ def sync_blockscout_holders(state: dict, *, contract=None) -> dict:
     state["contract_addrs"] = sorted(contracts)
     state["eoa_addrs"] = sorted(eoas)
     state["known_holders"] = sorted(known)
+
+    # Blockscout's holder index can lag / omit wallets that still hold BITE.
+    # Reconcile known Transfer recipients via balanceOf so EOA count cannot
+    # freeze below the real on-chain set (incl. EIP-7702).
+    if complete and contract is not None and w3 and Web3:
+        present_set = set(present)
+        extra = 0
+        for addr in sorted(known | eoas):
+            if addr in present_set:
+                continue
+            if addr in _protocol_hold_addrs() and addr not in DEV_WALLETS:
+                continue
+            bal = read_balance_raw(contract, addr)
+            if bal is None or bal <= 0:
+                continue
+            is_contract = False
+            if addr in contracts and addr not in DEV_WALLETS:
+                try:
+                    code = w3.eth.get_code(Web3.to_checksum_address(addr))
+                    is_contract = _bytecode_is_contract(code)
+                except Exception:
+                    is_contract = True
+            if is_contract:
+                contracts.add(addr)
+                eoas.discard(addr)
+            else:
+                eoas.add(addr)
+                contracts.discard(addr)
+            holders.append(
+                {
+                    "address": addr,
+                    "value": str(bal),
+                    "is_contract": is_contract,
+                }
+            )
+            present_set.add(addr)
+            entry = points_entry(state, addr)
+            entry["wallet"] = Web3.to_checksum_address(addr)
+            entry["last_balance_raw"] = bal
+            entry["last_snapshot_at"] = now.isoformat()
+            extra += 1
+        if extra:
+            print(f"[blockscout] reconciled +{extra} holders via RPC balanceOf")
+            state["current_token_holders"] = holders
+            state["contract_addrs"] = sorted(contracts)
+            state["eoa_addrs"] = sorted(eoas)
+
     eoa_count = count_eoa_holders(state)
     state["holder_count"] = eoa_count
     bs["holdersEoa"] = eoa_count
