@@ -281,6 +281,7 @@ EXPLORER_TOKEN_URL = f"https://robin.etherscan.io/address/{BITE_CONTRACT}"
 EXPLORER_TX_BASE = "https://robin.etherscan.io/tx/"
 BURN_PAGE_URL = f"{SITE_URL}/#burn"
 BUY_ALERT_IMAGE = "https://www.bite.party/social_media/biteTaken.png"
+BURN_ALERT_IMAGE = "https://www.bite.party/social_media/burn_alert.png"
 CA_IMAGE = "https://www.bite.party/og_image.png"
 
 # Creator / team wallets: visible on the board, scored, but ineligible to win.
@@ -4165,6 +4166,7 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                     burn_milestone_copy(m),
                     dry_run=dry_run,
                     reply_markup=_burn_milestone_buttons(),
+                    photo_url=BURN_ALERT_IMAGE,
                 )
             else:
                 print(
@@ -4249,7 +4251,15 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                     msg = burn_large_copy(from_addr, value, burn_pct)
                 else:
                     msg = burn_tap_copy(from_addr, value, burn_pct)
-                broadcast(twitter, tg_token, tg_chat, msg, dry_run=dry_run)
+                broadcast(
+                    twitter,
+                    tg_token,
+                    tg_chat,
+                    msg,
+                    dry_run=dry_run,
+                    reply_markup=_burn_buttons(),
+                    photo_url=BURN_ALERT_IMAGE,
+                )
             else:
                 print(
                     f"[PHASE {PHASE}] burn detected {fmt_amount(value)} "
