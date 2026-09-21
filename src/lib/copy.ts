@@ -23,6 +23,7 @@ export const copy = {
     seed: "Seed the pool",
     soon: "Soon",
     leaderboard: "Leaderboard",
+    profile: "Profile",
     badge: {
       soon: "Soon",
       preparing: "Preparing",
@@ -357,11 +358,107 @@ export const copy = {
       "I just burned $BITE and climbed the leaderboard. the game is simple — burn more, rank higher, earn more when the pot pays out.",
     rank: (_rank: number) =>
       "i just took a $bite of the apple to earn a piece of the pie.",
+    /** Share line when an unlocked title is selected. */
+    withTitle: (titleName: string, rank?: number) =>
+      rank
+        ? `i'm #${rank} · titled ${titleName}. took a $bite of the apple.`
+        : `titled ${titleName} on $BITE. took a bite of the apple.`,
     ogBurnTitle: (amount: string, rank?: number) =>
       rank
         ? `I just burned ${amount} $BITE · #${rank}`
         : `I just burned ${amount} $BITE`,
     ogRankTitle: (rank: number) => `I'm #${rank} on $BITE`,
+    ogWithTitle: (titleName: string, rank?: number) =>
+      rank ? `${titleName} · #${rank} on $BITE` : `${titleName} · $BITE`,
+  },
+
+  profile: {
+    title: "Profile",
+    headline: "Your bite.",
+    headlinePublic: "Eater profile.",
+    subtitle: "Rank, stats, and titles from the board — no new contracts.",
+    back: "← Back",
+    connectHint: "Connect a wallet to open your profile.",
+    connectCta: "Connect wallet",
+    viewPublic: "Public profile",
+    notOnBoard: "Not on the board yet.",
+    notOnBoardHint:
+      "No scored trades or burns for this wallet yet. Trade or burn $BITE to appear.",
+    rankLabel: "Rank",
+    scoreLabel: "Score",
+    burnedLabel: "Burned",
+    buysLabel: "Buys",
+    sellsLabel: "Sells",
+    holdLabel: "Holding",
+    holdLoading: "Reading wallet…",
+    holdUnavailable:
+      "Hold titles need a live wallet balance — available on your own profile.",
+    titlesEyebrow: "Titles",
+    titlesHeadline: "Unlocked so far.",
+    titlesEmpty: "No titles yet — take a first bite.",
+    titlesPickHint: "Tap an unlocked title to use it on your share.",
+    titlesPickNone: "Share without a title until you unlock one.",
+    forShare: "On share",
+    useOnShare: "Use on share",
+    locked: "Locked",
+    unlocked: "Unlocked",
+    unavailable: "Unavailable",
+    comingSoon: "Coming soon",
+    titles: {
+      // Orchard arc: pick → keep → bite toward the core → invite the grove.
+      first_burn: {
+        name: "First Bite",
+        body: "Take your first kitchen bite of $BITE.",
+      },
+      first_buy: {
+        name: "Fresh Pick",
+        body: "Pick $BITE from the orchard at least once.",
+      },
+      hold_1m: {
+        name: "Bushel",
+        body: "Keep over 1M $BITE in hand.",
+      },
+      hold_10m: {
+        name: "Laden Bough",
+        body: "Keep over 10M $BITE — a branch heavy with fruit.",
+      },
+      hold_25m: {
+        name: "Rootstock",
+        body: "Keep over 25M $BITE — planted deep.",
+      },
+      burn_1m: {
+        name: "Past the Skin",
+        body: "Burn over 1M $BITE — into the flesh.",
+      },
+      burn_10m: {
+        name: "Corebound",
+        body: "Burn over 10M $BITE — closing on the core.",
+      },
+      burn_25m: {
+        name: "To the Core",
+        body: "Burn over 25M $BITE — eaten through.",
+      },
+      referrals: {
+        name: "Windfall",
+        body: "Invite eaters to the grove — on-chain rewards coming soon.",
+      },
+    },
+    referrals: {
+      eyebrow: "Referrals",
+      headline: "Invite the orchard.",
+      body: "Share your link. Attribution is saved locally when they connect — on-chain escrow and payouts are not live yet.",
+      linkLabel: "Your link",
+      copyLink: "Copy link",
+      copied: "Copied.",
+      countLabel: "Referrals",
+      earningsLabel: "Earnings",
+      stubZero: "0",
+      stubNote: "Counts and earnings stay at 0 until ReferralEscrow ships.",
+      pendingNote: (short: string) =>
+        `Pending invite from ${short} — binds when you connect.`,
+      boundNote: (short: string) => `You arrived via ${short} (local only).`,
+      selfBlocked: "You can’t refer yourself.",
+    },
   },
 
   finePrint: {

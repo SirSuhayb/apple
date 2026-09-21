@@ -98,12 +98,20 @@ export function LeaderboardPage({
           <Link href="/" className="text-[17px] font-semibold">
             {copy.brand}
           </Link>
-          <Link
-            href="/"
-            className="text-[13px] font-medium text-[#2997ff]"
-          >
-            {copy.leaderboard.back}
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/me"
+              className="text-[13px] font-medium text-[#2997ff]"
+            >
+              {copy.nav.profile}
+            </Link>
+            <Link
+              href="/"
+              className="text-[13px] font-medium text-[#2997ff]"
+            >
+              {copy.leaderboard.back}
+            </Link>
+          </div>
         </div>
       </header>
 

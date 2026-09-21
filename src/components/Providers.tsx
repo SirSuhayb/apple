@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
+import { ReferralCapture } from "@/components/ReferralCapture";
 import { robinhoodChain } from "@/lib/chain";
 import { RPC_URL, SITE_URL as CONFIG_SITE_URL } from "@/lib/config";
 
@@ -45,7 +46,10 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ReferralCapture />
+        {children}
+      </QueryClientProvider>
     </WagmiProvider>
   );
 }

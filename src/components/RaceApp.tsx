@@ -566,6 +566,12 @@ export function RaceApp({
             >
               {copy.nav.leaderboard}
             </Link>
+            <Link
+              href="/me"
+              className="hidden text-[13px] font-medium text-[#2997ff] sm:block"
+            >
+              {copy.nav.profile}
+            </Link>
             <span
               className={[
                 "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",

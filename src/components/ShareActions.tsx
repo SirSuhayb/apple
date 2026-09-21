@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { copy } from "@/lib/copy";
 import { shareBody, twitterIntentUrl } from "@/lib/share";
 
@@ -14,9 +14,12 @@ export function ShareActions({
   className?: string;
 }) {
   const [copied, setCopied] = useState(false);
-  const canNative =
-    typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const [canNative, setCanNative] = useState(false);
   const payload = shareBody(text, url);
+
+  useEffect(() => {
+    setCanNative(typeof navigator.share === "function");
+  }, []);
 
   const onCopy = async () => {
     try {
@@ -47,7 +50,7 @@ export function ShareActions({
         {copy.share.postX}
       </a>
       <div className="flex gap-2">
-        {canNative && (
+        {canNative ? (
           <button
             type="button"
             onClick={() => void onNative()}
@@ -55,7 +58,7 @@ export function ShareActions({
           >
             {copy.share.share}
           </button>
-        )}
+        ) : null}
         <button
           type="button"
           onClick={() => void onCopy()}
