@@ -2,21 +2,31 @@
 pragma solidity ^0.8.26;
 
 import {IERC20} from "./interfaces/IERC20.sol";
-import {Ownable} from "./utils/Ownable.sol";
-import {ReentrancyGuard} from "./utils/ReentrancyGuard.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from
+    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
-/// @title ReferralEscrow
+/// @title ReferralEscrow (UUPS upgradeable)
 /// @notice Escrowed $BITE paid to referrers when a referee completes an in-app buy+burn.
 /// @dev Pure chain data cannot prove "bought via the app". An attester (site backend,
 ///      kitchen owner, or keeper) must call `qualify` after verifying the in-app path
 ///      (Uniswap Trading API + kitchen.bite). Frontend `?ref=` / localStorage is only
 ///      attribution UX — on-chain bind + qualify is the payout layer.
-contract ReferralEscrow is Ownable, ReentrancyGuard {
-    // ── Immutables ──
+///
+///      Deploy behind ERC1967Proxy. Fund the **proxy** address. Upgrade via
+///      `upgradeToAndCall` as owner (same key that owns the proxy).
+contract ReferralEscrow is
+    Initializable,
+    OwnableUpgradeable,
+    UUPSUpgradeable,
+    ReentrancyGuardUpgradeable
+{
+    // ── Storage ──
 
-    IERC20 public immutable token;
-
-    // ── Roles / params ──
+    /// @notice BITE token (set once in initialize).
+    IERC20 public token;
 
     /// @notice Address allowed to mark a referee as having completed in-app buy+burn.
     address public attester;
@@ -26,15 +36,11 @@ contract ReferralEscrow is Ownable, ReentrancyGuard {
 
     bool public paused;
 
-    // ── Referral state ──
-
     /// @notice referee => referrer (set once via `bind`).
     mapping(address => address) public referrerOf;
 
     /// @notice referee already paid out (one payout per referee).
     mapping(address => bool) public paid;
-
-    // ── Accounting ──
 
     /// @notice Cumulative BITE deposited into escrow (gross).
     uint256 public totalDeposited;
@@ -71,19 +77,27 @@ contract ReferralEscrow is Ownable, ReentrancyGuard {
     error NotAttester();
     error TransferFailed();
 
-    // ── Constructor ──
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
 
     /// @param token_ BITE token
     /// @param attester_ initial attester (site backend / keeper); may equal owner
     /// @param rewardPerReferral_ fixed BITE payout per successful referral (wei)
-    /// @param owner_ contract owner (historically sirsu.eth / deployer)
-    constructor(address token_, address attester_, uint256 rewardPerReferral_, address owner_)
-        Ownable(owner_)
+    /// @param owner_ contract owner / upgrader
+    function initialize(address token_, address attester_, uint256 rewardPerReferral_, address owner_)
+        external
+        initializer
     {
         if (token_ == address(0)) revert ZeroAddress();
         if (attester_ == address(0)) revert ZeroAddress();
         if (owner_ == address(0)) revert ZeroAddress();
         if (rewardPerReferral_ == 0) revert ZeroAmount();
+
+        __Ownable_init(owner_);
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
 
         token = IERC20(token_);
         attester = attester_;
@@ -104,7 +118,7 @@ contract ReferralEscrow is Ownable, ReentrancyGuard {
 
     // ── Funding ──
 
-    /// @notice Deposit BITE into escrow. Caller must `approve` this contract first.
+    /// @notice Deposit BITE into escrow. Caller must `approve` this contract (proxy) first.
     function deposit(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         if (!token.transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
@@ -148,7 +162,6 @@ contract ReferralEscrow is Ownable, ReentrancyGuard {
 
         address referrer = referrerOf[referee];
         if (referrer == address(0)) revert NotBound();
-        // Defense in depth (bind already blocks self-ref)
         if (referrer == referee) revert SelfReferral();
 
         uint256 reward = rewardPerReferral;
@@ -202,7 +215,7 @@ contract ReferralEscrow is Ownable, ReentrancyGuard {
         emit Unpaused(msg.sender);
     }
 
-    /// @notice Owner withdraws leftover / unused escrow BITE.
+    /// @notice Owner withdraws leftover / unused escrow BITE from the proxy.
     function withdraw(address to, uint256 amount) external onlyOwner nonReentrant {
         if (to == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
@@ -210,4 +223,8 @@ contract ReferralEscrow is Ownable, ReentrancyGuard {
         if (!token.transfer(to, amount)) revert TransferFailed();
         emit Withdrawn(to, amount);
     }
+
+    // ── UUPS ──
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 }

@@ -2,12 +2,14 @@
 pragma solidity ^0.8.26;
 
 import {Test} from "forge-std/Test.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ReferralEscrow} from "../src/ReferralEscrow.sol";
 import {MockERC20} from "../src/mocks/MockERC20.sol";
 
 contract ReferralEscrowTest is Test {
     MockERC20 bite;
-    ReferralEscrow escrow;
+    ReferralEscrow escrow; // proxy
+    ReferralEscrow implementation;
 
     address owner;
     address attester;
@@ -25,7 +27,13 @@ contract ReferralEscrowTest is Test {
         other = makeAddr("other");
 
         bite = new MockERC20("BITE", "BITE", false);
-        escrow = new ReferralEscrow(address(bite), attester, REWARD, owner);
+        implementation = new ReferralEscrow();
+
+        bytes memory initData = abi.encodeCall(
+            ReferralEscrow.initialize, (address(bite), attester, REWARD, owner)
+        );
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        escrow = ReferralEscrow(address(proxy));
 
         bite.mint(owner, 1_000_000 ether);
         bite.mint(referrer, 10 ether);
@@ -187,8 +195,40 @@ contract ReferralEscrowTest is Test {
         assertEq(escrow.remainingPayouts(), 3);
     }
 
-    function testConstructorRejectsZeroReward() public {
+    function testInitializeRejectsZeroReward() public {
+        ReferralEscrow impl = new ReferralEscrow();
+        bytes memory bad =
+            abi.encodeCall(ReferralEscrow.initialize, (address(bite), attester, 0, owner));
         vm.expectRevert(ReferralEscrow.ZeroAmount.selector);
-        new ReferralEscrow(address(bite), attester, 0, owner);
+        new ERC1967Proxy(address(impl), bad);
+    }
+
+    function testCannotReinitialize() public {
+        vm.expectRevert();
+        escrow.initialize(address(bite), attester, REWARD, owner);
+    }
+
+    function testImplementationInitializeDisabled() public {
+        vm.expectRevert();
+        implementation.initialize(address(bite), attester, REWARD, owner);
+    }
+
+    function testOwnerCanUpgrade() public {
+        ReferralEscrow newImpl = new ReferralEscrow();
+        vm.prank(owner);
+        escrow.upgradeToAndCall(address(newImpl), "");
+
+        // State preserved on proxy
+        assertEq(address(escrow.token()), address(bite));
+        assertEq(escrow.attester(), attester);
+        assertEq(escrow.rewardPerReferral(), REWARD);
+        assertEq(escrow.owner(), owner);
+    }
+
+    function testNonOwnerCannotUpgrade() public {
+        ReferralEscrow newImpl = new ReferralEscrow();
+        vm.prank(other);
+        vm.expectRevert();
+        escrow.upgradeToAndCall(address(newImpl), "");
     }
 }

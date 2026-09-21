@@ -30,7 +30,9 @@ Eydeet CC-BY frames live in `public/apple/frames/0.glb`…`9.glb` (UI frame *i* 
 
 `AppleKitchen` lives in `contracts/src/AppleKitchen.sol` — `bite`, `digest` (50/50), `revealCore` (swarm minus deployer), `revealRot` (pot to deployer). Deploy **after** mint; see [scripts/POINT_FEES.md](scripts/POINT_FEES.md).
 
-`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) pays fixed `$BITE` from escrow to referrers when an **attester** confirms the referee’s in-app buy+burn. Site `?ref=` is attribution only; on-chain `bind` + `qualify` is the payout layer. Deploy script does **not** fund or mainnet-broadcast by default — see contract NatSpec + `script/DeployReferralEscrow.s.sol`.
+`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` is attribution only.
+
+Live proxy (Robinhood 4663): `0xc127327419D78C8546230463F8b421Bb66212660` — `rewardPerReferral` = 100 BITE. Deploy: `cd contracts && ./scripts/deploy-referral-escrow.sh` (needs `PRIVATE_KEY`; `forge install` for OZ upgradeable).
 
 ```bash
 cd contracts
@@ -44,8 +46,8 @@ Deploy:
 npm run reserved-math
 cd contracts
 forge script script/DeployKitchen.s.sol:DeployKitchen --rpc-url https://rpc.mainnet.chain.robinhood.com --broadcast
-# Referral escrow (dry-run unless --broadcast); set ATTESTER + OWNER; fund deposit separately
-forge script script/DeployReferralEscrow.s.sol:DeployReferralEscrow --rpc-url https://rpc.mainnet.chain.robinhood.com
+# Referral escrow UUPS (fund printed PROXY):
+./scripts/deploy-referral-escrow.sh
 ```
 
 ## Activity bot (Telegram)
