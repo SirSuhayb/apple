@@ -46,23 +46,29 @@ const HOLD_IDS = ["hold_1m", "hold_10m", "hold_25m"] as const;
 const BURN_IDS = ["burn_1m", "burn_10m", "burn_25m"] as const;
 
 /**
- * Titles from existing eater + optional live hold balance.
- * No contracts — referrals stay coming_soon.
+ * Titles from existing eater + optional live hold balance + referral payouts.
  *
  * Hold balance:
  * - `number` — known wallet balance
  * - `undefined` — own profile, still loading (show locked)
  * - `null` — public profile / no read (unavailable)
+ *
+ * Referral count (successful on-chain payouts as referrer):
+ * - `number` — known
+ * - `undefined` — own profile, still loading (show locked)
+ * - `null` — public / unavailable
  */
 export function resolveProfileTitles(opts: {
   eater?: Eater | null;
   holdBalance?: number | null;
+  referralPayouts?: number | null;
 }): ProfileTitle[] {
   const e = opts.eater;
   const burned = e?.burned ?? 0;
   const tapCount = e?.tapCount ?? 0;
   const buyCount = e?.buyCount ?? 0;
   const hold = opts.holdBalance;
+  const referralPayouts = opts.referralPayouts;
 
   const titles: ProfileTitle[] = [
     {
@@ -115,7 +121,25 @@ export function resolveProfileTitles(opts: {
     });
   }
 
-  titles.push({ id: "referrals", status: "coming_soon" });
+  if (referralPayouts === null) {
+    titles.push({
+      id: "referrals",
+      status: "unavailable",
+      progress: null,
+    });
+  } else if (referralPayouts === undefined) {
+    titles.push({
+      id: "referrals",
+      status: "locked",
+      progress: null,
+    });
+  } else {
+    titles.push({
+      id: "referrals",
+      status: referralPayouts >= 1 ? "unlocked" : "locked",
+      progress: referralPayouts,
+    });
+  }
 
   return titles;
 }

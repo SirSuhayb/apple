@@ -33,7 +33,10 @@ import {
   fmtScore,
   youSurfaceClass,
 } from "./LeaderboardRow";
-import { ProfileReferrals } from "./ProfileReferrals";
+import {
+  ProfileReferrals,
+  useReferralPayoutCount,
+} from "./ProfileReferrals";
 import { ProfileTitles } from "./ProfileTitles";
 import { ShareActions } from "./ShareActions";
 import { SiteFooter } from "./SiteFooter";
@@ -227,13 +230,21 @@ function ProfileBody({
       ? undefined
       : (holdBalance ?? 0);
 
+  const { count: referralPayoutsRaw } = useReferralPayoutCount(
+    isOwn ? address : undefined,
+  );
+  const titlesReferrals: number | null | undefined = !isOwn
+    ? null
+    : referralPayoutsRaw;
+
   const titles = useMemo(
     () =>
       resolveProfileTitles({
         eater,
         holdBalance: titlesHold,
+        referralPayouts: titlesReferrals,
       }),
-    [eater, titlesHold],
+    [eater, titlesHold, titlesReferrals],
   );
 
   const unlockedIds = useMemo(

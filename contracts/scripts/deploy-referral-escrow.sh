@@ -13,7 +13,7 @@ fi
 
 : "${RPC_URL:=https://rpc.mainnet.chain.robinhood.com}"
 : "${BITE_TOKEN:=0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9}"
-: "${REWARD_PER_REFERRAL:=100000000000000000000}"
+: "${REWARD_PER_REFERRAL:=1000000000000000000000}"
 
 if [[ -z "${PRIVATE_KEY:-}" ]]; then
   echo "Missing PRIVATE_KEY in contracts/.env — cannot broadcast."

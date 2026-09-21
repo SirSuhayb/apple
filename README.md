@@ -30,9 +30,20 @@ Eydeet CC-BY frames live in `public/apple/frames/0.glb`…`9.glb` (UI frame *i* 
 
 `AppleKitchen` lives in `contracts/src/AppleKitchen.sol` — `bite`, `digest` (50/50), `revealCore` (swarm minus deployer), `revealRot` (pot to deployer). Deploy **after** mint; see [scripts/POINT_FEES.md](scripts/POINT_FEES.md).
 
-`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` is attribution only.
+`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` → wallet `bind(referrer)`; orchard bot attests buy+burn then `qualify`.
 
-Live proxy (Robinhood 4663): `0xc127327419D78C8546230463F8b421Bb66212660` — `rewardPerReferral` = 100 BITE. Deploy: `cd contracts && ./scripts/deploy-referral-escrow.sh` (needs `PRIVATE_KEY`; `forge install` for OZ upgradeable).
+Live proxy (Robinhood 4663): `0xc127327419D78C8546230463F8b421Bb66212660` — `rewardPerReferral` = **1000 BITE** (~1k referrals from a 1M pool; owner can `setRewardPerReferral` later). Deploy: `cd contracts && ./scripts/deploy-referral-escrow.sh` (needs `PRIVATE_KEY`; `forge install` for OZ upgradeable).
+
+**Vercel:** `NEXT_PUBLIC_REFERRAL_ESCROW=0xc127327419D78C8546230463F8b421Bb66212660` (also defaulted in `src/lib/config.ts`).
+
+**Railway (attester — never commit keys):**
+
+```bash
+REFERRAL_ESCROW=0xc127327419D78C8546230463F8b421Bb66212660
+REFERRAL_ATTESTER_KEY=0x…   # must match on-chain attester(); or reuse PRIVATE_KEY
+REFERRAL_AUTO_QUALIFY=1
+# Manual: python -m bots --qualify 0xReferee…
+```
 
 ```bash
 cd contracts
@@ -52,13 +63,14 @@ forge script script/DeployKitchen.s.sol:DeployKitchen --rpc-url https://rpc.main
 
 ## Activity bot (Telegram)
 
-Onchain watcher that posts to Telegram (Twitter optional). Buy/trade CTAs point at [bite.party/#swap](https://www.bite.party/#swap) (native swap); Pons is fallback-only. See [docs/bite-bot.md](docs/bite-bot.md).
+Onchain watcher that posts to Telegram (Twitter optional). Buy/trade CTAs point at [bite.party/#swap](https://www.bite.party/#swap) (native swap); Pons is fallback-only. After in-app buy (kitchen fee skim) + kitchen bite for a bound referee, the bot calls `ReferralEscrow.qualify` when `REFERRAL_ATTESTER_KEY` / `PRIVATE_KEY` is set.
 
 ```bash
 pip install -r bots/requirements.txt
-cp bots/.env.example bots/.env   # add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+cp bots/.env.example bots/.env   # add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (+ attester key)
 python -m bots --smoke           # RPC + contract check
 python -m bots --test            # live Telegram test
+python -m bots --qualify 0x…     # manual referral attest
 python -m bots --daemon          # always-on
 ```
 

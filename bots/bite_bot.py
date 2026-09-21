@@ -16,6 +16,7 @@ Run from repo root:
   python -m bots --test
   python -m bots --commands-test
   python -m bots --admin-report
+  python -m bots --qualify 0xReferee…
   python -m bots --daemon
   python -m bots
 """
@@ -63,6 +64,7 @@ try:
 except ImportError:
     pass
 
+from bots.referral_escrow import maybe_qualify_referees, send_qualify
 # ── Config ──
 
 RPC_URL = os.getenv("RPC_URL", "https://rpc.mainnet.chain.robinhood.com")
@@ -4297,6 +4299,24 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
             if wager_hits:
                 print(f"[wager] poll +{wager_hits} BetPlaced")
 
+    # ReferralEscrow: in-app buy (kitchen fee skim) + kitchen burn → attester qualify
+    if transfer_filter and KITCHEN_CONTRACT and not is_catch_up:
+        try:
+            protocol = _protocol_hold_addrs() | set(_DEFAULT_PROTOCOL_ADDRS)
+            contracts = {a.lower() for a in (state.get("contract_addrs") or [])}
+            state = maybe_qualify_referees(
+                state,
+                w3,
+                transfer_filter,
+                kitchen=KITCHEN_CONTRACT,
+                protocol_addrs=protocol,
+                contract_addrs=contracts,
+                dev_wallets=DEV_WALLETS,
+                dry_run=dry_run,
+            )
+        except Exception as e:
+            print(f"[referral] qualify pass error: {e}")
+
     for event in transfer_filter:
         from_addr = event.args["from"]
         to_addr = event.args["to"]
@@ -4939,7 +4959,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--smoke",
         action="store_true",
-        help="Connect RPC, load contract, print burn %, exit (no posts)",
+        help="Connect RPC, load contract, print burn %%, exit (no posts)",
     )
     parser.add_argument(
         "--commands-test",
@@ -4950,6 +4970,11 @@ def main(argv: list[str] | None = None) -> int:
         "--admin-report",
         action="store_true",
         help="Send one kitchen+swap stats DM to TELEGRAM_ADMIN_CHAT_ID and exit",
+    )
+    parser.add_argument(
+        "--qualify",
+        metavar="REFEREE",
+        help="Manually attest ReferralEscrow.qualify(referee) with attester key and exit",
     )
     args = parser.parse_args(argv)
 
@@ -5025,6 +5050,21 @@ def main(argv: list[str] | None = None) -> int:
             state, w3, contract, tg_token, dry_run=args.dry_run, force=True
         )
         return 0
+
+    if args.qualify:
+        raw = (args.qualify or "").strip()
+        if not ADDR_RE.match(raw):
+            print("Usage: python -m bots --qualify 0xRefereeAddress")
+            return 1
+        if not w3:
+            print("Cannot --qualify without RPC / web3.")
+            return 1
+        result = send_qualify(w3, raw, dry_run=args.dry_run)
+        if result.get("ok"):
+            print(f"[referral] qualify ok: {result}")
+            return 0
+        print(f"[referral] qualify failed: {result}")
+        return 1
 
     ensure_dev_wallets(state)
 

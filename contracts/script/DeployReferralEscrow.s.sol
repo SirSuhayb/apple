@@ -15,7 +15,7 @@ contract DeployReferralEscrow is Script {
 
     function run() external {
         address token = vm.envOr("BITE_TOKEN", DEFAULT_BITE);
-        uint256 reward = vm.envOr("REWARD_PER_REFERRAL", uint256(100 ether));
+        uint256 reward = vm.envOr("REWARD_PER_REFERRAL", uint256(1000 ether));
         address owner_ = vm.envAddress("OWNER");
         address attester = vm.envAddress("ATTESTER");
 
