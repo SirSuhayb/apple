@@ -31,6 +31,7 @@ import { useLeaderboardLive } from "@/lib/use-leaderboard";
 import { resolveAppleTotal, weiToTokens } from "@/lib/leaderboard-rank";
 import { EatersBoard } from "./EatersBoard";
 import { AppleConditionBanner } from "./AppleConditionBanner";
+import { ReferralChecklistBanner } from "./ReferralChecklistBanner";
 import {
   MetaWagerEmpty,
   MetaWagerInfo,
@@ -615,6 +616,14 @@ export function RaceApp({
         earlyEaterActive={flags.earlyEaterActive}
         earlyEaterSecondsLeft={flags.earlyEaterSecondsLeft}
         urgencyBanner={flags.urgencyBanner}
+      />
+
+      <ReferralChecklistBanner
+        eaters={boardEaters}
+        onBuy={openBuy}
+        onBite={openBite}
+        tradingOpen={flags.tradingOpen}
+        burnsOpen={flags.burnsOpen && !raceEnded}
       />
 
       {/* Hero */}

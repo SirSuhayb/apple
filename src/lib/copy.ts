@@ -462,6 +462,23 @@ export const copy = {
     },
   },
 
+  /** Thin home banner for referees arriving via ?ref= / bound invite. */
+  referralChecklist: {
+    headline: "Someone sent you into the grove.",
+    body: "Buy and burn here to count — then they earn their Windfall.",
+    connect: "Connect wallet",
+    connecting: "Connecting…",
+    buy: "Buy $BITE on bite.party",
+    buyCta: "Trade",
+    burn: "Burn via the kitchen",
+    burnCta: "Bite",
+    bindHint: "Confirm bind in your wallet to lock in who invited you.",
+    bindCta: "Bind referrer",
+    binding: "Confirm bind…",
+    doneBuy: "Bought",
+    doneBurn: "Burned",
+  },
+
   invite: {
     eyebrow: "$BITE",
     title: "Take a bite with me.",
