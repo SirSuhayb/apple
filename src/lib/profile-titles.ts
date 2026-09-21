@@ -31,6 +31,17 @@ export function isTitleId(value: string | null | undefined): value is TitleId {
   return (TITLE_IDS as readonly string[]).includes(value);
 }
 
+/**
+ * Title ids with art at `public/titles/{id}.png`.
+ * Drop a PNG named after the title id, then add the id here.
+ */
+export const TITLE_ART_IDS = new Set<TitleId>(["first_burn", "first_buy"]);
+
+/** Public path for title pill art, or null when no asset yet. */
+export function titleArtSrc(id: TitleId): string | null {
+  return TITLE_ART_IDS.has(id) ? `/titles/${id}.png` : null;
+}
+
 export type TitleStatus = "unlocked" | "locked" | "unavailable" | "coming_soon";
 
 export type ProfileTitle = {

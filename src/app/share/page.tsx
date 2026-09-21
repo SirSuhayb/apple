@@ -5,7 +5,7 @@ import { SHARE_OG_IMAGE, SITE_URL } from "@/lib/config";
 import { fetchAct1Leaderboard } from "@/lib/act1-leaderboard";
 import { fetchRaceState } from "@/lib/fetch-race";
 import { sortLeaderboard, weiToTokens } from "@/lib/leaderboard-rank";
-import { isTitleId, type TitleId } from "@/lib/profile-titles";
+import { isTitleId, titleArtSrc, type TitleId } from "@/lib/profile-titles";
 import { SharePlayerCard } from "@/components/SharePlayerCard";
 import { isAddress } from "viem";
 
@@ -121,7 +121,7 @@ export default async function SharePage({
         alt="$BITE — Eat it to the core."
         className="h-auto w-full max-w-[420px] rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
       />
-      {name ? (
+      {titleId && !titleArtSrc(titleId) && name ? (
         <p className="mt-8 text-[13px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
           {name}
         </p>
@@ -130,6 +130,7 @@ export default async function SharePage({
         you={you}
         queryRank={rank}
         queryBurn={burn}
+        titleId={titleId}
         initialEaters={eaters}
         initialCoreTarget={weiToTokens(state.coreTarget)}
         initialSupplyStats={act1.supplyStats ?? undefined}

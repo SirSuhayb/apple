@@ -9,13 +9,16 @@ import {
   lookupConnectedRank,
   resolveAppleTotal,
 } from "@/lib/leaderboard-rank";
+import type { TitleId } from "@/lib/profile-titles";
 import { useLeaderboardLive } from "@/lib/use-leaderboard";
 import { EaterIdentity, EaterStats, fmtScore } from "./LeaderboardRow";
+import { TitleBadge } from "./TitleBadge";
 
 export function SharePlayerCard({
   you,
   queryRank,
   queryBurn,
+  titleId,
   initialEaters = [],
   initialCoreTarget = 0,
   initialSupplyStats,
@@ -23,6 +26,7 @@ export function SharePlayerCard({
   you?: string;
   queryRank?: number;
   queryBurn?: number;
+  titleId?: TitleId;
   initialEaters?: Eater[];
   initialCoreTarget?: number;
   initialSupplyStats?: SupplyStats;
@@ -33,6 +37,7 @@ export function SharePlayerCard({
       you={you}
       queryRank={queryRank}
       queryBurn={queryBurn}
+      titleId={titleId}
       initialEaters={initialEaters}
       initialCoreTarget={initialCoreTarget}
       initialSupplyStats={initialSupplyStats}
@@ -44,6 +49,7 @@ function LiveShareCard({
   you,
   queryRank,
   queryBurn,
+  titleId,
   initialEaters,
   initialCoreTarget,
   initialSupplyStats,
@@ -51,6 +57,7 @@ function LiveShareCard({
   you?: string;
   queryRank?: number;
   queryBurn?: number;
+  titleId?: TitleId;
   initialEaters: Eater[];
   initialCoreTarget: number;
   initialSupplyStats?: SupplyStats;
@@ -83,6 +90,7 @@ function LiveShareCard({
         eater={eater}
         appleTotal={appleTotal}
         burn={eater ? undefined : queryBurn}
+        titleId={titleId}
         className={eatenPct ? "mt-5" : "mt-8"}
       />
     </>
@@ -95,6 +103,7 @@ function ShareRow({
   eater,
   appleTotal = 0,
   burn,
+  titleId,
   className = "mt-8",
 }: {
   address?: string;
@@ -102,6 +111,7 @@ function ShareRow({
   eater?: Eater;
   appleTotal?: number;
   burn?: number;
+  titleId?: TitleId;
   className?: string;
 }) {
   return (
@@ -130,6 +140,11 @@ function ShareRow({
             <p className="mt-0.5 text-[11px] leading-snug text-[#6e6e73]">
               {copy.leaderboard.burnedAmount(formatCompactAmount(burn))}
             </p>
+          ) : null}
+          {titleId ? (
+            <div className="mt-2">
+              <TitleBadge titleId={titleId} size="sm" />
+            </div>
           ) : null}
         </div>
         {eater ? (

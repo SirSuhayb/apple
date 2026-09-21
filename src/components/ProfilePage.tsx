@@ -40,6 +40,7 @@ import {
 import { ProfileTitles } from "./ProfileTitles";
 import { ShareActions } from "./ShareActions";
 import { SiteFooter } from "./SiteFooter";
+import { TitleBadge } from "./TitleBadge";
 
 const CONNECTOR_LABELS: Record<string, string> = {
   injected: "Browser Wallet",
@@ -320,10 +321,10 @@ function ProfileBody({
                 {copy.profile.notOnBoardHint}
               </p>
             )}
-            {titleName ? (
-              <p className="mt-2 text-[13px] font-medium text-[#1d1d1f]">
-                {titleName}
-              </p>
+            {picked ? (
+              <div className="mt-2.5">
+                <TitleBadge titleId={picked} size="md" />
+              </div>
             ) : null}
           </div>
           <div className="shrink-0 text-right">
