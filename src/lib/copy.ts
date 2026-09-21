@@ -358,18 +358,11 @@ export const copy = {
       "I just burned $BITE and climbed the leaderboard. the game is simple — burn more, rank higher, earn more when the pot pays out.",
     rank: (_rank: number) =>
       "i just took a $bite of the apple to earn a piece of the pie.",
-    /** Share line when an unlocked title is selected. */
-    withTitle: (titleName: string, rank?: number) =>
-      rank
-        ? `i'm #${rank} · titled ${titleName}. took a $bite of the apple.`
-        : `titled ${titleName} on $BITE. took a bite of the apple.`,
     ogBurnTitle: (amount: string, rank?: number) =>
       rank
         ? `I just burned ${amount} $BITE · #${rank}`
         : `I just burned ${amount} $BITE`,
     ogRankTitle: (rank: number) => `I'm #${rank} on $BITE`,
-    ogWithTitle: (titleName: string, rank?: number) =>
-      rank ? `${titleName} · #${rank} on $BITE` : `${titleName} · $BITE`,
   },
 
   profile: {

@@ -268,12 +268,9 @@ function ProfileBody({
       : null;
 
   const shareRank = rank ?? undefined;
-  const titleName = picked ? copy.profile.titles[picked].name : null;
-  const shareText = titleName
-    ? copy.share.withTitle(titleName, shareRank)
-    : shareRank
-      ? copy.share.rank(shareRank)
-      : copy.share.fallback;
+  const shareText = shareRank
+    ? copy.share.rank(shareRank)
+    : copy.share.fallback;
 
   return (
     <>
