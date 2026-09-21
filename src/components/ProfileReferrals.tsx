@@ -32,7 +32,6 @@ export function ProfileReferrals({ address }: { address: string }) {
   const publicClient = usePublicClient({ chainId: robinhoodChain.id });
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
-  const [canNativeShare, setCanNativeShare] = useState(false);
   const [localBound, setLocalBound] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [paidCount, setPaidCount] = useState<number | null>(null);
@@ -45,7 +44,6 @@ export function ProfileReferrals({ address }: { address: string }) {
     setLink(referralInviteUrl(address, window.location.origin));
     setLocalBound(readBoundReferral(address));
     setPending(readPendingReferral());
-    setCanNativeShare(typeof navigator.share === "function");
   }, [address]);
 
   const { data, refetch } = useReadContracts({
@@ -170,14 +168,26 @@ export function ProfileReferrals({ address }: { address: string }) {
   };
 
   const onShare = async () => {
-    if (!link || !canNativeShare) return;
+    if (!link) return;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          text: copy.profile.referrals.shareText,
+          url: link,
+        });
+        return;
+      } catch (err) {
+        // User dismissed the sheet — don't fall through to clipboard.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
+    }
+    // Desktop / browsers without Web Share: copy invite URL.
     try {
-      await navigator.share({
-        text: copy.profile.referrals.shareText,
-        url: link,
-      });
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
     } catch {
-      // user cancelled
+      setCopied(false);
     }
   };
 
@@ -243,21 +253,21 @@ export function ProfileReferrals({ address }: { address: string }) {
           <button
             type="button"
             onClick={() => void onCopy()}
-            className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
+            disabled={!link}
+            className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7] disabled:opacity-50"
           >
             {copied
               ? copy.profile.referrals.copied
               : copy.profile.referrals.copyLink}
           </button>
-          {canNativeShare && link ? (
-            <button
-              type="button"
-              onClick={() => void onShare()}
-              className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
-            >
-              {copy.share.share}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => void onShare()}
+            disabled={!link}
+            className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7] disabled:opacity-50"
+          >
+            {copy.share.share}
+          </button>
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2.5">
