@@ -450,6 +450,8 @@ export const copy = {
       linkLabel: "Your link",
       copyLink: "Copy link",
       copied: "Copied.",
+      shareText:
+        "Take a bite with me and share a pot of apple stock!",
       countLabel: "Paid referrals",
       earningsLabel: "Earnings",
       rewardLabel: "Payout",
@@ -465,6 +467,15 @@ export const copy = {
       selfBlocked: "You can’t refer yourself.",
       escrowOffline: "Referral escrow is unavailable right now.",
     },
+  },
+
+  invite: {
+    eyebrow: "$BITE",
+    title: "Take a bite with me.",
+    description:
+      "Take a bite with me and share a pot of apple stock!",
+    cta: "Take a bite",
+    home: "Return to bite.party",
   },
 
   finePrint: {

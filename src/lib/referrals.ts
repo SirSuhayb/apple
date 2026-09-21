@@ -48,6 +48,17 @@ export function referralHomeUrl(
   return url.toString();
 }
 
+/** Shareable invite page with OG unfurl — preserves `?ref=` for attribution. */
+export function referralInviteUrl(
+  address: string,
+  origin?: string | null,
+): string {
+  const base = (origin ?? SITE_URL).replace(/\/$/, "");
+  const url = new URL("/invite", `${base}/`);
+  url.searchParams.set("ref", address);
+  return url.toString();
+}
+
 /** Capture `?ref=` into pending localStorage until a wallet connects. */
 export function capturePendingReferral(
   raw: string | null | undefined,

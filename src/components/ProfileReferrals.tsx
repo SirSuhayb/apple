@@ -24,8 +24,9 @@ import {
   markBoundReferral,
   readBoundReferral,
   readPendingReferral,
-  referralHomeUrl,
+  referralInviteUrl,
 } from "@/lib/referrals";
+import { ShareActions } from "./ShareActions";
 
 export function ProfileReferrals({ address }: { address: string }) {
   const { address: connected, isConnected } = useAccount();
@@ -41,7 +42,7 @@ export function ProfileReferrals({ address }: { address: string }) {
     Boolean(isConnected && connected && sameWallet(connected, address));
 
   useEffect(() => {
-    setLink(referralHomeUrl(address, window.location.origin));
+    setLink(referralInviteUrl(address, window.location.origin));
     setLocalBound(readBoundReferral(address));
     setPending(readPendingReferral());
   }, [address]);
@@ -228,12 +229,19 @@ export function ProfileReferrals({ address }: { address: string }) {
         <button
           type="button"
           onClick={() => void onCopy()}
-          className="mt-3 rounded-full bg-[#1d1d1f] px-4 py-2 text-[13px] font-semibold text-white hover:bg-black"
+          className="mt-3 rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
         >
           {copied
             ? copy.profile.referrals.copied
             : copy.profile.referrals.copyLink}
         </button>
+        {link ? (
+          <ShareActions
+            className="mt-3"
+            text={copy.profile.referrals.shareText}
+            url={link}
+          />
+        ) : null}
 
         <div className="mt-5 grid grid-cols-3 gap-2.5">
           <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">

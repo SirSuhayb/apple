@@ -232,6 +232,9 @@ export const SITE_URL =
 /** Static apple-themed card until per-player OG images exist. */
 export const SHARE_OG_IMAGE = "/social_media/biteTaken.png";
 
+/** Invite / referral unfurl card (iMessage, X, Telegram). */
+export const INVITE_OG_IMAGE = "/og_invite_image.png";
+
 /** @deprecated Prefer `copy` from `@/lib/copy` */
 export const siteConfig = {
   name: "$BITE",
