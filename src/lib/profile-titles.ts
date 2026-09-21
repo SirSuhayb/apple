@@ -32,14 +32,29 @@ export function isTitleId(value: string | null | undefined): value is TitleId {
 }
 
 /**
- * Title ids with art at `public/titles/{id}.png`.
- * Drop a PNG named after the title id, then add the id here.
+ * Title art filenames under `public/titles/` (SVG).
+ * Keys are TitleIds; values are basename without extension.
  */
-export const TITLE_ART_IDS = new Set<TitleId>(["first_burn", "first_buy"]);
+export const TITLE_ART_FILES: Record<TitleId, string> = {
+  first_burn: "firstbite",
+  first_buy: "freshpick",
+  hold_1m: "bushel",
+  hold_10m: "ladenbough",
+  hold_25m: "rootstock",
+  burn_1m: "pasttheskin",
+  burn_10m: "corebound",
+  burn_25m: "tothecore",
+  referrals: "windfall",
+};
+
+export const TITLE_ART_IDS = new Set<TitleId>(
+  Object.keys(TITLE_ART_FILES) as TitleId[],
+);
 
 /** Public path for title pill art, or null when no asset yet. */
 export function titleArtSrc(id: TitleId): string | null {
-  return TITLE_ART_IDS.has(id) ? `/titles/${id}.png` : null;
+  const file = TITLE_ART_FILES[id];
+  return file ? `/titles/${file}.svg` : null;
 }
 
 export type TitleStatus = "unlocked" | "locked" | "unavailable" | "coming_soon";
