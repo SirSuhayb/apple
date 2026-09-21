@@ -26,13 +26,13 @@ import {
   readPendingReferral,
   referralInviteUrl,
 } from "@/lib/referrals";
-import { ShareActions } from "./ShareActions";
 
 export function ProfileReferrals({ address }: { address: string }) {
   const { address: connected, isConnected } = useAccount();
   const publicClient = usePublicClient({ chainId: robinhoodChain.id });
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [canNativeShare, setCanNativeShare] = useState(false);
   const [localBound, setLocalBound] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [paidCount, setPaidCount] = useState<number | null>(null);
@@ -45,6 +45,7 @@ export function ProfileReferrals({ address }: { address: string }) {
     setLink(referralInviteUrl(address, window.location.origin));
     setLocalBound(readBoundReferral(address));
     setPending(readPendingReferral());
+    setCanNativeShare(typeof navigator.share === "function");
   }, [address]);
 
   const { data, refetch } = useReadContracts({
@@ -168,6 +169,18 @@ export function ProfileReferrals({ address }: { address: string }) {
     }
   };
 
+  const onShare = async () => {
+    if (!link || !canNativeShare) return;
+    try {
+      await navigator.share({
+        text: copy.profile.referrals.shareText,
+        url: link,
+      });
+    } catch {
+      // user cancelled
+    }
+  };
+
   const onBind = () => {
     if (!referrerToBind || !isOwnWallet) return;
     reset();
@@ -226,22 +239,26 @@ export function ProfileReferrals({ address }: { address: string }) {
         <p className="mt-2 break-all font-mono text-[13px] leading-snug text-[#1d1d1f]">
           {link || "…"}
         </p>
-        <button
-          type="button"
-          onClick={() => void onCopy()}
-          className="mt-3 rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
-        >
-          {copied
-            ? copy.profile.referrals.copied
-            : copy.profile.referrals.copyLink}
-        </button>
-        {link ? (
-          <ShareActions
-            className="mt-3"
-            text={copy.profile.referrals.shareText}
-            url={link}
-          />
-        ) : null}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void onCopy()}
+            className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
+          >
+            {copied
+              ? copy.profile.referrals.copied
+              : copy.profile.referrals.copyLink}
+          </button>
+          {canNativeShare && link ? (
+            <button
+              type="button"
+              onClick={() => void onShare()}
+              className="rounded-full border border-[#d2d2d7] bg-white px-4 py-2 text-[13px] font-semibold text-[#1d1d1f] hover:bg-[#f5f5f7]"
+            >
+              {copy.share.share}
+            </button>
+          ) : null}
+        </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2.5">
           <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">
