@@ -48,8 +48,8 @@ function clampFeeBips(bips: number, remaining: number): number {
   return Math.min(Math.max(0, Math.floor(bips)), remaining, SWAP_KITCHEN_FEE_MAX_BIPS);
 }
 
-/** Server-only `SWAP_OPS_RECIPIENT` wins; else NEXT_PUBLIC / sirsu.eth default. */
-export function swapOpsRecipient(): `0x${string}` {
+/** Server-only `SWAP_OPS_RECIPIENT` wins; else NEXT_PUBLIC ops recipient if set. */
+export function swapOpsRecipient(): `0x${string}` | undefined {
   const server = process.env.SWAP_OPS_RECIPIENT?.trim();
   if (server && ADDRESS_RE.test(server) && isAddress(server)) {
     return server as `0x${string}`;
@@ -65,8 +65,9 @@ export function swapIntegratorFees(): IntegratorFee[] {
   if (kitchenBips > 0) {
     fees.push({ bips: kitchenBips, recipient: SWAP_KITCHEN_FEE_RECIPIENT });
   }
-  if (opsBips > 0) {
-    fees.push({ bips: opsBips, recipient: swapOpsRecipient() });
+  const opsRecipient = swapOpsRecipient();
+  if (opsBips > 0 && opsRecipient) {
+    fees.push({ bips: opsBips, recipient: opsRecipient });
   }
   return fees;
 }

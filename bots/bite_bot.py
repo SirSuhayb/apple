@@ -66,10 +66,7 @@ except ImportError:
 # ── Config ──
 
 RPC_URL = os.getenv("RPC_URL", "https://rpc.mainnet.chain.robinhood.com")
-BITE_CONTRACT = os.getenv(
-    "BITE_CONTRACT",
-    "0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9",
-)
+BITE_CONTRACT = os.getenv("BITE_CONTRACT", "").strip()
 DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD"
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 PHASE = int(os.getenv("PHASE", "1"))
@@ -80,27 +77,15 @@ SITE_URL = os.getenv("SITE_URL", "https://www.bite.party")
 # Primary buy CTA → native swap on bite.party (#swap opens SwapModal).
 BUY_URL = os.getenv("BUY_URL", f"{SITE_URL.rstrip('/')}/#swap")
 # Secondary fallback only (explicitly labeled as pons when shown).
-PONS_BUY_URL = os.getenv(
-    "PONS_BUY_URL",
-    "https://www.ponsfamily.com/launchpad/0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9",
-)
+PONS_BUY_URL = os.getenv("PONS_BUY_URL", "").strip()
 CHAIN_ID = int(os.getenv("CHAIN_ID", "4663"))
-KITCHEN_CONTRACT = os.getenv(
-    "KITCHEN_CONTRACT",
-    "0x56fEb999D829761C787581413605bf88F5Cd81e0",
-)
-META_WAGER_CONTRACT = os.getenv(
-    "META_WAGER_CONTRACT",
-    "0x73bc28aaDaf3B1BCdeD9dE456149d54aebCdC878",
-)
+KITCHEN_CONTRACT = os.getenv("KITCHEN_CONTRACT", "").strip()
+META_WAGER_CONTRACT = os.getenv("META_WAGER_CONTRACT", "").strip()
 AAPL_TOKEN = os.getenv(
     "AAPL_TOKEN",
     "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
 )
-PONS_FEE_ESCROW = os.getenv(
-    "PONS_FEE_ESCROW",
-    "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
-)
+PONS_FEE_ESCROW = os.getenv("PONS_FEE_ESCROW", "").strip()
 UNISWAP_POSITION_MANAGER = os.getenv(
     "UNISWAP_POSITION_MANAGER",
     "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
@@ -267,16 +252,15 @@ BLOCKSCOUT_API_BASE = os.getenv(
     "BLOCKSCOUT_API_BASE",
     f"https://api.blockscout.com/{CHAIN_ID}/api/v2",
 ).rstrip("/")
-DEXSCREENER_PAIR_ID = os.getenv(
-    "DEXSCREENER_PAIR_ID",
-    "0x76d38162a8ef7da08c92777299fbbfe02748eea05e7cd125131a537b3f08f15c",
-)
+DEXSCREENER_PAIR_ID = os.getenv("DEXSCREENER_PAIR_ID", "").strip()
 DEXSCREENER_PAIR_URL = os.getenv(
     "DEXSCREENER_PAIR_URL",
-    f"https://dexscreener.com/robinhood/{DEXSCREENER_PAIR_ID}",
+    f"https://dexscreener.com/robinhood/{DEXSCREENER_PAIR_ID}" if DEXSCREENER_PAIR_ID else "",
 )
 DEXSCREENER_API_URL = (
     f"https://api.dexscreener.com/latest/dex/pairs/robinhood/{DEXSCREENER_PAIR_ID}"
+    if DEXSCREENER_PAIR_ID
+    else ""
 )
 EXPLORER_TOKEN_URL = f"https://robin.etherscan.io/address/{BITE_CONTRACT}"
 EXPLORER_TX_BASE = "https://robin.etherscan.io/tx/"
@@ -287,7 +271,8 @@ CA_IMAGE = "https://www.bite.party/og_image.png"
 
 # Creator / team wallets: visible on the board, scored, but ineligible to win.
 # (Blockscout may flag the deployer as a contract — still keep it on the board.)
-_DEFAULT_DEV_WALLETS = ("0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E",)
+# Set via DEV_WALLETS env (comma-separated). No hardcoded production EOAs.
+_DEFAULT_DEV_WALLETS: tuple[str, ...] = ()
 
 # Trade index: EOA buys + sells + burns (kitchen/dead/zero). Bump to force recount.
 # v4: EIP-7702 delegated EOAs (0xef0100||address) are wallets, not contracts.

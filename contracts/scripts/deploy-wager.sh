@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy MetaWager to Robinhood Chain (4663).
-# Requires contracts/.env with PRIVATE_KEY (never commit).
+# Requires contracts/.env with PRIVATE_KEY + BITE_TOKEN + KITCHEN_CONTRACT (never commit).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,10 +12,6 @@ if [[ -f .env ]]; then
 fi
 
 : "${RPC_URL:=https://rpc.mainnet.chain.robinhood.com}"
-: "${BITE_TOKEN:=0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9}"
-: "${KITCHEN_CONTRACT:=0x56fEb999D829761C787581413605bf88F5Cd81e0}"
-: "${DEPLOYER:=0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E}"
-: "${OWNER:=$DEPLOYER}"
 : "${WAGER_FEE_BPS:=1000}"
 
 if [[ -z "${PRIVATE_KEY:-}" ]]; then
@@ -23,6 +19,15 @@ if [[ -z "${PRIVATE_KEY:-}" ]]; then
   echo "Add the deployer key, then re-run: ./scripts/deploy-wager.sh"
   exit 1
 fi
+
+if [[ -z "${BITE_TOKEN:-}" || -z "${KITCHEN_CONTRACT:-}" ]]; then
+  echo "Missing BITE_TOKEN and/or KITCHEN_CONTRACT in contracts/.env."
+  exit 1
+fi
+
+DEPLOYER_FROM_KEY="$(cast wallet address --private-key "$PRIVATE_KEY")"
+: "${DEPLOYER:=$DEPLOYER_FROM_KEY}"
+: "${OWNER:=$DEPLOYER}"
 
 export RPC_URL BITE_TOKEN KITCHEN_CONTRACT DEPLOYER OWNER WAGER_FEE_BPS
 

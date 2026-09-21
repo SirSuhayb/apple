@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy AppleKitchen to Robinhood Chain (4663).
-# Requires contracts/.env with PRIVATE_KEY (never commit).
+# Requires contracts/.env with PRIVATE_KEY + BITE_TOKEN (never commit).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -12,10 +12,7 @@ if [[ -f .env ]]; then
 fi
 
 : "${RPC_URL:=https://rpc.mainnet.chain.robinhood.com}"
-: "${BITE_TOKEN:=0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9}"
 : "${AAPL_TOKEN:=0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9}"
-: "${DEPLOYER:=0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E}"
-: "${OWNER:=$DEPLOYER}"
 : "${CORE_TARGET:=500000000000000000000000000}"
 : "${MIN_HOLD:=1000000000000000000}"
 : "${MIN_CONSUMPTION:=1}"
@@ -25,6 +22,15 @@ if [[ -z "${PRIVATE_KEY:-}" ]]; then
   echo "Add the deployer key, then re-run: ./scripts/deploy-kitchen.sh"
   exit 1
 fi
+
+if [[ -z "${BITE_TOKEN:-}" ]]; then
+  echo "Missing BITE_TOKEN in contracts/.env — set your token address."
+  exit 1
+fi
+
+DEPLOYER_FROM_KEY="$(cast wallet address --private-key "$PRIVATE_KEY")"
+: "${DEPLOYER:=$DEPLOYER_FROM_KEY}"
+: "${OWNER:=$DEPLOYER}"
 
 if [[ -z "${DEADLINE:-}" ]]; then
   DEADLINE=$(($(date +%s) + 30 * 24 * 60 * 60))

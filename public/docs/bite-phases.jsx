@@ -132,7 +132,7 @@ function HowCard({ icon, title, body, locked }) {
 /* ── Bento leaderboard ── */
 var EATERS_FULL = [
   { rank: 1, name: "0xorchard.eth", burned: "142,800", buys: 34, sells: 8 },
-  { rank: 2, name: "sirsu.eth", burned: "98,400", buys: 22, sells: 5 },
+  { rank: 2, name: "0xfarmer.eth", burned: "98,400", buys: 22, sells: 5 },
   { rank: 3, name: "coreeater.eth", burned: "76,200", buys: 18, sells: 12 },
   { rank: 4, name: "0xseed.eth", burned: "41,000", buys: 9, sells: 3 },
   { rank: 5, name: "applepie.eth", burned: "28,600", buys: 14, sells: 6 },

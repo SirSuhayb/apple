@@ -54,10 +54,10 @@ export const BITE_POOL = parseAddress(process.env.NEXT_PUBLIC_BITE_POOL);
 export const APPLE_KITCHEN = (parseAddress(process.env.NEXT_PUBLIC_APPLE_KITCHEN) ??
   "0x56fEb999D829761C787581413605bf88F5Cd81e0") as Address;
 
-/** Ops/marketing wallet for the swap integrator-fee split. sirsu.eth / Dev. */
-export const SWAP_OPS_RECIPIENT = (parseAddress(
+/** Ops/marketing wallet for the swap integrator-fee split (optional). */
+export const SWAP_OPS_RECIPIENT = parseAddress(
   process.env.NEXT_PUBLIC_SWAP_OPS_RECIPIENT,
-) ?? "0xEB95ff72EAb9e8D8fdb545FE15587AcCF410b42E") as Address;
+);
 
 /** Pons V2 fee escrow (claimable creator fees; display-only, never auto-claimed). */
 export const PONS_FEE_ESCROW = (parseAddress(

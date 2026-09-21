@@ -8,8 +8,7 @@ import { ReferralCapture } from "@/components/ReferralCapture";
 import { robinhoodChain } from "@/lib/chain";
 import { RPC_URL, SITE_URL as CONFIG_SITE_URL } from "@/lib/config";
 
-const WC_PROJECT_ID =
-  process.env.NEXT_PUBLIC_WC_PROJECT_ID || "3e2ec2ff129715b1b1433e2298c40efa";
+const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID?.trim() ?? "";
 
 const SITE_URL =
   typeof window !== "undefined"
@@ -20,16 +19,20 @@ const config = createConfig({
   chains: [robinhoodChain],
   connectors: [
     injected({ shimDisconnect: true }),
-    walletConnect({
-      projectId: WC_PROJECT_ID,
-      metadata: {
-        name: "$BITE",
-        description: "Eat the apple to the core.",
-        url: SITE_URL,
-        icons: [`${SITE_URL}/favicon.png`],
-      },
-      showQrModal: true,
-    }),
+    ...(WC_PROJECT_ID
+      ? [
+          walletConnect({
+            projectId: WC_PROJECT_ID,
+            metadata: {
+              name: "$BITE",
+              description: "Eat the apple to the core.",
+              url: SITE_URL,
+              icons: [`${SITE_URL}/favicon.png`],
+            },
+            showQrModal: true,
+          }),
+        ]
+      : []),
     coinbaseWallet({
       appName: "$BITE",
       appLogoUrl: `${SITE_URL}/favicon.png`,

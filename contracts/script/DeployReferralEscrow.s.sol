@@ -11,10 +11,8 @@ import {ReferralEscrow} from "../src/ReferralEscrow.sol";
 /// Env: BITE_TOKEN, ATTESTER, REWARD_PER_REFERRAL, OWNER (shell sets owner/attester = deployer).
 /// Fund the printed PROXY address — not the implementation.
 contract DeployReferralEscrow is Script {
-    address constant DEFAULT_BITE = 0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9;
-
     function run() external {
-        address token = vm.envOr("BITE_TOKEN", DEFAULT_BITE);
+        address token = vm.envAddress("BITE_TOKEN");
         uint256 reward = vm.envOr("REWARD_PER_REFERRAL", uint256(100 ether));
         address owner_ = vm.envAddress("OWNER");
         address attester = vm.envAddress("ATTESTER");

@@ -12,7 +12,6 @@ if [[ -f .env ]]; then
 fi
 
 : "${RPC_URL:=https://rpc.mainnet.chain.robinhood.com}"
-: "${BITE_TOKEN:=0x0d6e3D5D99a92499f584Ac821a64b237e5cEf3c9}"
 : "${REWARD_PER_REFERRAL:=100000000000000000000}"
 
 if [[ -z "${PRIVATE_KEY:-}" ]]; then
@@ -22,10 +21,14 @@ if [[ -z "${PRIVATE_KEY:-}" ]]; then
   exit 1
 fi
 
+if [[ -z "${BITE_TOKEN:-}" ]]; then
+  echo "Missing BITE_TOKEN in contracts/.env — set your token address."
+  exit 1
+fi
+
 DEPLOYER_ADDR="$(cast wallet address --private-key "$PRIVATE_KEY")"
 # Always owner+attester = signing deployer so UUPS upgrades work with this key.
-# (Ignore contracts/.env OWNER — that is kitchen farmer sirsu.eth, not the deploy EOA.)
-# Rotate later: setAttester(keeper); transferOwnership(sirsu) if desired.
+# Rotate later via setAttester / transferOwnership if desired.
 OWNER="$DEPLOYER_ADDR"
 ATTESTER="$DEPLOYER_ADDR"
 

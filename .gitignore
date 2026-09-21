@@ -51,6 +51,8 @@ yarn-error.log*
 .env.*
 !.env.example
 !**/.env.example
+bots/.env
+contracts/.env
 
 # project docs stay local — only the root README is on GitHub
 *.md
@@ -80,6 +82,8 @@ contracts/out
 contracts/cache
 contracts/broadcast
 contracts/lib
+# Never commit broadcast artifacts (can contain deployer metadata)
+contracts/broadcast/
 
 # Sketchfab raw download (keep baked frames/ in git if desired)
 public/apple/apple_stop_motion_animation.zip
