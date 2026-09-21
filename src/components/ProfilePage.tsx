@@ -33,10 +33,14 @@ import {
   fmtScore,
   youSurfaceClass,
 } from "./LeaderboardRow";
-import { ProfileReferrals } from "./ProfileReferrals";
+import {
+  ProfileReferrals,
+  useReferralPayoutCount,
+} from "./ProfileReferrals";
 import { ProfileTitles } from "./ProfileTitles";
 import { ShareActions } from "./ShareActions";
 import { SiteFooter } from "./SiteFooter";
+import { TitleBadge } from "./TitleBadge";
 
 const CONNECTOR_LABELS: Record<string, string> = {
   injected: "Browser Wallet",
@@ -227,13 +231,21 @@ function ProfileBody({
       ? undefined
       : (holdBalance ?? 0);
 
+  const { count: referralPayoutsRaw } = useReferralPayoutCount(
+    isOwn ? address : undefined,
+  );
+  const titlesReferrals: number | null | undefined = !isOwn
+    ? null
+    : referralPayoutsRaw;
+
   const titles = useMemo(
     () =>
       resolveProfileTitles({
         eater,
         holdBalance: titlesHold,
+        referralPayouts: titlesReferrals,
       }),
-    [eater, titlesHold],
+    [eater, titlesHold, titlesReferrals],
   );
 
   const unlockedIds = useMemo(
@@ -256,12 +268,9 @@ function ProfileBody({
       : null;
 
   const shareRank = rank ?? undefined;
-  const titleName = picked ? copy.profile.titles[picked].name : null;
-  const shareText = titleName
-    ? copy.share.withTitle(titleName, shareRank)
-    : shareRank
-      ? copy.share.rank(shareRank)
-      : copy.share.fallback;
+  const shareText = shareRank
+    ? copy.share.rank(shareRank)
+    : copy.share.fallback;
 
   return (
     <>
@@ -309,10 +318,10 @@ function ProfileBody({
                 {copy.profile.notOnBoardHint}
               </p>
             )}
-            {titleName ? (
-              <p className="mt-2 text-[13px] font-medium text-[#1d1d1f]">
-                {titleName}
-              </p>
+            {picked ? (
+              <div className="mt-2.5">
+                <TitleBadge titleId={picked} size="md" />
+              </div>
             ) : null}
           </div>
           <div className="shrink-0 text-right">

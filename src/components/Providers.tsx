@@ -15,6 +15,12 @@ const SITE_URL =
     ? window.location.origin
     : CONFIG_SITE_URL.replace(/\/$/, "");
 
+if (!WC_PROJECT_ID && typeof window !== "undefined") {
+  console.warn(
+    "[Providers] NEXT_PUBLIC_WC_PROJECT_ID is unset — WalletConnect connector skipped.",
+  );
+}
+
 const config = createConfig({
   chains: [robinhoodChain],
   connectors: [

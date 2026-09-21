@@ -70,7 +70,18 @@ Eydeet CC-BY frames live in `public/apple/frames/0.glb`…`9.glb` (UI frame *i* 
 
 `AppleKitchen` lives in `contracts/src/AppleKitchen.sol` — `bite`, `digest` (50/50), `revealCore` (swarm minus deployer), `revealRot` (pot to deployer). Deploy **after** mint.
 
-`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` is attribution only.
+`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` → wallet `bind(referrer)`; orchard bot attests buy+burn then `qualify`. Default reward is **1000 BITE** (owner can `setRewardPerReferral` later).
+
+**Vercel:** set `NEXT_PUBLIC_REFERRAL_ESCROW` to your proxy address after deploy.
+
+**Railway / bot attester (never commit keys):**
+
+```bash
+REFERRAL_ESCROW=0xYourReferralEscrowProxy00000000000000000
+REFERRAL_ATTESTER_KEY=0x…   # must match on-chain attester(); or reuse PRIVATE_KEY
+REFERRAL_AUTO_QUALIFY=1
+# Manual: python -m bots --qualify 0xReferee…
+```
 
 ```bash
 cp contracts/.env.example contracts/.env
@@ -103,14 +114,15 @@ forge script script/DeployKitchen.s.sol:DeployKitchen \
 
 ## Activity bot (Telegram)
 
-Onchain watcher that posts to Telegram (Twitter optional). Buy/trade CTAs point at your site’s native swap; Pons is fallback-only.
+Onchain watcher that posts to Telegram (Twitter optional). Buy/trade CTAs point at your site’s native swap; Pons is fallback-only. After in-app buy (kitchen fee skim) + kitchen bite for a bound referee, the bot calls `ReferralEscrow.qualify` when `REFERRAL_ATTESTER_KEY` / `PRIVATE_KEY` is set.
 
 ```bash
 pip install -r bots/requirements.txt
 cp bots/.env.example bots/.env
-# Add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (and chain/token addresses)
+# Add TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (+ attester key and chain/token addresses)
 python -m bots --smoke           # RPC + contract check
 python -m bots --test            # live Telegram test
+python -m bots --qualify 0x…     # manual referral attest
 python -m bots --daemon          # always-on
 ```
 

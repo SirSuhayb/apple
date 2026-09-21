@@ -89,6 +89,20 @@ export const LEADERBOARD_POLL_MS = 15_000;
 export const META_WAGER = parseAddress(process.env.NEXT_PUBLIC_META_WAGER);
 export const DEPLOYER = parseAddress(process.env.NEXT_PUBLIC_DEPLOYER);
 
+/**
+ * ReferralEscrow UUPS **proxy** (fund this, not the implementation).
+ * Override with NEXT_PUBLIC_REFERRAL_ESCROW if rotated.
+ */
+export const REFERRAL_ESCROW = (parseAddress(
+  process.env.NEXT_PUBLIC_REFERRAL_ESCROW,
+) ?? "0xc127327419D78C8546230463F8b421Bb66212660") as Address;
+
+/** First proxy deploy block on Robinhood 4663 — log scans start here. */
+export const REFERRAL_ESCROW_FROM_BLOCK = 68_894_675n;
+
+/** Display fallback when chain read is loading (live reward is 1000 BITE). */
+export const REFERRAL_REWARD_BITE = 1000;
+
 /** Live pons launchpad for $BITE (path is `/launchpad/:ca` — `/token/:ca` 404s). */
 export const PONS_TOKEN_URL =
   process.env.NEXT_PUBLIC_PONS_TOKEN_URL ??
@@ -217,6 +231,9 @@ export const SITE_URL =
 
 /** Static apple-themed card until per-player OG images exist. */
 export const SHARE_OG_IMAGE = "/social_media/biteTaken.png";
+
+/** Invite / referral unfurl card (iMessage, X, Telegram). */
+export const INVITE_OG_IMAGE = "/og_invite_image.png";
 
 /** @deprecated Prefer `copy` from `@/lib/copy` */
 export const siteConfig = {

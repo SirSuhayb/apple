@@ -17,7 +17,7 @@ contract ReferralEscrowTest is Test {
     address referee;
     address other;
 
-    uint256 constant REWARD = 100 ether;
+    uint256 constant REWARD = 1000 ether;
 
     function setUp() public {
         owner = makeAddr("owner");

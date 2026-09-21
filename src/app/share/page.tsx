@@ -5,7 +5,7 @@ import { SHARE_OG_IMAGE, SITE_URL } from "@/lib/config";
 import { fetchAct1Leaderboard } from "@/lib/act1-leaderboard";
 import { fetchRaceState } from "@/lib/fetch-race";
 import { sortLeaderboard, weiToTokens } from "@/lib/leaderboard-rank";
-import { isTitleId, type TitleId } from "@/lib/profile-titles";
+import { isTitleId, titleArtSrc, type TitleId } from "@/lib/profile-titles";
 import { SharePlayerCard } from "@/components/SharePlayerCard";
 import { isAddress } from "viem";
 
@@ -33,15 +33,9 @@ function parseTitle(raw: string | undefined): TitleId | undefined {
   return raw && isTitleId(raw) ? raw : undefined;
 }
 
-function titleName(id: TitleId | undefined): string | undefined {
-  return id ? copy.profile.titles[id].name : undefined;
-}
-
 function shareCopy(sp: Search): string {
   const rank = parseRank(sp.rank);
   const burn = sp.burn?.trim();
-  const name = titleName(parseTitle(sp.title));
-  if (name) return copy.share.withTitle(name, rank);
   if (burn) return copy.share.burn(burn, rank);
   if (rank) return copy.share.rank(rank);
   return copy.share.fallback;
@@ -56,14 +50,11 @@ export async function generateMetadata({
   const description = shareCopy(sp);
   const rank = parseRank(sp.rank);
   const burn = sp.burn?.trim();
-  const name = titleName(parseTitle(sp.title));
-  const title = name
-    ? copy.share.ogWithTitle(name, rank)
-    : burn
-      ? copy.share.ogBurnTitle(burn, rank)
-      : rank
-        ? copy.share.ogRankTitle(rank)
-        : copy.meta.title;
+  const title = burn
+    ? copy.share.ogBurnTitle(burn, rank)
+    : rank
+      ? copy.share.ogRankTitle(rank)
+      : copy.meta.title;
   const url = new URL("/share", SITE_URL);
   for (const [k, v] of Object.entries(sp)) {
     if (v) url.searchParams.set(k, v);
@@ -102,7 +93,9 @@ export default async function SharePage({
   const rank = parseRank(sp.rank);
   const burn = parseBurn(sp.burn);
   const titleId = parseTitle(sp.title);
-  const name = titleName(titleId);
+  const titleFallbackName = titleId
+    ? copy.profile.titles[titleId].name
+    : undefined;
   const boardHref = you
     ? `/leaderboard?you=${encodeURIComponent(you)}`
     : "/leaderboard";
@@ -121,21 +114,22 @@ export default async function SharePage({
         alt="$BITE — Eat it to the core."
         className="h-auto w-full max-w-[420px] rounded-[28px] shadow-[0_20px_60px_rgba(0,0,0,0.12)]"
       />
-      {name ? (
+      {titleId && !titleArtSrc(titleId) && titleFallbackName ? (
         <p className="mt-8 text-[13px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-          {name}
+          {titleFallbackName}
         </p>
       ) : null}
       <SharePlayerCard
         you={you}
         queryRank={rank}
         queryBurn={burn}
+        titleId={titleId}
         initialEaters={eaters}
         initialCoreTarget={weiToTokens(state.coreTarget)}
         initialSupplyStats={act1.supplyStats ?? undefined}
       />
       <p className="mt-8 max-w-md text-[19px] leading-snug tracking-[-0.02em] text-[#1d1d1f]">
-        {name ? copy.share.withTitle(name, rank) : copy.share.pitch}
+        {copy.share.pitch}
       </p>
       <div className="mt-8 flex w-full max-w-sm flex-col gap-2">
         <Link

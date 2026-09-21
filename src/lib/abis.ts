@@ -311,3 +311,88 @@ export const bondingCurveAbi = [
     outputs: [{ type: "uint256" }],
   },
 ] as const;
+
+/** ReferralEscrow (UUPS proxy) — bind / qualify / views. */
+export const referralEscrowAbi = [
+  {
+    type: "function",
+    name: "bind",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "referrer", type: "address" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "qualify",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "referee", type: "address" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "referrerOf",
+    stateMutability: "view",
+    inputs: [{ name: "referee", type: "address" }],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "function",
+    name: "paid",
+    stateMutability: "view",
+    inputs: [{ name: "referee", type: "address" }],
+    outputs: [{ type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "rewardPerReferral",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "payoutCount",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "remainingPayouts",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "escrowBalance",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "attester",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "address" }],
+  },
+  {
+    type: "event",
+    name: "Bound",
+    inputs: [
+      { name: "referee", type: "address", indexed: true },
+      { name: "referrer", type: "address", indexed: true },
+    ],
+  },
+  {
+    type: "event",
+    name: "Qualified",
+    inputs: [
+      { name: "referee", type: "address", indexed: true },
+      { name: "referrer", type: "address", indexed: true },
+      { name: "reward", type: "uint256", indexed: false },
+      { name: "attester", type: "address", indexed: true },
+    ],
+  },
+] as const;

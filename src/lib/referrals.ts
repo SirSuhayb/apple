@@ -1,4 +1,4 @@
-import { isAddress } from "viem";
+import { isAddress, type Address } from "viem";
 import { SITE_URL } from "./config";
 import { sameWallet } from "./leaderboard-rank";
 import { isTitleId, type TitleId } from "./profile-titles";
@@ -48,6 +48,17 @@ export function referralHomeUrl(
   return url.toString();
 }
 
+/** Shareable invite page with OG unfurl — preserves `?ref=` for attribution. */
+export function referralInviteUrl(
+  address: string,
+  origin?: string | null,
+): string {
+  const base = (origin ?? SITE_URL).replace(/\/$/, "");
+  const url = new URL("/invite", `${base}/`);
+  url.searchParams.set("ref", address);
+  return url.toString();
+}
+
 /** Capture `?ref=` into pending localStorage until a wallet connects. */
 export function capturePendingReferral(
   raw: string | null | undefined,
@@ -85,7 +96,7 @@ function boundKey(address: string): string {
   return `${REF_BOUND_PREFIX}${address.toLowerCase()}`;
 }
 
-/** Who referred this connected wallet (local attribution only). */
+/** Who referred this connected wallet (local attribution / last known bind). */
 export function readBoundReferral(address: string): string | null {
   if (typeof window === "undefined") return null;
   try {
@@ -96,9 +107,20 @@ export function readBoundReferral(address: string): string | null {
   }
 }
 
+export function markBoundReferral(address: string, referrer: string): void {
+  if (typeof window === "undefined") return;
+  if (!isAddress(address) || !isAddress(referrer)) return;
+  try {
+    window.localStorage.setItem(boundKey(address), referrer);
+  } catch {
+    // ignore
+  }
+}
+
 /**
- * When a wallet connects: bind pending ref if present and not self.
- * Returns the bound referrer (existing or newly set), or null.
+ * When a wallet connects: keep pending ref if present and not self.
+ * Local bind is attribution UX; on-chain `bind` is submitted by ReferralCapture.
+ * Returns the intended referrer (existing or pending), or null.
  */
 export function bindReferralOnConnect(connected: string): string | null {
   if (typeof window === "undefined") return null;
@@ -123,11 +145,17 @@ export function bindReferralOnConnect(connected: string): string | null {
     return null;
   }
 
-  try {
-    window.localStorage.setItem(boundKey(connected), pending);
-    clearPendingReferral();
-    return pending;
-  } catch {
-    return null;
-  }
+  // Keep pending for on-chain bind; also stash locally as intent.
+  markBoundReferral(connected, pending);
+  return pending;
+}
+
+export function isZeroAddress(value: string | null | undefined): boolean {
+  if (!value || !isAddress(value)) return true;
+  return value.toLowerCase() === "0x0000000000000000000000000000000000000000";
+}
+
+export function asAddress(value: string | null | undefined): Address | null {
+  if (!value || !isAddress(value)) return null;
+  return value;
 }

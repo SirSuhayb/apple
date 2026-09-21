@@ -358,18 +358,11 @@ export const copy = {
       "I just burned $BITE and climbed the leaderboard. the game is simple — burn more, rank higher, earn more when the pot pays out.",
     rank: (_rank: number) =>
       "i just took a $bite of the apple to earn a piece of the pie.",
-    /** Share line when an unlocked title is selected. */
-    withTitle: (titleName: string, rank?: number) =>
-      rank
-        ? `i'm #${rank} · titled ${titleName}. took a $bite of the apple.`
-        : `titled ${titleName} on $BITE. took a bite of the apple.`,
     ogBurnTitle: (amount: string, rank?: number) =>
       rank
         ? `I just burned ${amount} $BITE · #${rank}`
         : `I just burned ${amount} $BITE`,
     ogRankTitle: (rank: number) => `I'm #${rank} on $BITE`,
-    ogWithTitle: (titleName: string, rank?: number) =>
-      rank ? `${titleName} · #${rank} on $BITE` : `${titleName} · $BITE`,
   },
 
   profile: {
@@ -440,25 +433,42 @@ export const copy = {
       },
       referrals: {
         name: "Windfall",
-        body: "Invite eaters to the grove — on-chain rewards coming soon.",
+        body: "Earn an on-chain referral payout when someone you invite buys in-app and takes a kitchen bite.",
       },
     },
     referrals: {
       eyebrow: "Referrals",
       headline: "Invite the orchard.",
-      body: "Share your link. Attribution is saved locally when they connect — on-chain escrow and payouts are not live yet.",
+      body: "Share your link. When they connect, they bind you on-chain. After they buy in-app and bite, you earn a fixed $BITE payout from escrow.",
       linkLabel: "Your link",
       copyLink: "Copy link",
       copied: "Copied.",
-      countLabel: "Referrals",
+      shareText:
+        "Take a bite with me and share a pot of apple stock!",
+      countLabel: "Paid referrals",
       earningsLabel: "Earnings",
+      rewardLabel: "Payout",
+      rewardAmount: (n: string) => `${n} $BITE`,
       stubZero: "0",
-      stubNote: "Counts and earnings stay at 0 until ReferralEscrow ships.",
+      needWallet: "Connect a wallet to bind a pending invite on-chain.",
       pendingNote: (short: string) =>
-        `Pending invite from ${short} — binds when you connect.`,
-      boundNote: (short: string) => `You arrived via ${short} (local only).`,
+        `Pending invite from ${short} — confirm bind in your wallet.`,
+      boundNote: (short: string) => `Bound on-chain to ${short}.`,
+      binding: "Confirm bind in your wallet…",
+      bindCta: "Bind referrer",
+      bindSuccess: "Referrer bound on-chain.",
       selfBlocked: "You can’t refer yourself.",
+      escrowOffline: "Referral escrow is unavailable right now.",
     },
+  },
+
+  invite: {
+    eyebrow: "$BITE",
+    title: "Take a bite with me.",
+    description:
+      "Take a bite with me and share a pot of apple stock!",
+    cta: "Take a bite",
+    home: "Return to bite.party",
   },
 
   finePrint: {

@@ -13,7 +13,7 @@ import {ReferralEscrow} from "../src/ReferralEscrow.sol";
 contract DeployReferralEscrow is Script {
     function run() external {
         address token = vm.envAddress("BITE_TOKEN");
-        uint256 reward = vm.envOr("REWARD_PER_REFERRAL", uint256(100 ether));
+        uint256 reward = vm.envOr("REWARD_PER_REFERRAL", uint256(1000 ether));
         address owner_ = vm.envAddress("OWNER");
         address attester = vm.envAddress("ATTESTER");
 
