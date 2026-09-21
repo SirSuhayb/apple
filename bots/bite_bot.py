@@ -9,7 +9,9 @@ updates burn state, may post holder milestones / notable buys, and awards
 accumulation/holding points for all wallets with trade/hold activity since
 TRADE_SCAN_FROM_BLOCK. Telegram /link is optional identity for /points.
 Commands: /link, /balance, /points, /leaderboard (daemon polls getUpdates).
-Admin DM: /kitchen (or /report) — kitchen + swap fee skim (TELEGRAM_ADMIN_CHAT_ID only).
+Admin DM: /kitchen (or /report) — kitchen + native-swap KPI + fee skim
+  (TELEGRAM_ADMIN_CHAT_ID only). Native swap = in-app Trading API path
+  (integratorFees → kitchen), not all-chain DEX volume.
 Act II+ (PHASE>=2): burn trades, tap burns, and burn milestones are posted.
 
 Run from repo root:
@@ -19,6 +21,9 @@ Run from repo root:
   python -m bots --qualify 0xReferee…
   python -m bots --daemon
   python -m bots
+
+Native-swap KPI: HTTP GET /swap-stats.json (also embedded in /leaderboard.json),
+Telegram /kitchen, site /api/swap-stats. Client confirms via POST /native-swap.
 """
 
 from __future__ import annotations
@@ -65,6 +70,15 @@ except ImportError:
     pass
 
 from bots.referral_escrow import maybe_qualify_referees, send_qualify
+from bots.native_swaps import (
+    NATIVE_SWAP_INDEX_MODE,
+    ensure_native_swaps,
+    ingest_client_swap,
+    make_tx_from_lookup,
+    note_fee_skims_from_aapl_transfers,
+    note_fee_skims_from_bite_transfers,
+    summarize_native_swaps,
+)
 # ── Config ──
 
 RPC_URL = os.getenv("RPC_URL", "https://rpc.mainnet.chain.robinhood.com")
@@ -101,6 +115,12 @@ _DEFAULT_PROTOCOL_ADDRS = (
     "0xe5e702641ea86f4ae6cc3cdaed2b886f976be044",
     "0xb92fe925dc43a0ecde6c8b1a2709c170ec4fff4f",
     "0x8f10b468b06c6fd214b65f87778827f7d113f996",
+    "0x8876789976decbfcbbbe364623c63652db8c0904",  # Universal Router 2.1.1
+    "0x6aa80dbbed9ae5ab45fbf61f9644fada3b29326e",  # v4 unlock/locker
+)
+# Integrator fee (PAY_PORTION) senders for native-swap KPI — UR + v4 locker only.
+# Do NOT use the full protocol-hold set (PM / token / escrow) — those are not fee skims.
+_NATIVE_SWAP_FEE_SENDERS = (
     "0x8876789976decbfcbbbe364623c63652db8c0904",  # Universal Router 2.1.1
     "0x6aa80dbbed9ae5ab45fbf61f9644fada3b29326e",  # v4 unlock/locker
 )
@@ -288,6 +308,7 @@ TRADE_SIDE_MODE = "v4_swap_delta_v1"
 DUST_BURN_INDEX_MODE = "dust_burns_v1"
 # MetaWager BetPlaced backfill. Does not bump TRADE_INDEX_MODE.
 WAGER_INDEX_MODE = "wager_bets_v1"
+# Native (in-app) swap fee-skim index. Does not bump TRADE_INDEX_MODE.
 
 # Uniswap v4 PoolManager.Swap — BITE is currency0 / token0 on this pool.
 # keccak256("Swap(bytes32,address,int128,int128,uint160,uint128,int24,uint24)")
@@ -408,6 +429,8 @@ def default_state() -> dict:
         "points": {},
         "tg_update_offset": 0,
         "tg_commands_primed": False,
+        # Native in-app swaps (fee skim → kitchen); see bots/native_swaps.py
+        "native_swaps": {},
     }
 
 
@@ -422,6 +445,7 @@ def load_state() -> dict:
     state.setdefault("points", {})
     state.setdefault("tg_update_offset", 0)
     state.setdefault("tg_commands_primed", False)
+    ensure_native_swaps(state)
     return state
 
 
@@ -1945,8 +1969,27 @@ def public_leaderboard_payload(state: dict, *, limit: int | None = None) -> dict
             "bitePriceUsd": supply_stats.get("bite_price_usd"),
             "updatedAt": supply_stats.get("updated_at"),
         },
+        "swapStats": _public_swap_stats(state),
         "eaters": rows,
     }
+
+
+def _public_swap_stats(state: dict) -> dict:
+    """Native in-app swap KPI for leaderboard /swap-stats consumers."""
+    supply = state.get("supply_stats") or {}
+    dex = (state.get("market") or {}).get("dexscreener") or {}
+    bite_px = aapl_px = None
+    try:
+        bite_px = float(dex.get("priceUsd") or supply.get("bite_price_usd") or 0) or None
+    except (TypeError, ValueError):
+        pass
+    try:
+        aapl_px = float(supply.get("aapl_price_usd") or 0) or None
+    except (TypeError, ValueError):
+        pass
+    return summarize_native_swaps(
+        state, bite_price_usd=bite_px, aapl_price_usd=aapl_px
+    )
 
 
 def write_public_leaderboard(state: dict) -> None:
@@ -3287,6 +3330,163 @@ def backfill_v4_swap_sides(w3, contract, state: dict) -> dict:
     return state
 
 
+def native_swap_fee_senders() -> set[str]:
+    """Addresses that PAY_PORTION integrator fees to kitchen on native swaps."""
+    return {a.lower() for a in _NATIVE_SWAP_FEE_SENDERS}
+
+
+def backfill_native_swaps(w3, bite_contract, state: dict) -> dict:
+    """Index Transfer→kitchen from UR/locker as native-swap fee skims (BITE + AAPL).
+
+    Incremental cursor in state['native_swaps']['cursor']. Safe to re-run;
+    record_native_swap dedupes by tx hash. Wallet = tx.from (cached).
+    """
+    if not w3 or not Web3 or not bite_contract or not KITCHEN_CONTRACT:
+        return state
+    ns = ensure_native_swaps(state)
+    tip = int(w3.eth.block_number)
+    start = max(TRADE_SCAN_FROM_BLOCK, int(ns.get("cursor") or 0) + 1)
+    if start > tip:
+        ns["mode"] = NATIVE_SWAP_INDEX_MODE
+        return state
+
+    fee_senders = native_swap_fee_senders()
+    # Buy-recipient inference needs protocol/contract set; fee filter stays narrow.
+    contracts = {a.lower() for a in (state.get("contract_addrs") or [])} | set(
+        _DEFAULT_PROTOCOL_ADDRS
+    )
+    tx_cache: dict = {}
+    lookup = make_tx_from_lookup(w3, tx_cache)
+
+    aapl_c = None
+    if AAPL_TOKEN:
+        try:
+            aapl_c = w3.eth.contract(
+                address=Web3.to_checksum_address(AAPL_TOKEN),
+                abi=ERC20_ABI,
+            )
+        except Exception as e:
+            print(f"[native-swap] AAPL contract init failed: {e}")
+
+    print(
+        f"[native-swap] indexing fee skims {start} → {tip} "
+        f"(mode={NATIVE_SWAP_INDEX_MODE}, senders={len(fee_senders)})"
+    )
+    b = start
+    chunk = max(200, LOG_CHUNK_SIZE)
+    scanned_to = start - 1
+    bite_hits = aapl_hits = 0
+    chunks_done = 0
+    while b <= tip:
+        end = min(b + chunk - 1, tip)
+        try:
+            bite_ev = fetch_transfer_logs_to(
+                bite_contract, b, end, KITCHEN_CONTRACT
+            )
+            aapl_ev = []
+            if aapl_c is not None:
+                aapl_ev = fetch_transfer_logs_to(aapl_c, b, end, KITCHEN_CONTRACT)
+        except LogFetchError as e:
+            if getattr(e, "rate_limited", False) or _is_rate_limit_error(e):
+                time.sleep(20)
+                continue
+            if chunk > 200 and end - b > 200:
+                chunk = max(200, chunk // 2)
+                continue
+            print(f"[native-swap] giving up on {b}–{end}: {e}")
+            break
+        bite_hits += note_fee_skims_from_bite_transfers(
+            state,
+            bite_ev,
+            kitchen=KITCHEN_CONTRACT,
+            protocol_addrs=fee_senders,
+            contract_addrs=contracts,
+            tx_from_lookup=lookup,
+        )
+        aapl_hits += note_fee_skims_from_aapl_transfers(
+            state,
+            aapl_ev,
+            kitchen=KITCHEN_CONTRACT,
+            protocol_addrs=fee_senders,
+            tx_from_lookup=lookup,
+        )
+        scanned_to = end
+        ns["cursor"] = end
+        chunks_done += 1
+        if chunks_done == 1 or chunks_done % 10 == 0 or end >= tip:
+            summary = summarize_native_swaps(state)
+            at = summary.get("allTime") or {}
+            print(
+                f"[native-swap] {end}/{tip} buys+{bite_hits} sells+{aapl_hits} "
+                f"unique={at.get('uniqueWallets')} txs={at.get('swapCount')}"
+            )
+            save_state(state)
+        b = end + 1
+        time.sleep(0.08)
+
+    ns["mode"] = NATIVE_SWAP_INDEX_MODE
+    if scanned_to >= tip:
+        ns["cursor"] = tip
+    save_state(state)
+    print(
+        f"[native-swap] done cursor={ns.get('cursor')} "
+        f"bite_hits={bite_hits} aapl_hits={aapl_hits}"
+    )
+    return state
+
+
+def apply_native_swap_poll(
+    state: dict,
+    w3,
+    bite_events,
+    *,
+    from_block: int,
+    to_block: int,
+) -> dict:
+    """Live poll: index BITE fee skims from Transfer filter + AAPL kitchen inflows."""
+    if not KITCHEN_CONTRACT or to_block < from_block:
+        return state
+    fee_senders = native_swap_fee_senders()
+    contracts = {a.lower() for a in (state.get("contract_addrs") or [])} | set(
+        _DEFAULT_PROTOCOL_ADDRS
+    )
+    tx_cache: dict = {}
+    lookup = make_tx_from_lookup(w3, tx_cache) if w3 else None
+
+    note_fee_skims_from_bite_transfers(
+        state,
+        bite_events,
+        kitchen=KITCHEN_CONTRACT,
+        protocol_addrs=fee_senders,
+        contract_addrs=contracts,
+        tx_from_lookup=lookup,
+    )
+
+    if w3 and Web3 and AAPL_TOKEN:
+        try:
+            aapl_c = w3.eth.contract(
+                address=Web3.to_checksum_address(AAPL_TOKEN),
+                abi=ERC20_ABI,
+            )
+            aapl_ev = fetch_transfer_logs_to(
+                aapl_c, from_block, to_block, KITCHEN_CONTRACT
+            )
+            note_fee_skims_from_aapl_transfers(
+                state,
+                aapl_ev,
+                kitchen=KITCHEN_CONTRACT,
+                protocol_addrs=fee_senders,
+                tx_from_lookup=lookup,
+            )
+        except Exception as e:
+            print(f"[native-swap] poll AAPL skim error: {e}")
+
+    ns = ensure_native_swaps(state)
+    ns["cursor"] = max(int(ns.get("cursor") or 0), to_block)
+    ns["mode"] = NATIVE_SWAP_INDEX_MODE
+    return state
+
+
 def parse_command(text: str) -> tuple[str | None, str]:
     """Return (command_name, arg_tail). command_name is lowercased without leading /."""
     raw = (text or "").strip()
@@ -3359,7 +3559,7 @@ def help_copy(*, private: bool = False, admin: bool = False) -> str:
     ]
     if admin and private:
         lines.append(
-            "/kitchen — admin: live kitchen + swap/fee skim (also /report)"
+            "/kitchen — admin: native-swap KPI + kitchen + fee skim (also /report)"
         )
     lines.append(
         "Also: check balance / check points / check leaderboard / check stats / how to buy / burn / tap / wager / odds"
@@ -4302,6 +4502,19 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
         except Exception as e:
             print(f"[referral] qualify pass error: {e}")
 
+    # Native-swap KPI: fee skim Transfer→kitchen (BITE buys + AAPL sells)
+    if transfer_filter and KITCHEN_CONTRACT and scanned_to >= from_block:
+        try:
+            state = apply_native_swap_poll(
+                state,
+                w3,
+                transfer_filter,
+                from_block=from_block,
+                to_block=scanned_to,
+            )
+        except Exception as e:
+            print(f"[native-swap] poll error: {e}")
+
     for event in transfer_filter:
         from_addr = event.args["from"]
         to_addr = event.args["to"]
@@ -4766,6 +4979,41 @@ def build_admin_report(state: dict, w3, bite_contract) -> str:
     else:
         fee_lines = ["(chain unavailable — skipped inbound fee scan)"]
 
+    swap = summarize_native_swaps(
+        state, bite_price_usd=bite_px, aapl_price_usd=aapl_px
+    )
+    at = swap.get("allTime") or {}
+    h24 = swap.get("h24") or {}
+
+    def _swap_block(label: str, block: dict) -> list[str]:
+        fee_bite_raw = int(block.get("feeBiteRaw") or 0)
+        fee_aapl_raw = int(block.get("feeAaplRaw") or 0)
+        vol_bite = float(block.get("estVolumeBite") or 0)
+        vol_aapl = float(block.get("estVolumeAapl") or 0)
+        vol_line = (
+            _fmt_usd(block.get("estVolumeUsd"))
+            if block.get("estVolumeUsd") is not None
+            else (
+                f"{vol_bite:,.2f} BITE"
+                + (f" + {vol_aapl:,.4f} AAPL" if vol_aapl > 0 else "")
+            )
+        )
+        return [
+            f"{label}: *{int(block.get('uniqueWallets') or 0)}* wallets · "
+            f"*{int(block.get('swapCount') or 0)}* txs "
+            f"(buys {int(block.get('buyCount') or 0)} / "
+            f"sells {int(block.get('sellCount') or 0)})",
+            f"  Fee skimmed: {_fmt_token(fee_bite_raw)} BITE"
+            + (f" + {_fmt_token(fee_aapl_raw)} AAPL" if fee_aapl_raw else "")
+            + (
+                f" (~{_fmt_usd(block.get('feeUsd'))})"
+                if block.get("feeUsd") is not None
+                else ""
+            ),
+            f"  Est. output vol (fee÷0.5%): {vol_line}",
+            f"  Client-confirmed: {int(block.get('clientConfirmed') or 0)}",
+        ]
+
     lines = [
         f"🍎 *Kitchen + swap report*",
         f"_{now.strftime('%Y-%m-%d %H:%M')} UTC_",
@@ -4784,14 +5032,21 @@ def build_admin_report(state: dict, w3, bite_contract) -> str:
         f"Displayed prize (kitchen AAPL + escrow): {_fmt_token(display_prize)}"
         + (f" (~{_fmt_usd(display_prize_usd)})" if display_prize_usd else ""),
         "",
-        "*Swap / fee skim (best-effort)*",
+        "*Native swaps (in-app)*",
+        "SwapModal / Trading API → integratorFees to kitchen. "
+        "Not all-chain DEX trades.",
+        *_swap_block("All-time", at),
+        *_swap_block("24h", h24),
+        f"Index cursor block: `{swap.get('cursor') or 0}`",
+        "",
+        "*Fee skim window (best-effort)*",
         fee_note,
         *fee_lines,
         "",
         "*Market / index context*",
         f"Dex pair vol 24h: {_fmt_usd(vol_h24_f)}",
         f"0.5% of that vol (upper bound if 100% in-app): {_fmt_usd(skim_upper)}",
-        f"Indexed buys/sells/burns: "
+        f"Indexed buys/sells/burns (all-chain): "
         f"{trades['buy_events']} / {trades['sell_events']} / {trades['burn_events']}",
         f"BITE {_fmt_usd(bite_px)}" if bite_px else "BITE price: —",
         f"AAPL {_fmt_usd(aapl_px)}" if aapl_px else "AAPL price: —",
@@ -4882,12 +5137,26 @@ _http_state_ref: dict | None = None
 
 
 class _LeaderboardHandler(BaseHTTPRequestHandler):
-    """Tiny handler serving /leaderboard.json and /health from in-memory state."""
+    """Tiny handler: /leaderboard.json, /swap-stats.json, /native-swap, /health."""
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
     def do_GET(self):
         path = (self.path or "/").split("?", 1)[0]
         if path == "/health":
             self._json_response(200, {"status": "ok"})
+            return
+        if path in ("/swap-stats.json", "/swap-stats", "/native-swaps"):
+            state = _http_state_ref
+            if state is None:
+                self._json_response(503, {"error": "state not ready"})
+                return
+            self._json_response(200, _public_swap_stats(state))
             return
         if path in ("/leaderboard.json", "/leaderboard", "/"):
             state = _http_state_ref
@@ -4905,6 +5174,38 @@ class _LeaderboardHandler(BaseHTTPRequestHandler):
             self._json_response(200, payload)
             return
         self._json_response(404, {"error": "not found"})
+
+    def do_POST(self):
+        path = (self.path or "/").split("?", 1)[0]
+        if path not in ("/native-swap", "/swap-stats", "/swap-log"):
+            self._json_response(404, {"error": "not found"})
+            return
+        state = _http_state_ref
+        if state is None:
+            self._json_response(503, {"error": "state not ready"})
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0 or length > 32_000:
+            self._json_response(400, {"error": "invalid body"})
+            return
+        try:
+            raw = self.rfile.read(length)
+            payload = json.loads(raw.decode("utf-8"))
+        except Exception:
+            self._json_response(400, {"error": "invalid JSON"})
+            return
+        if not isinstance(payload, dict):
+            self._json_response(400, {"error": "expected object"})
+            return
+        result = ingest_client_swap(state, payload)
+        if result.get("ok"):
+            try:
+                save_state(state)
+            except Exception as e:
+                print(f"[native-swap] ingest save failed: {e}")
+            self._json_response(200, result)
+            return
+        self._json_response(400, result)
 
     def _json_response(self, code: int, body: dict | list) -> None:
         data = json.dumps(body, indent=2).encode()
@@ -4926,7 +5227,10 @@ def start_leaderboard_http(state: dict, port: int) -> None:
     server = HTTPServer(("0.0.0.0", port), _LeaderboardHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    print(f"[http] leaderboard server on :{port} — /leaderboard.json /health")
+    print(
+        f"[http] leaderboard server on :{port} — "
+        f"/leaderboard.json /swap-stats.json /native-swap /health"
+    )
 
 
 # ── CLI ──
@@ -5092,6 +5396,10 @@ def main(argv: list[str] | None = None) -> int:
             state = backfill_v4_swap_sides(w3, contract, state)
         except Exception as e:
             print(f"[v4-side] startup pass failed (will retry next poll): {e}")
+        try:
+            state = backfill_native_swaps(w3, contract, state)
+        except Exception as e:
+            print(f"[native-swap] startup pass failed (will retry next poll): {e}")
 
     if args.test:
         if PHASE == 1:

@@ -130,6 +130,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
   const [showWallets, setShowWallets] = useState(false);
   const [previewPending, setPreviewPending] = useState(false);
   const [payPickerOpen, setPayPickerOpen] = useState(false);
+  const [loggedTx, setLoggedTx] = useState<string | null>(null);
 
   const { tokenIn, tokenOut } = resolveSwapPair(tokenInSide);
   const buying = isBuySide(tokenInSide);
@@ -270,6 +271,45 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
     setDone(true);
     setBusy(null);
   }, [isSuccess, txHash, busy]);
+
+  useEffect(() => {
+    if (!isSuccess || !txHash || !address || loggedTx === txHash) return;
+    setLoggedTx(txHash);
+    const side = buying ? "buy" : "sell";
+    const amountIn = quote ? getInputAmount(quote) : amount;
+    let amountOut = "";
+    try {
+      amountOut = quote ? getOutputAmount(quote) : "";
+    } catch {
+      amountOut = "";
+    }
+    void fetch("/api/swap-stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        txHash,
+        wallet: address,
+        side,
+        tokenIn: tokenIn.symbol,
+        tokenOut: tokenOut.symbol,
+        amountIn,
+        amountOut,
+        feeToken: side === "buy" ? "BITE" : "AAPL",
+      }),
+    }).catch(() => {
+      /* KPI ingest is best-effort; never block the swap UI */
+    });
+  }, [
+    isSuccess,
+    txHash,
+    address,
+    loggedTx,
+    buying,
+    quote,
+    amount,
+    tokenIn.symbol,
+    tokenOut.symbol,
+  ]);
 
   const quotedOut = useMemo(() => {
     if (!quote) return null;

@@ -116,6 +116,16 @@ forge script script/DeployKitchen.s.sol:DeployKitchen \
 
 Onchain watcher that posts to Telegram (Twitter optional). Buy/trade CTAs point at your site’s native swap; Pons is fallback-only. After in-app buy (kitchen fee skim) + kitchen bite for a bound referee, the bot calls `ReferralEscrow.qualify` when `REFERRAL_ATTESTER_KEY` / `PRIVATE_KEY` is set.
 
+**Native-swap KPI** (in-app only — not all-chain DEX volume):
+
+| Read | How |
+|------|-----|
+| Telegram | DM the bot `/kitchen` (admin chat only) or scheduled admin DM |
+| Bot HTTP | `GET /swap-stats.json` (also `swapStats` on `/leaderboard.json`) |
+| Site | `GET /api/swap-stats` |
+
+Definition: SwapModal / Trading API execute with `integratorFees` → kitchen (0.5% of output). On-chain proxy = Transfer→kitchen from Uniswap routers. Volume ≈ fee ÷ 0.5%. SwapModal POSTs successful txs to `/api/swap-stats` (forwards to Railway `POST /native-swap` when `BITE_LEADERBOARD_URL` is set).
+
 ```bash
 pip install -r bots/requirements.txt
 cp bots/.env.example bots/.env
@@ -123,6 +133,7 @@ cp bots/.env.example bots/.env
 python -m bots --smoke           # RPC + contract check
 python -m bots --test            # live Telegram test
 python -m bots --qualify 0x…     # manual referral attest
+python -m bots --admin-report    # kitchen + native-swap KPI DM
 python -m bots --daemon          # always-on
 ```
 
