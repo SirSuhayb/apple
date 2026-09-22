@@ -167,6 +167,7 @@ export async function fetchRaceState(): Promise<RaceState> {
       quietRotPreview,
       decay,
       decayBreakdown: weather?.breakdown,
+      decayFloors: weather?.floors,
       lastEatSource: weather?.lastEatSource ?? null,
       potAapl: formatEther(potAapl),
       eaters: realEaters.length > 0 ? realEaters : scaffold.eaters,

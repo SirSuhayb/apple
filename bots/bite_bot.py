@@ -435,6 +435,8 @@ def default_state() -> dict:
         "tg_commands_primed": False,
         # Native in-app swaps (fee skim → kitchen); see bots/native_swaps.py
         "native_swaps": {},
+        # Visual decay weekly ATH floors (durable on Railway /data)
+        "decay_highwater": None,
     }
 
 
@@ -450,6 +452,8 @@ def load_state() -> dict:
     state.setdefault("tg_update_offset", 0)
     state.setdefault("tg_commands_primed", False)
     ensure_native_swaps(state)
+    if not isinstance(state.get("decay_highwater"), dict):
+        state["decay_highwater"] = default_decay_highwater()
     return state
 
 
@@ -1044,23 +1048,207 @@ def sync_dexscreener(state: dict) -> dict:
             pair = pairs[0]
     market = state.setdefault("market", {})
     if pair:
+        volume = pair.get("volume") or {}
         market["dexscreener"] = {
             "pairUrl": pair.get("url") or DEXSCREENER_PAIR_URL,
             "pairId": pair.get("pairAddress") or DEXSCREENER_PAIR_ID,
             "txnsH24": (pair.get("txns") or {}).get("h24"),
-            "volumeH24": (pair.get("volume") or {}).get("h24"),
+            "volumeH24": volume.get("h24"),
+            "volumeH6": volume.get("h6"),
             "liquidityUsd": (pair.get("liquidity") or {}).get("usd"),
             "liquidityBase": (pair.get("liquidity") or {}).get("base"),
             "priceUsd": pair.get("priceUsd"),
             "fdv": pair.get("fdv"),
+            "marketCap": pair.get("marketCap") or pair.get("fdv"),
             "updatedAt": datetime.now(timezone.utc).isoformat(),
         }
+        mcap = None
+        try:
+            mcap = float(pair.get("marketCap") or pair.get("fdv") or 0) or None
+        except (TypeError, ValueError):
+            mcap = None
+        vol_h24 = vol_h6 = None
+        try:
+            vol_h24 = float(volume.get("h24") or 0) or None
+        except (TypeError, ValueError):
+            pass
+        try:
+            vol_h6 = float(volume.get("h6") or 0) or None
+        except (TypeError, ValueError):
+            pass
+        update_decay_highwater(
+            state, mcap=mcap, volume_h24=vol_h24, volume_h6=vol_h6
+        )
     else:
         market.setdefault(
             "dexscreener",
             {"pairUrl": DEXSCREENER_PAIR_URL, "pairId": DEXSCREENER_PAIR_ID},
         )
     return state
+
+
+# ── Visual decay weekly ATH (mirrors src/lib/decay-week.ts) ──
+# Week boundary: Monday 00:00 UTC (ISO-8601). Prior week's ATH → next floor.
+
+DECAY_FLOOR_SEED_USD = 50_000.0
+DECAY_WEEK_ATH_SEED_USD = 151_000.0
+
+
+def _iso_week_id(dt: datetime) -> str:
+    iso = dt.astimezone(timezone.utc).isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def default_decay_highwater() -> dict:
+    now = datetime.now(timezone.utc)
+    return {
+        "peakVolumeH24": 235_125.0,
+        "peakVolumeH6": 235_125.0,
+        "peakMcapUsd": DECAY_WEEK_ATH_SEED_USD,
+        "weekId": _iso_week_id(now),
+        "weekAthMcapUsd": DECAY_WEEK_ATH_SEED_USD,
+        "currentWeekFloorUsd": DECAY_FLOOR_SEED_USD,
+        "updatedAt": datetime(1970, 1, 1, tzinfo=timezone.utc).isoformat(),
+    }
+
+
+def roll_weekly_floors(
+    prev: dict | None, now: datetime, mcap: float | None
+) -> dict:
+    week_id = _iso_week_id(now)
+    mcap_v = float(mcap) if mcap and mcap > 0 else 0.0
+    if not prev or not prev.get("weekId"):
+        return {
+            "weekId": week_id,
+            "weekAthMcapUsd": max(mcap_v, DECAY_WEEK_ATH_SEED_USD),
+            "currentWeekFloorUsd": DECAY_FLOOR_SEED_USD,
+        }
+    floor = float(prev.get("currentWeekFloorUsd") or 0) or DECAY_FLOOR_SEED_USD
+    if prev.get("weekId") == week_id:
+        return {
+            "weekId": week_id,
+            "weekAthMcapUsd": max(float(prev.get("weekAthMcapUsd") or 0), mcap_v),
+            "currentWeekFloorUsd": floor,
+        }
+    # Crossed Monday 00:00 UTC — last week's ATH is this week's floor.
+    rolled = float(prev.get("weekAthMcapUsd") or 0)
+    return {
+        "weekId": week_id,
+        "weekAthMcapUsd": mcap_v,
+        "currentWeekFloorUsd": rolled if rolled > 0 else DECAY_FLOOR_SEED_USD,
+    }
+
+
+def update_decay_highwater(
+    state: dict,
+    *,
+    mcap: float | None = None,
+    volume_h24: float | None = None,
+    volume_h6: float | None = None,
+) -> dict:
+    """Raise peaks / weekly ATH from a Dexscreener print. Durable via save_state."""
+    now = datetime.now(timezone.utc)
+    hw = state.get("decay_highwater")
+    if not isinstance(hw, dict):
+        hw = default_decay_highwater()
+    weekly = roll_weekly_floors(hw, now, mcap)
+    if weekly["weekId"] == hw.get("weekId"):
+        weekly["weekAthMcapUsd"] = max(
+            weekly["weekAthMcapUsd"], float(hw.get("weekAthMcapUsd") or 0)
+        )
+    next_hw = {
+        "peakVolumeH24": max(
+            float(hw.get("peakVolumeH24") or 0), float(volume_h24 or 0)
+        ),
+        "peakVolumeH6": max(
+            float(hw.get("peakVolumeH6") or 0), float(volume_h6 or 0)
+        ),
+        "peakMcapUsd": max(
+            float(hw.get("peakMcapUsd") or 0),
+            float(mcap or 0),
+            DECAY_WEEK_ATH_SEED_USD,
+        ),
+        **weekly,
+        "updatedAt": now.isoformat(),
+    }
+    if next_hw["weekId"] == hw.get("weekId"):
+        next_hw["weekAthMcapUsd"] = max(
+            next_hw["weekAthMcapUsd"], next_hw["peakMcapUsd"]
+        )
+    state["decay_highwater"] = next_hw
+    return next_hw
+
+
+def merge_decay_highwater_payload(state: dict, incoming: dict) -> dict:
+    """Max-merge a POST body from the site into durable bot state."""
+    now = datetime.now(timezone.utc)
+    hw = state.get("decay_highwater")
+    if not isinstance(hw, dict):
+        hw = default_decay_highwater()
+
+    def _f(key: str, default: float = 0.0) -> float:
+        try:
+            return float(incoming.get(key) if key in incoming else hw.get(key) or default)
+        except (TypeError, ValueError):
+            return float(hw.get(key) or default)
+
+    merged_prev = {
+        "weekId": incoming.get("weekId") or hw.get("weekId"),
+        "weekAthMcapUsd": max(
+            float(hw.get("weekAthMcapUsd") or 0),
+            float(incoming.get("weekAthMcapUsd") or 0)
+            if incoming.get("weekAthMcapUsd") is not None
+            else 0,
+        ),
+        "currentWeekFloorUsd": max(
+            float(hw.get("currentWeekFloorUsd") or 0),
+            float(incoming.get("currentWeekFloorUsd") or 0)
+            if incoming.get("currentWeekFloorUsd") is not None
+            else 0,
+            DECAY_FLOOR_SEED_USD,
+        ),
+    }
+    weekly = roll_weekly_floors(merged_prev, now, None)
+    if merged_prev.get("weekId") == weekly["weekId"]:
+        weekly["weekAthMcapUsd"] = max(
+            weekly["weekAthMcapUsd"], float(merged_prev.get("weekAthMcapUsd") or 0)
+        )
+    next_hw = {
+        "peakVolumeH24": max(_f("peakVolumeH24"), float(hw.get("peakVolumeH24") or 0)),
+        "peakVolumeH6": max(_f("peakVolumeH6"), float(hw.get("peakVolumeH6") or 0)),
+        "peakMcapUsd": max(
+            _f("peakMcapUsd"),
+            float(hw.get("peakMcapUsd") or 0),
+            DECAY_WEEK_ATH_SEED_USD,
+        ),
+        **weekly,
+        "updatedAt": now.isoformat(),
+    }
+    state["decay_highwater"] = next_hw
+    return next_hw
+
+
+def public_decay_highwater(state: dict) -> dict:
+    hw = state.get("decay_highwater")
+    if not isinstance(hw, dict):
+        hw = default_decay_highwater()
+        state["decay_highwater"] = hw
+    # Ensure week roll even if Dexscreener has been quiet.
+    weekly = roll_weekly_floors(hw, datetime.now(timezone.utc), None)
+    if weekly["weekId"] != hw.get("weekId"):
+        hw = {**hw, **weekly, "updatedAt": datetime.now(timezone.utc).isoformat()}
+        state["decay_highwater"] = hw
+    return {
+        "peakVolumeH24": float(hw.get("peakVolumeH24") or 0),
+        "peakVolumeH6": float(hw.get("peakVolumeH6") or 0),
+        "peakMcapUsd": float(hw.get("peakMcapUsd") or 0),
+        "weekId": hw.get("weekId"),
+        "weekAthMcapUsd": float(hw.get("weekAthMcapUsd") or 0),
+        "currentWeekFloorUsd": float(
+            hw.get("currentWeekFloorUsd") or DECAY_FLOOR_SEED_USD
+        ),
+        "updatedAt": hw.get("updatedAt"),
+    }
 
 
 def _reclassify_cached_contracts(w3, state: dict, *, budget_sec: float = 8.0) -> int:
@@ -5141,7 +5329,7 @@ _http_state_ref: dict | None = None
 
 
 class _LeaderboardHandler(BaseHTTPRequestHandler):
-    """Tiny handler: /leaderboard.json, /swap-stats.json, /native-swap, /health."""
+    """Tiny handler: /leaderboard.json, /swap-stats.json, /decay-highwater.json, /native-swap, /health."""
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -5162,6 +5350,13 @@ class _LeaderboardHandler(BaseHTTPRequestHandler):
                 return
             self._json_response(200, _public_swap_stats(state))
             return
+        if path in ("/decay-highwater.json", "/decay-highwater"):
+            state = _http_state_ref
+            if state is None:
+                self._json_response(503, {"error": "state not ready"})
+                return
+            self._json_response(200, public_decay_highwater(state))
+            return
         if path in ("/leaderboard.json", "/leaderboard", "/"):
             state = _http_state_ref
             # Stay 503 until the trade index is current so Vercel does not
@@ -5181,6 +5376,31 @@ class _LeaderboardHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = (self.path or "/").split("?", 1)[0]
+        if path in ("/decay-highwater.json", "/decay-highwater"):
+            state = _http_state_ref
+            if state is None:
+                self._json_response(503, {"error": "state not ready"})
+                return
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0 or length > 32_000:
+                self._json_response(400, {"error": "invalid body"})
+                return
+            try:
+                raw = self.rfile.read(length)
+                payload = json.loads(raw.decode("utf-8"))
+            except Exception:
+                self._json_response(400, {"error": "invalid JSON"})
+                return
+            if not isinstance(payload, dict):
+                self._json_response(400, {"error": "expected object"})
+                return
+            merged = merge_decay_highwater_payload(state, payload)
+            try:
+                save_state(state)
+            except Exception as e:
+                print(f"[decay-highwater] save failed: {e}")
+            self._json_response(200, {"ok": True, "decay_highwater": merged})
+            return
         if path not in ("/native-swap", "/swap-stats", "/swap-log"):
             self._json_response(404, {"error": "not found"})
             return
@@ -5233,7 +5453,7 @@ def start_leaderboard_http(state: dict, port: int) -> None:
     thread.start()
     print(
         f"[http] leaderboard server on :{port} — "
-        f"/leaderboard.json /swap-stats.json /native-swap /health"
+        f"/leaderboard.json /swap-stats.json /decay-highwater.json /native-swap /health"
     )
 
 

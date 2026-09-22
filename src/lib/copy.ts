@@ -173,11 +173,14 @@ export const copy = {
       },
       {
         title: "The floor rises every week",
+        // Static fallback; live floors replace via floorSlideBody().
         body: [
-          "The ATH of each week determines the floor of the next week. This week's floor is 50k. Next week's is 150k. Below the floor, the rot grows.",
+          "The ATH of each week determines the floor of the next week. This week's floor is 50k. Next week's is 151k. Below the floor, the rot grows.",
         ],
       },
     ] as const,
+    floorSlideBody: (thisWeek: string, nextWeek: string) =>
+      `The ATH of each week determines the floor of the next week. This week's floor is ${thisWeek}. Next week's is ${nextWeek}. Below the floor, the rot grows.`,
     eatenLabel: "Eaten",
     eatenPct: (pct: string) => `${pct}% eaten`,
     qaChip: (n: string) => `QA decay ${n} — localhost only`,

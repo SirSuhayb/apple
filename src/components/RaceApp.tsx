@@ -606,7 +606,7 @@ export function RaceApp({
         </div>
       </header>
 
-      <AppleConditionBanner decay={displayDecay} />
+      <AppleConditionBanner decay={displayDecay} floors={state.decayFloors} />
 
       <PhaseBanner
         act={flags.act}

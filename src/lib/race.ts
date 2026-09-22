@@ -1,6 +1,7 @@
 import type { DecayBreakdown } from "./decay";
+import type { DecayFloors } from "./decay-week";
 
-export type { DecayBreakdown };
+export type { DecayBreakdown, DecayFloors };
 
 export type EatKind = "buy" | "sell" | "tap" | "kitchen";
 
@@ -73,6 +74,8 @@ export type RaceState = {
   /** Visual decay 0–100. Not kitchen revealRot. */
   decay: number;
   decayBreakdown?: DecayBreakdown;
+  /** Live weekly ATH floors for carousel / chart (USD mcap). */
+  decayFloors?: DecayFloors;
   lastEatSource?: "kitchen" | "v4" | "inferred" | null;
   potAapl: string;
   eaters: Eater[];

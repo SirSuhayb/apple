@@ -1,6 +1,10 @@
 /**
  * Visual decay is looks on the skin — not kitchen revealRot.
  * 0 = ripe red. 100 = brown / quiet tape. Never resolves a wager.
+ *
+ * Floor pressure: each week's ATH sets the next week's mcap floor
+ * (see `decay-week.ts`). Under that floor, decay stays ≥ rotting threshold
+ * even after a recent swap/burn freshen — trade can soften rot, not clear FRESH.
  */
 
 export type DecayInputs = {
@@ -13,6 +17,8 @@ export type DecayInputs = {
   peakVolumeH6: number | null;
   mcapUsd: number | null;
   peakMcapUsd: number | null;
+  /** This week's rotting floor (USD mcap). Under it → rotting banner. */
+  currentWeekFloorUsd?: number | null;
 };
 
 export type DecayBreakdown = {
@@ -25,6 +31,9 @@ export type DecayBreakdown = {
   peakVolumeH24: number | null;
   mcapUsd: number | null;
   peakMcapUsd: number | null;
+  currentWeekFloorUsd: number | null;
+  underFloor: boolean;
+  floorPressure: number;
 };
 
 export type DecayScore = {
@@ -56,7 +65,17 @@ function ratioToDryness(current: number | null, peak: number | null): number | n
 
 /**
  * Score visual decay 0–100 from idle tape, volume vs peak, optional mcap.
- * A fresh kitchen bite or 6h volume burst pulls the apple back toward red.
+ * A fresh kitchen bite or 6h volume burst pulls toward red — unless mcap is
+ * under the weekly floor, in which case decay stays ≥ DECAY_ROTTING_THRESHOLD.
+ *
+ * Formula (0–1, then ×100):
+ *   base = 0.50·idle + 0.35·volumeDry + 0.15·mcapDry
+ *   if 6h burst: base *= 0.45
+ *   if hoursSince < 2h: base *= 1 - 0.75·(1 - hoursSince/2)
+ *   if mcap < currentWeekFloor:
+ *     depth = 1 - mcap/floor
+ *     floorMin = (50 + 25·depth) / 100   // 0.50–0.75 → always rotting
+ *     base = max(base, floorMin)
  */
 export function scoreDecay(input: DecayInputs): DecayScore {
   const hoursSince =
@@ -98,6 +117,20 @@ export function scoreDecay(input: DecayInputs): DecayScore {
     decay01 *= 1 - 0.75 * freshness;
   }
 
+  const floor =
+    input.currentWeekFloorUsd != null && input.currentWeekFloorUsd > 0
+      ? input.currentWeekFloorUsd
+      : null;
+  const underFloor =
+    floor != null && input.mcapUsd != null && input.mcapUsd < floor;
+  let floorPressure = 0;
+  if (underFloor && floor != null && input.mcapUsd != null) {
+    const depth = clamp(1 - input.mcapUsd / floor, 0, 1);
+    // Always ≥ rotting threshold; deeper under floor → browner (up to 75).
+    floorPressure = (DECAY_ROTTING_THRESHOLD + 25 * depth) / 100;
+    decay01 = Math.max(decay01, floorPressure);
+  }
+
   const decay = Math.round(clamp(decay01, 0, 1) * 100);
   return {
     decay,
@@ -112,6 +145,9 @@ export function scoreDecay(input: DecayInputs): DecayScore {
       peakVolumeH24: input.peakVolumeH24,
       mcapUsd: input.mcapUsd,
       peakMcapUsd: input.peakMcapUsd,
+      currentWeekFloorUsd: floor,
+      underFloor,
+      floorPressure: Math.round(floorPressure * 100),
     },
   };
 }
@@ -140,11 +176,11 @@ export function parseDecayOverride(raw: string | null | undefined): number | nul
 export const DECAY_ROTTING_THRESHOLD = 50;
 
 /**
- * Stated weekly rotting floors for the explainer carousel.
- * Not wired into `scoreDecay` — ladder math is still WIP.
+ * Fallback carousel floors when live weekly ATH has not loaded yet.
+ * Prefer RaceState.decayFloors from fetch-decay (computed weekly ATH).
  */
 export const DECAY_FLOOR_THIS_WEEK_USD = 50_000;
-export const DECAY_FLOOR_NEXT_WEEK_USD = 150_000;
+export const DECAY_FLOOR_NEXT_WEEK_USD = 151_000;
 export const DECAY_FLOOR_AIM_USD = 1_000_000;
 
 /** Skin looks rotting — not a kitchen CORE/ROT verdict. */

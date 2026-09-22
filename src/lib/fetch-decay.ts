@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { createPublicClient, http, parseAbiItem } from "viem";
 import { robinhoodChain } from "./chain";
@@ -11,6 +11,15 @@ import {
   V4_POOL_INIT_BLOCK,
 } from "./config";
 import { scoreDecay, type DecayScore } from "./decay";
+import {
+  DECAY_FLOOR_SEED_USD,
+  DECAY_WEEK_ATH_SEED_USD,
+  floorsFromWeekly,
+  rollWeeklyFloors,
+  type DecayFloors,
+} from "./decay-week";
+
+export type { DecayFloors };
 
 const client = createPublicClient({
   chain: robinhoodChain,
@@ -41,6 +50,9 @@ type HighWater = {
   peakVolumeH24: number;
   peakVolumeH6: number;
   peakMcapUsd: number;
+  weekId: string;
+  weekAthMcapUsd: number;
+  currentWeekFloorUsd: number;
   updatedAt: string;
 };
 
@@ -57,6 +69,7 @@ type PairTape = {
 export type DecaySnapshot = DecayScore & {
   lastEatAt: number | null;
   lastEatSource: "kitchen" | "v4" | "inferred" | null;
+  floors: DecayFloors;
 };
 
 let snapshotCache: { at: number; value: DecaySnapshot } | null = null;
@@ -80,36 +93,185 @@ async function fetchJson(url: string, ms = 4_000): Promise<unknown | null> {
   }
 }
 
-function seedHighWater(): HighWater {
+function seedHighWater(nowMs: number): HighWater {
+  const weekly = rollWeeklyFloors(null, nowMs, DECAY_WEEK_ATH_SEED_USD);
   return {
     peakVolumeH24: 235_125,
     peakVolumeH6: 235_125,
-    peakMcapUsd: 37_706,
+    peakMcapUsd: Math.max(DECAY_WEEK_ATH_SEED_USD, 37_706),
+    weekId: weekly.weekId,
+    weekAthMcapUsd: weekly.weekAthMcapUsd,
+    currentWeekFloorUsd: weekly.currentWeekFloorUsd,
     updatedAt: new Date(0).toISOString(),
   };
 }
 
-async function readHighWater(): Promise<HighWater> {
-  const seed = seedHighWater();
-  try {
-    const raw = JSON.parse(await readFile(HIGHWATER_PATH, "utf8")) as Partial<HighWater>;
-    return {
-      peakVolumeH24: Math.max(seed.peakVolumeH24, num(raw.peakVolumeH24) ?? 0),
-      peakVolumeH6: Math.max(seed.peakVolumeH6, num(raw.peakVolumeH6) ?? 0),
-      peakMcapUsd: Math.max(seed.peakMcapUsd, num(raw.peakMcapUsd) ?? 0),
-      updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : seed.updatedAt,
+function parseHighWater(raw: unknown, nowMs: number): HighWater | null {
+  if (!raw || typeof raw !== "object") return null;
+  const o = raw as Record<string, unknown>;
+  const seed = seedHighWater(nowMs);
+  const peakVolumeH24 = Math.max(seed.peakVolumeH24, num(o.peakVolumeH24) ?? 0);
+  const peakVolumeH6 = Math.max(seed.peakVolumeH6, num(o.peakVolumeH6) ?? 0);
+  const peakMcapUsd = Math.max(seed.peakMcapUsd, num(o.peakMcapUsd) ?? 0);
+  const storedWeekId = typeof o.weekId === "string" ? o.weekId : "";
+  const weekly = rollWeeklyFloors(
+    {
+      weekId: storedWeekId,
+      weekAthMcapUsd: num(o.weekAthMcapUsd) ?? 0,
+      currentWeekFloorUsd:
+        num(o.currentWeekFloorUsd) ?? DECAY_FLOOR_SEED_USD,
+    },
+    nowMs,
+    null, // do not treat all-time peakMcap as this week's print
+  );
+  // Same ISO week: warm weekly ATH from stored all-time peak (pre-weekly history).
+  if (storedWeekId && weekly.weekId === storedWeekId) {
+    weekly.weekAthMcapUsd = Math.max(weekly.weekAthMcapUsd, peakMcapUsd);
+  }
+  return {
+    peakVolumeH24,
+    peakVolumeH6,
+    peakMcapUsd,
+    weekId: weekly.weekId,
+    weekAthMcapUsd: weekly.weekAthMcapUsd,
+    currentWeekFloorUsd: weekly.currentWeekFloorUsd,
+    updatedAt:
+      typeof o.updatedAt === "string" ? o.updatedAt : seed.updatedAt,
+  };
+}
+
+function mergeHighWater(a: HighWater, b: HighWater, nowMs: number): HighWater {
+  const peakVolumeH24 = Math.max(a.peakVolumeH24, b.peakVolumeH24);
+  const peakVolumeH6 = Math.max(a.peakVolumeH6, b.peakVolumeH6);
+  const peakMcapUsd = Math.max(a.peakMcapUsd, b.peakMcapUsd);
+  const newer = a.updatedAt >= b.updatedAt ? a : b;
+  const older = newer === a ? b : a;
+  let weekly = rollWeeklyFloors(
+    {
+      weekId: newer.weekId,
+      weekAthMcapUsd: newer.weekAthMcapUsd,
+      currentWeekFloorUsd: newer.currentWeekFloorUsd,
+    },
+    nowMs,
+    null,
+  );
+  if (older.weekId === weekly.weekId) {
+    weekly = {
+      ...weekly,
+      weekAthMcapUsd: Math.max(weekly.weekAthMcapUsd, older.weekAthMcapUsd),
+      currentWeekFloorUsd: Math.max(
+        weekly.currentWeekFloorUsd,
+        older.currentWeekFloorUsd,
+      ),
     };
+  }
+  if (newer.weekId === weekly.weekId) {
+    weekly.weekAthMcapUsd = Math.max(weekly.weekAthMcapUsd, newer.weekAthMcapUsd);
+  }
+  return {
+    peakVolumeH24,
+    peakVolumeH6,
+    peakMcapUsd,
+    weekId: weekly.weekId,
+    weekAthMcapUsd: weekly.weekAthMcapUsd,
+    currentWeekFloorUsd: weekly.currentWeekFloorUsd,
+    updatedAt: newer.updatedAt >= older.updatedAt ? newer.updatedAt : older.updatedAt,
+  };
+}
+
+function deriveDecayHighwaterUrls(): string[] {
+  const urls: string[] = [];
+  const explicit = process.env.BITE_DECAY_HIGHWATER_URL?.trim();
+  if (explicit) urls.push(explicit);
+
+  const boardUrl = process.env.BITE_LEADERBOARD_URL?.trim();
+  if (boardUrl) {
+    try {
+      const u = new URL(boardUrl);
+      u.pathname = u.pathname.replace(
+        /leaderboard\.json\/?$/i,
+        "decay-highwater.json",
+      );
+      if (!/decay-highwater\.json$/i.test(u.pathname)) {
+        u.pathname = u.pathname.replace(/\/?$/, "/decay-highwater.json");
+      }
+      urls.push(u.toString());
+    } catch {
+      // ignore bad URL
+    }
+  }
+  return urls;
+}
+
+async function readRemoteHighWater(nowMs: number): Promise<HighWater | null> {
+  for (const url of deriveDecayHighwaterUrls()) {
+    const parsed = parseHighWater(await fetchJson(url, 3_500), nowMs);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+async function readLocalHighWater(nowMs: number): Promise<HighWater | null> {
+  try {
+    const raw = JSON.parse(await readFile(HIGHWATER_PATH, "utf8")) as unknown;
+    return parseHighWater(raw, nowMs);
   } catch {
-    return seed;
+    return null;
   }
 }
 
-async function writeHighWater(next: HighWater): Promise<void> {
+async function readHighWater(nowMs: number): Promise<HighWater> {
+  const seed = seedHighWater(nowMs);
+  const [remote, local] = await Promise.all([
+    readRemoteHighWater(nowMs),
+    readLocalHighWater(nowMs),
+  ]);
+  let merged = seed;
+  if (local) merged = mergeHighWater(merged, local, nowMs);
+  if (remote) merged = mergeHighWater(merged, remote, nowMs);
+  return merged;
+}
+
+async function writeLocalHighWater(next: HighWater): Promise<void> {
   try {
+    await mkdir(path.dirname(HIGHWATER_PATH), { recursive: true });
     await writeFile(HIGHWATER_PATH, JSON.stringify(next, null, 2));
   } catch {
-    // localhost-only cache; ignore if the tree is read-only
+    // Vercel / read-only FS — ignore
   }
+}
+
+async function writeRemoteHighWater(next: HighWater): Promise<void> {
+  const urls = deriveDecayHighwaterUrls();
+  if (!urls.length) return;
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(next),
+          cache: "no-store",
+          signal: AbortSignal.timeout(3_500),
+        });
+      } catch {
+        // bot may be down; local + in-memory still score
+      }
+    }),
+  );
+}
+
+async function persistHighWater(next: HighWater, prev: HighWater): Promise<void> {
+  const changed =
+    next.peakVolumeH24 > prev.peakVolumeH24 ||
+    next.peakVolumeH6 > prev.peakVolumeH6 ||
+    next.peakMcapUsd > prev.peakMcapUsd ||
+    next.weekAthMcapUsd > prev.weekAthMcapUsd ||
+    next.weekId !== prev.weekId ||
+    next.currentWeekFloorUsd !== prev.currentWeekFloorUsd;
+  if (!changed) return;
+  void writeLocalHighWater(next);
+  void writeRemoteHighWater(next);
 }
 
 export async function fetchDexscreenerTape(): Promise<PairTape> {
@@ -270,24 +432,33 @@ export async function fetchDecaySnapshot(): Promise<DecaySnapshot> {
   const nowSec = Math.floor(nowMs / 1000);
   const [tape, water] = await Promise.all([
     fetchDexscreenerTape(),
-    readHighWater(),
+    readHighWater(nowMs),
   ]);
+
+  const weekly = rollWeeklyFloors(
+    {
+      weekId: water.weekId,
+      weekAthMcapUsd: water.weekAthMcapUsd,
+      currentWeekFloorUsd: water.currentWeekFloorUsd,
+    },
+    nowMs,
+    tape.mcapUsd,
+  );
+  weekly.weekAthMcapUsd = Math.max(weekly.weekAthMcapUsd, tape.mcapUsd ?? 0);
 
   const nextWater: HighWater = {
     peakVolumeH24: Math.max(water.peakVolumeH24, tape.volumeH24 ?? 0),
     peakVolumeH6: Math.max(water.peakVolumeH6, tape.volumeH6 ?? 0),
     peakMcapUsd: Math.max(water.peakMcapUsd, tape.mcapUsd ?? 0),
+    weekId: weekly.weekId,
+    weekAthMcapUsd: weekly.weekAthMcapUsd,
+    currentWeekFloorUsd: weekly.currentWeekFloorUsd,
     updatedAt: new Date().toISOString(),
   };
-  if (
-    nextWater.peakVolumeH24 > water.peakVolumeH24 ||
-    nextWater.peakVolumeH6 > water.peakVolumeH6 ||
-    nextWater.peakMcapUsd > water.peakMcapUsd
-  ) {
-    void writeHighWater(nextWater);
-  }
+  void persistHighWater(nextWater, water);
 
   const last = await fetchLastEatAt(nowSec, tape);
+  const floors = floorsFromWeekly(weekly);
   const scored = scoreDecay({
     nowSec,
     lastEatAt: last.at,
@@ -297,12 +468,14 @@ export async function fetchDecaySnapshot(): Promise<DecaySnapshot> {
     peakVolumeH6: nextWater.peakVolumeH6,
     mcapUsd: tape.mcapUsd,
     peakMcapUsd: nextWater.peakMcapUsd,
+    currentWeekFloorUsd: weekly.currentWeekFloorUsd,
   });
 
   const value: DecaySnapshot = {
     ...scored,
     lastEatAt: last.at,
     lastEatSource: last.source,
+    floors,
   };
   snapshotCache = { at: nowMs, value };
   return value;
