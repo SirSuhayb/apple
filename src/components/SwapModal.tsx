@@ -489,6 +489,17 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
           </button>
         </div>
 
+        {buying ? (
+          <div
+            className="shrink-0 border-b border-[#34c759]/25 bg-[#34c759]/10 px-5 py-2.5"
+            role="status"
+          >
+            <p className="text-center text-[12px] font-semibold leading-snug text-[#248a3d] sm:text-[13px]">
+              {copy.swap.nativeBonus}
+            </p>
+          </div>
+        ) : null}
+
         <div className="flex flex-col gap-3 overflow-y-auto px-5 py-5">
           <label className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
             <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
@@ -586,11 +597,6 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
                   )
                 : copy.swap.slippage(SWAP_SLIPPAGE_PERCENT)}
             </p>
-            {buying ? (
-              <p className="mt-1.5 text-[11px] leading-snug text-[#34c759]">
-                {copy.swap.nativeBonus}
-              </p>
-            ) : null}
           </div>
 
           {quoteError && (
