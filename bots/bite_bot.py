@@ -95,7 +95,11 @@ BUY_URL = os.getenv("BUY_URL", f"{SITE_URL.rstrip('/')}/#swap")
 # Secondary fallback only (explicitly labeled as pons when shown).
 PONS_BUY_URL = os.getenv("PONS_BUY_URL", "").strip()
 CHAIN_ID = int(os.getenv("CHAIN_ID", "4663"))
-KITCHEN_CONTRACT = os.getenv("KITCHEN_CONTRACT", "").strip()
+# Live AppleKitchen on RH — required for native-swap fee-skim KPI + admin report.
+KITCHEN_CONTRACT = os.getenv(
+    "KITCHEN_CONTRACT",
+    "0x56fEb999D829761C787581413605bf88F5Cd81e0",
+).strip()
 META_WAGER_CONTRACT = os.getenv("META_WAGER_CONTRACT", "").strip()
 AAPL_TOKEN = os.getenv(
     "AAPL_TOKEN",
