@@ -433,13 +433,13 @@ export const copy = {
       },
       referrals: {
         name: "Windfall",
-        body: "Earn an on-chain referral payout when someone you invite buys in-app and takes a kitchen bite.",
+        body: "Earn an on-chain referral payout when someone you invite buys at least $25 in-app and takes a kitchen bite.",
       },
     },
     referrals: {
       eyebrow: "Referrals",
       headline: "Invite the orchard.",
-      body: "Share your link. When they connect, they bind you on-chain. After they buy in-app and bite, you earn a fixed $BITE payout from escrow.",
+      body: "Share your link. When they connect, they bind you on-chain. After they buy at least $25 in-app and bite, you earn a fixed $BITE payout from escrow.",
       linkLabel: "Your link",
       copyLink: "Copy link",
       copied: "Copied.",
@@ -465,10 +465,10 @@ export const copy = {
   /** Thin home banner for referees arriving via ?ref= / bound invite. */
   referralChecklist: {
     headline: "Someone sent you into the grove.",
-    body: "Buy and burn here to count — then they earn their Windfall.",
+    body: "Buy at least $25 and burn here to count — then they earn their Windfall.",
     connect: "Connect wallet",
     connecting: "Connecting…",
-    buy: "Buy $BITE on bite.party",
+    buy: "Buy $25+ of $BITE on bite.party",
     buyCta: "Trade",
     burn: "Burn via the kitchen",
     burnCta: "Bite",
