@@ -71,6 +71,7 @@ except ImportError:
 
 from bots.referral_escrow import maybe_qualify_referees, send_qualify
 from bots.native_swaps import (
+    NATIVE_SWAP_FEE_BIPS,
     NATIVE_SWAP_INDEX_MODE,
     ensure_native_swaps,
     ingest_client_swap,
@@ -233,6 +234,8 @@ POINTS_PER_BITE_GAINED = float(os.getenv("POINTS_PER_BITE_GAINED", "0.01"))
 HOLD_BITE_PER_POINT_PER_HOUR = float(os.getenv("HOLD_BITE_PER_POINT_PER_HOUR", "10000"))
 # Act II: trades take moderate bites, burns take bigger bites.
 BUY_SCORE_MULT = float(os.getenv("BUY_SCORE_MULT", "0.01"))
+# In-app buys (fee skim → kitchen) score 2× DEX buys.
+NATIVE_BUY_MULT = float(os.getenv("NATIVE_BUY_MULT", "2"))
 SELL_SCORE_MULT = float(os.getenv("SELL_SCORE_MULT", "0.015"))
 BURN_SCORE_MULT = float(os.getenv("BURN_SCORE_MULT", "1"))
 # Side bet, not a bite — 10× lighter than a buy so wagers cannot lead.
@@ -2677,25 +2680,121 @@ def resolve_swapper(w3, tx_hash: str, cache: dict) -> str | None:
     return sender
 
 
+def _norm_tx_key(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return "0x" + value.hex()
+    s = str(value).lower()
+    if not s.startswith("0x"):
+        s = "0x" + s
+    return s
+
+
+def _native_swap_rec(state: dict, tx_hash: str | None) -> dict | None:
+    """Return native_swaps.by_tx record for this hash, if any."""
+    tx = _norm_tx_key(tx_hash)
+    if not tx or len(tx) < 10:
+        return None
+    ns = state.get("native_swaps")
+    if not isinstance(ns, dict):
+        return None
+    by_tx = ns.get("by_tx")
+    if not isinstance(by_tx, dict):
+        return None
+    rec = by_tx.get(tx)
+    return rec if isinstance(rec, dict) else None
+
+
+def _is_native_buy_tx(state: dict, tx_hash: str | None) -> bool:
+    """True when this tx paid an in-app buy fee skim (BITE → kitchen)."""
+    rec = _native_swap_rec(state, tx_hash)
+    if not rec:
+        return False
+    side = str(rec.get("side") or "")
+    fee_token = str(rec.get("feeToken") or "")
+    if side == "buy":
+        return True
+    if side in ("", "unknown") and fee_token == "BITE":
+        return True
+    return False
+
+
+def _mark_native_buy_bonus(state: dict, tx_hash: str | None) -> None:
+    """Record that the native 2× bonus was applied for this tx (dedupe)."""
+    tx = _norm_tx_key(tx_hash)
+    if not tx:
+        return
+    bonus = state.setdefault("native_buy_bonus", {})
+    if not isinstance(bonus, dict):
+        bonus = {}
+        state["native_buy_bonus"] = bonus
+    applied = bonus.setdefault("txs", {})
+    if not isinstance(applied, dict):
+        applied = {}
+        bonus["txs"] = applied
+    applied[tx] = True
+
+
+def _native_buy_bonus_applied(state: dict, tx_hash: str | None) -> bool:
+    tx = _norm_tx_key(tx_hash)
+    if not tx:
+        return False
+    bonus = state.get("native_buy_bonus")
+    if not isinstance(bonus, dict):
+        return False
+    applied = bonus.get("txs")
+    return isinstance(applied, dict) and bool(applied.get(tx))
+
+
+def _buy_score_mult(state: dict, tx_hash: str | None = None) -> float:
+    """Base buy mult, or NATIVE_BUY_MULT× when the tx is an in-app buy."""
+    if NATIVE_BUY_MULT > 1 and _is_native_buy_tx(state, tx_hash):
+        return BUY_SCORE_MULT * NATIVE_BUY_MULT
+    return BUY_SCORE_MULT
+
+
 def _empty_side_tally() -> dict:
     return {"buys": 0, "sells": 0, "buy_pts": 0.0, "sell_pts": 0.0}
 
 
-def _tally_side(dest: dict, wallet: str, side: str, bite_amount: float) -> None:
+def _tally_side(
+    dest: dict,
+    wallet: str,
+    side: str,
+    bite_amount: float,
+    *,
+    state: dict | None = None,
+    tx_hash: str | None = None,
+) -> None:
     if side not in ("buy", "sell") or bite_amount <= 0:
         return
     row = dest.setdefault(wallet.lower(), _empty_side_tally())
     if side == "buy":
         row["buys"] = int(row.get("buys") or 0) + 1
         if PHASE >= 1 and BUY_SCORE_MULT > 0:
-            row["buy_pts"] = float(row.get("buy_pts") or 0) + bite_amount * BUY_SCORE_MULT
+            mult = (
+                _buy_score_mult(state, tx_hash)
+                if state is not None
+                else BUY_SCORE_MULT
+            )
+            row["buy_pts"] = float(row.get("buy_pts") or 0) + bite_amount * mult
+            if state is not None and mult > BUY_SCORE_MULT:
+                _mark_native_buy_bonus(state, tx_hash)
     else:
         row["sells"] = int(row.get("sells") or 0) + 1
         if PHASE >= 1 and SELL_SCORE_MULT > 0:
             row["sell_pts"] = float(row.get("sell_pts") or 0) + bite_amount * SELL_SCORE_MULT
 
 
-def _credit_side_live(state: dict, wallet: str, side: str, bite_amount: float) -> None:
+def _credit_side_live(
+    state: dict,
+    wallet: str,
+    side: str,
+    bite_amount: float,
+    *,
+    tx_hash: str | None = None,
+) -> None:
     entry = points_entry(state, wallet)
     entry["wallet"] = entry.get("wallet") or (
         Web3.to_checksum_address(wallet) if Web3 else wallet
@@ -2703,9 +2802,12 @@ def _credit_side_live(state: dict, wallet: str, side: str, bite_amount: float) -
     if side == "buy":
         entry["trade_count"] = int(entry.get("trade_count") or 0) + 1
         if PHASE >= 1 and BUY_SCORE_MULT > 0:
-            pts = bite_amount * BUY_SCORE_MULT
+            mult = _buy_score_mult(state, tx_hash)
+            pts = bite_amount * mult
             entry["buy_points"] = float(entry.get("buy_points") or 0) + pts
             entry["points"] = float(entry.get("points") or 0) + pts
+            if mult > BUY_SCORE_MULT:
+                _mark_native_buy_bonus(state, tx_hash)
     elif side == "sell":
         entry["sell_count"] = int(entry.get("sell_count") or 0) + 1
         if PHASE >= 1 and SELL_SCORE_MULT > 0:
@@ -2738,12 +2840,87 @@ def apply_v4_swap_events(
         if swapper_l in excluded and swapper_l not in DEV_WALLETS:
             continue
         item["swapper"] = swapper_l
+        tx_hash = item.get("tx_hash") or ""
         if pending is not None:
-            _tally_side(pending, swapper_l, side, bite_amount)
+            _tally_side(
+                pending,
+                swapper_l,
+                side,
+                bite_amount,
+                state=state,
+                tx_hash=tx_hash,
+            )
         else:
-            _credit_side_live(state, swapper_l, side, bite_amount)
+            _credit_side_live(
+                state, swapper_l, side, bite_amount, tx_hash=tx_hash
+            )
         hits += 1
     return hits
+
+
+def _fee_raw_to_bite_amount(fee_raw: int, bips: int = NATIVE_SWAP_FEE_BIPS) -> float:
+    """Estimate $BITE bought from integrator fee skim (fee = output × bips / 10000)."""
+    if fee_raw <= 0 or bips <= 0:
+        return 0.0
+    return (fee_raw * 10_000 / bips) / 10**18
+
+
+def apply_native_buy_bonus(state: dict) -> int:
+    """Credit the extra 1× buy points for native buys already scored at base rate.
+
+    Deduped via state['native_buy_bonus']['txs']. Covers historical in-app
+    swaps indexed after their DEX buy credit, and race conditions where the
+    fee skim lands after v4 scoring.
+    """
+    if PHASE < 1 or BUY_SCORE_MULT <= 0 or NATIVE_BUY_MULT <= 1:
+        return 0
+    ns = ensure_native_swaps(state)
+    by_tx = ns.get("by_tx")
+    if not isinstance(by_tx, dict):
+        return 0
+    extra_mult = BUY_SCORE_MULT * (NATIVE_BUY_MULT - 1)
+    credited = 0
+    for tx, rec in by_tx.items():
+        if not isinstance(rec, dict):
+            continue
+        if _native_buy_bonus_applied(state, tx):
+            continue
+        side = str(rec.get("side") or "")
+        fee_token = str(rec.get("feeToken") or "")
+        is_buy = side == "buy" or (
+            side in ("", "unknown") and fee_token == "BITE"
+        )
+        if not is_buy:
+            continue
+        wallet = str(rec.get("wallet") or "").lower()
+        if not wallet or not wallet.startswith("0x"):
+            continue
+        fee_raw = int(rec.get("feeRaw") or 0)
+        bite_amount = _fee_raw_to_bite_amount(fee_raw)
+        # Prefer client amountOut when it looks like a human token amount.
+        raw_out = rec.get("amountOut")
+        if raw_out is not None:
+            try:
+                out_f = float(raw_out)
+                if out_f > 0:
+                    # Heuristic: wei if huge, else already token units.
+                    bite_amount = out_f / 10**18 if out_f > 1e12 else out_f
+            except (TypeError, ValueError):
+                pass
+        if bite_amount <= 0:
+            # Still mark so we don't retry forever with no fee data.
+            _mark_native_buy_bonus(state, tx)
+            continue
+        pts = bite_amount * extra_mult
+        entry = points_entry(state, wallet)
+        entry["wallet"] = entry.get("wallet") or (
+            Web3.to_checksum_address(wallet) if Web3 else wallet
+        )
+        entry["buy_points"] = float(entry.get("buy_points") or 0) + pts
+        entry["points"] = float(entry.get("points") or 0) + pts
+        _mark_native_buy_bonus(state, tx)
+        credited += 1
+    return credited
 
 
 def _strip_buy_sell_keep_burns(entry: dict) -> None:
@@ -2872,9 +3049,13 @@ def apply_trade_events(
             if tracked is not None and from_l not in tracked:
                 continue
             if remap_only:
-                _tally_side(pending, from_l, "sell", bite_amount)
+                _tally_side(
+                    pending, from_l, "sell", bite_amount, state=state, tx_hash=tx_hash
+                )
             else:
-                _credit_side_live(state, from_addr, "sell", bite_amount)
+                _credit_side_live(
+                    state, from_addr, "sell", bite_amount, tx_hash=tx_hash
+                )
             hits += 1
             continue
 
@@ -2886,9 +3067,13 @@ def apply_trade_events(
             if tracked is not None and to_l not in tracked:
                 continue
             if remap_only:
-                _tally_side(pending, to_l, "buy", bite_amount)
+                _tally_side(
+                    pending, to_l, "buy", bite_amount, state=state, tx_hash=tx_hash
+                )
             else:
-                _credit_side_live(state, to_addr, "buy", bite_amount)
+                _credit_side_live(
+                    state, to_addr, "buy", bite_amount, tx_hash=tx_hash
+                )
             hits += 1
             continue
     return hits
@@ -4700,6 +4885,19 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
                 )
             state["last_burn_milestone"] = m
 
+    # Native-swap KPI first so buy scoring can apply the 2× in-app mult.
+    if transfer_filter and KITCHEN_CONTRACT and scanned_to >= from_block:
+        try:
+            state = apply_native_swap_poll(
+                state,
+                w3,
+                transfer_filter,
+                from_block=from_block,
+                to_block=scanned_to,
+            )
+        except Exception as e:
+            print(f"[native-swap] poll error: {e}")
+
     # v4 Swap amount0 is the buy/sell truth. Transfer hops on those txs are
     # skipped so a sell is not also counted as a contract→EOA "buy".
     if scanned_to >= from_block and v4_swaps:
@@ -4768,18 +4966,13 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
         except Exception as e:
             print(f"[referral] qualify pass error: {e}")
 
-    # Native-swap KPI: fee skim Transfer→kitchen (BITE buys + AAPL sells)
-    if transfer_filter and KITCHEN_CONTRACT and scanned_to >= from_block:
-        try:
-            state = apply_native_swap_poll(
-                state,
-                w3,
-                transfer_filter,
-                from_block=from_block,
-                to_block=scanned_to,
-            )
-        except Exception as e:
-            print(f"[native-swap] poll error: {e}")
+    # Catch native buys scored at 1× before the fee skim was indexed.
+    try:
+        n_bonus = apply_native_buy_bonus(state)
+        if n_bonus:
+            print(f"[native-buy] +{n_bonus} bonus credits (2×)")
+    except Exception as e:
+        print(f"[native-buy] bonus pass error: {e}")
 
     for event in transfer_filter:
         from_addr = event.args["from"]
@@ -5520,7 +5713,9 @@ class _LeaderboardHandler(BaseHTTPRequestHandler):
         result = ingest_client_swap(state, payload)
         if result.get("ok"):
             try:
+                apply_native_buy_bonus(state)
                 save_state(state)
+                write_public_leaderboard(state)
             except Exception as e:
                 print(f"[native-swap] ingest save failed: {e}")
             self._json_response(200, result)
@@ -5716,13 +5911,22 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:
             print(f"[wager] startup pass failed (will retry next poll): {e}")
         try:
+            # Index native fee skims before buy/sell remap so 2× can apply.
+            state = backfill_native_swaps(w3, contract, state)
+        except Exception as e:
+            print(f"[native-swap] startup pass failed (will retry next poll): {e}")
+        try:
             state = backfill_v4_swap_sides(w3, contract, state)
         except Exception as e:
             print(f"[v4-side] startup pass failed (will retry next poll): {e}")
         try:
-            state = backfill_native_swaps(w3, contract, state)
+            n_bonus = apply_native_buy_bonus(state)
+            if n_bonus:
+                print(f"[native-buy] startup +{n_bonus} bonus credits (2×)")
+                write_public_leaderboard(state)
+                save_state(state)
         except Exception as e:
-            print(f"[native-swap] startup pass failed (will retry next poll): {e}")
+            print(f"[native-buy] startup bonus failed: {e}")
 
     if args.test:
         if PHASE == 1:

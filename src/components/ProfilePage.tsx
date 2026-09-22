@@ -3,11 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import type { Connector } from "wagmi";
-import { useAccount, useConnect, useReadContract } from "wagmi";
-import { formatUnits, isAddress, type Address } from "viem";
-import { erc20Abi } from "@/lib/abis";
-import { robinhoodChain } from "@/lib/chain";
-import { BITE_TOKEN } from "@/lib/config";
+import { useAccount, useConnect } from "wagmi";
 import { copy } from "@/lib/copy";
 import type { Eater, SupplyStats } from "@/lib/race";
 import {
@@ -25,6 +21,7 @@ import {
   saveShareTitlePick,
 } from "@/lib/referrals";
 import { sharePageUrl } from "@/lib/share";
+import { useBiteBalance } from "@/lib/use-bite-balance";
 import { useBoardWallet } from "@/lib/use-board-wallet";
 import { useLeaderboardLive } from "@/lib/use-leaderboard";
 import {
@@ -33,6 +30,7 @@ import {
   fmtScore,
   youSurfaceClass,
 } from "./LeaderboardRow";
+import { FirstBiteQuestCard } from "./FirstBiteQuestBanner";
 import {
   ProfileReferrals,
   useReferralPayoutCount,
@@ -396,30 +394,17 @@ function ProfileBody({
         onSelect={isOwn ? select : undefined}
       />
 
+      {isOwn ? (
+        <FirstBiteQuestCard
+          eaters={eaters}
+          holdBalance={holdBalance}
+          enabled
+        />
+      ) : null}
+
       {isOwn ? <ProfileReferrals address={address} /> : null}
     </>
   );
-}
-
-function useOwnBiteBalance(enabled: boolean, address?: string) {
-  const { data, isLoading } = useReadContract({
-    address: BITE_TOKEN,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: address && isAddress(address) ? [address as Address] : undefined,
-    chainId: robinhoodChain.id,
-    query: {
-      enabled: Boolean(enabled && address && isAddress(address) && BITE_TOKEN),
-    },
-  });
-
-  const holdBalance =
-    data != null ? Number(formatUnits(data as bigint, 18)) : null;
-
-  return {
-    holdBalance: Number.isFinite(holdBalance) ? holdBalance : null,
-    holdLoading: enabled && isLoading,
-  };
 }
 
 export function ProfileMePage({
@@ -443,7 +428,7 @@ export function ProfileMePage({
     coreTarget,
     supplyStats?.totalSupply,
   );
-  const { holdBalance, holdLoading } = useOwnBiteBalance(
+  const { holdBalance, holdLoading } = useBiteBalance(
     Boolean(profileAddress),
     profileAddress,
   );
@@ -511,7 +496,7 @@ export function ProfilePublicPage({
     coreTarget,
     supplyStats?.totalSupply,
   );
-  const { holdBalance, holdLoading } = useOwnBiteBalance(isOwn, address);
+  const { holdBalance, holdLoading } = useBiteBalance(isOwn, address);
 
   return (
     <ProfileShell backHref="/leaderboard">

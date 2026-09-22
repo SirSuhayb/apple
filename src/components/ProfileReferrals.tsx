@@ -61,6 +61,12 @@ export function ProfileReferrals({ address }: { address: string }) {
         functionName: "rewardPerReferral",
         chainId: robinhoodChain.id,
       },
+      {
+        address: REFERRAL_ESCROW,
+        abi: referralEscrowAbi,
+        functionName: "remainingPayouts",
+        chainId: robinhoodChain.id,
+      },
     ],
     query: {
       enabled: Boolean(REFERRAL_ESCROW && isAddress(address)),
@@ -84,6 +90,11 @@ export function ProfileReferrals({ address }: { address: string }) {
   const rewardBite = rewardWei
     ? Number(formatUnits(rewardWei, 18))
     : REFERRAL_REWARD_BITE;
+
+  const remainingPayouts =
+    data?.[2]?.status === "success" && typeof data[2].result === "bigint"
+      ? Number(data[2].result)
+      : null;
 
   const referrerToBind = useMemo(() => {
     if (boundOnChain) return null;
@@ -241,6 +252,18 @@ export function ProfileReferrals({ address }: { address: string }) {
       <p className="mt-2 max-w-[480px] text-[13px] leading-relaxed text-[#6e6e73]">
         {copy.profile.referrals.body}
       </p>
+      {remainingPayouts != null ? (
+        <p
+          className={[
+            "mt-2 text-[13px] font-semibold",
+            remainingPayouts > 0 ? "text-[#34c759]" : "text-[#e53935]",
+          ].join(" ")}
+        >
+          {remainingPayouts > 0
+            ? copy.profile.referrals.remainingCount(remainingPayouts)
+            : copy.profile.referrals.remainingEmpty}
+        </p>
+      ) : null}
 
       <div className="mt-5 rounded-[18px] border border-[#d2d2d7] bg-white px-5 py-5">
         <p className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
@@ -270,7 +293,7 @@ export function ProfileReferrals({ address }: { address: string }) {
           </button>
         </div>
 
-        <div className="mt-5 grid grid-cols-3 gap-2.5">
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
           <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">
             <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
               {copy.profile.referrals.rewardLabel}
@@ -279,6 +302,16 @@ export function ProfileReferrals({ address }: { address: string }) {
               {copy.profile.referrals.rewardAmount(
                 formatCompactAmount(rewardBite),
               )}
+            </div>
+          </div>
+          <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">
+            <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
+              {copy.profile.referrals.remainingLabel}
+            </div>
+            <div className="mt-0.5 text-[17px] font-bold tabular-nums text-[#1d1d1f]">
+              {remainingPayouts != null
+                ? formatCompactAmount(remainingPayouts)
+                : "…"}
             </div>
           </div>
           <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">

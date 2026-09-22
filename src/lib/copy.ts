@@ -71,6 +71,14 @@ export const copy = {
       1: "Eat to the core before time runs out — winners split the pot.",
     } as const,
     ctaPrimary: "Trade on bite.party",
+    /** Act 2+: no bags — open native swap, then bite. */
+    ctaBuyThenBite: "Buy then bite",
+    /** Act 2+: holding $BITE, never kitchen-tapped. */
+    ctaFirstBite: "Take a first bite",
+    /** Act 2+: already bitten — keep eating. */
+    ctaBurn: "Burn $BITE",
+    /** Text link when primary is a burn action. */
+    ctaTradeSecondary: "Trade",
     ctaSeed: "Seed the pool",
     ctaPrimarySoon: "Mint soon",
     ctaSecondary: {
@@ -79,6 +87,8 @@ export const copy = {
       2: "How eating works ↓",
       3: "How eating works ↓",
     } as const,
+    eaterCount: (n: number) =>
+      n === 1 ? "1 has taken a bite." : `${n} have taken a bite.`,
     appleLabel: "Tap the apple.",
     /** Produce-sticker lines on the hero apple */
     sticker: {
@@ -281,7 +291,9 @@ export const copy = {
     searchClear: "Clear",
     scoring: {
       eyebrow: "How scoring works",
-      buy: "Buy — 0.01 pts per $BITE",
+      buy: "Buy — 0.01 pts per $BITE (Dexscreener / external)",
+      buyNative:
+        "Buy on bite.party — 0.02 pts per $BITE (2× · feeds the kitchen)",
       sell: "Sell — 0.015 pts per $BITE (1.5× buy)",
       tap: "Burn — 1 pt per $BITE (2× in the early-eater window)",
       wager: "Wager — 0.001 pts per $BITE staked on entry (side bet, not a bite)",
@@ -436,13 +448,13 @@ export const copy = {
       },
       referrals: {
         name: "Windfall",
-        body: "Earn an on-chain referral payout when someone you invite swaps at least $25 and burns at least $5 in-app.",
+        body: "Earn 250,000 $BITE when someone you invite swaps at least $25 and burns at least $5 in-app. Limited seats in the orchard.",
       },
     },
     referrals: {
       eyebrow: "Referrals",
       headline: "Invite the orchard.",
-      body: "Share your link. When they connect, they bind you on-chain. Once their in-app swaps total at least $25 and they burn at least $5, you earn a fixed $BITE payout from escrow.",
+      body: "Share your link. When they connect, they bind you on-chain. Once their in-app swaps total at least $25 and they burn at least $5, you earn 250,000 $BITE from escrow — while seats last.",
       linkLabel: "Your link",
       copyLink: "Copy link",
       copied: "Copied.",
@@ -452,6 +464,10 @@ export const copy = {
       earningsLabel: "Earnings",
       rewardLabel: "Payout",
       rewardAmount: (n: string) => `${n} $BITE`,
+      remainingLabel: "Windfalls left",
+      remainingCount: (n: number) =>
+        n === 1 ? "1 Windfall left" : `${n} Windfalls left`,
+      remainingEmpty: "Escrow empty — no Windfalls left.",
       stubZero: "0",
       needWallet: "Connect a wallet to bind a pending invite on-chain.",
       pendingNote: (short: string) =>
@@ -465,10 +481,17 @@ export const copy = {
     },
   },
 
+  /** Home /me quest for holders who have never kitchen-tapped. */
+  firstBiteQuest: {
+    headline: "You've got $BITE. Take a first bite.",
+    body: "Tape doesn't pay the pot. Eating does — unlock First Bite.",
+    cta: "Take a first bite",
+  },
+
   /** Thin home banner for referees arriving via ?ref= / bound invite. */
   referralChecklist: {
     headline: "Someone sent you into the grove.",
-    body: "Swap at least $25 total and burn at least $5 to count — then they earn their Windfall.",
+    body: "Swap at least $25 total and burn at least $5 to count — then they earn 250,000 $BITE (Windfall).",
     connect: "Connect wallet",
     connecting: "Connecting…",
     buy: "Swap $25+ total on bite.party",
@@ -519,6 +542,8 @@ export const copy = {
     close: "Close",
     iframeTitle: "Uniswap swap",
     uniswapNote: "Buy $BITE with AAPL, USDG, or ETH · sell to AAPL",
+    nativeBonus:
+      "Buys here score 2× on the board and feed the kitchen pot.",
     ponsNote: "Trade on pons",
     ponsBody:
       "Open pons to trade $BITE from your wallet.",
