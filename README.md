@@ -70,7 +70,15 @@ Eydeet CC-BY frames live in `public/apple/frames/0.glb`…`9.glb` (UI frame *i* 
 
 `AppleKitchen` lives in `contracts/src/AppleKitchen.sol` — `bite`, `digest` (50/50), `revealCore` (swarm minus deployer), `revealRot` (pot to deployer). Deploy **after** mint.
 
-`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` → wallet `bind(referrer)`; orchard bot attests buy+burn then `qualify`. Display fallback is **250,000 BITE** (owner sets live value via `setRewardPerReferral`; fund escrow for limited Windfall seats).
+`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` → wallet `bind(referrer)`; orchard bot attests buy+burn then `qualify`. Live Windfall is **250,000 BITE** (owner `setRewardPerReferral` / `./contracts/scripts/fund-referral-escrow.sh`). For 20 seats, deposit **5M** $BITE into the proxy (top up existing balance).
+
+```bash
+cd contracts
+./scripts/fund-referral-escrow.sh   # set reward only
+# Top up to 5M (example: escrow already holds 1M → deposit 4M):
+DEPOSIT_AMOUNT=4000000000000000000000000 ./scripts/fund-referral-escrow.sh
+```
+
 
 **Vercel:** set `NEXT_PUBLIC_REFERRAL_ESCROW` to your proxy address after deploy.
 
