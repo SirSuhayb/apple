@@ -9,6 +9,8 @@ Env (never commit secrets):
   REFERRAL_ATTESTER_KEY    preferred signer key (attester / owner EOA)
   PRIVATE_KEY              fallback if REFERRAL_ATTESTER_KEY unset (kitchen deploy)
   REFERRAL_AUTO_QUALIFY    1 (default) to auto-qualify in poll; 0 to disable
+  REFERRAL_MIN_SWAP_USD    minimum swap value in USD to qualify (default 25)
+  REFERRAL_MIN_SWAP_BITE   BITE-amount fallback when no price (default 500000)
 """
 
 from __future__ import annotations
@@ -30,6 +32,9 @@ REFERRAL_AUTO_QUALIFY = os.getenv("REFERRAL_AUTO_QUALIFY", "1").strip().lower() 
     "no",
     "off",
 )
+
+REFERRAL_MIN_SWAP_USD = float(os.getenv("REFERRAL_MIN_SWAP_USD", "25"))
+REFERRAL_MIN_SWAP_BITE_RAW = int(os.getenv("REFERRAL_MIN_SWAP_BITE", "500000")) * 10**18
 
 REFERRAL_ESCROW_ABI = [
     {
@@ -150,7 +155,7 @@ def note_in_app_buys_from_transfers(
     hits = 0
     for tx, logs in by_tx.items():
         fee_to_kitchen = False
-        buy_recipients: set[str] = set()
+        buy_amounts: dict[str, int] = {}
         for event in logs:
             from_l = event.args["from"].lower()
             to_l = event.args["to"].lower()
@@ -161,13 +166,16 @@ def note_in_app_buys_from_transfers(
                 fee_to_kitchen = True
             # Buy hop: protocol/contract → EOA (not kitchen / not another contract)
             if from_l in contracts and to_l not in contracts and to_l != kitchen_l:
-                buy_recipients.add(to_l)
-        if not fee_to_kitchen or not buy_recipients:
+                buy_amounts[to_l] = buy_amounts.get(to_l, 0) + value
+        if not fee_to_kitchen or not buy_amounts:
             continue
-        for addr in buy_recipients:
+        for addr, amount in buy_amounts.items():
+            prev = buyers.get(addr)
+            prev_raw = int(prev.get("bite_raw") or 0) if isinstance(prev, dict) else 0
             buyers[addr] = {
                 "tx": tx,
                 "at": time.time(),
+                "bite_raw": prev_raw + amount,
             }
             hits += 1
     return hits
@@ -300,6 +308,28 @@ def send_qualify(w3, referee: str, *, dry_run: bool = False) -> dict[str, Any]:
         return {"ok": False, "error": str(e)}
 
 
+def _bite_usd_price(state: dict) -> float | None:
+    """Read BITE price in USD from Dexscreener market data (same as bite_bot)."""
+    try:
+        price = float(
+            (state.get("market") or {}).get("dexscreener", {}).get("priceUsd") or 0
+        )
+        return price if price > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _meets_referral_min_swap(bite_raw: int, state: dict) -> bool:
+    """True when a buyer's BITE amount meets the referral minimum ($25 default)."""
+    if REFERRAL_MIN_SWAP_USD <= 0:
+        return True
+    price = _bite_usd_price(state)
+    if price is not None:
+        usd_val = (bite_raw / 10**18) * price
+        return usd_val >= REFERRAL_MIN_SWAP_USD
+    return bite_raw >= REFERRAL_MIN_SWAP_BITE_RAW
+
+
 def maybe_qualify_referees(
     state: dict,
     w3,
@@ -346,7 +376,14 @@ def maybe_qualify_referees(
         if addr in done_set:
             continue
         if addr not in buyers:
-            # Require in-app buy signal — not every chain transfer / external DEX buy.
+            continue
+        buyer_info = buyers[addr]
+        bite_raw = int(buyer_info.get("bite_raw") or 0) if isinstance(buyer_info, dict) else 0
+        if not _meets_referral_min_swap(bite_raw, state):
+            print(
+                f"[referral] skip {addr}: swap below ${REFERRAL_MIN_SWAP_USD} min "
+                f"({bite_raw / 10**18:.1f} BITE)"
+            )
             continue
         result = send_qualify(w3, addr, dry_run=dry_run)
         if result.get("ok") and (

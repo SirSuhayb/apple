@@ -103,6 +103,9 @@ export const REFERRAL_ESCROW_FROM_BLOCK = 68_894_675n;
 /** Display fallback when chain read is loading (live reward is 1000 BITE). */
 export const REFERRAL_REWARD_BITE = 1000;
 
+/** Minimum swap value (USD) for a referral to qualify. Matches bot REFERRAL_MIN_SWAP_USD. */
+export const REFERRAL_MIN_SWAP_USD = 25;
+
 /** Live pons launchpad for $BITE (path is `/launchpad/:ca` — `/token/:ca` 404s). */
 export const PONS_TOKEN_URL =
   process.env.NEXT_PUBLIC_PONS_TOKEN_URL ??
