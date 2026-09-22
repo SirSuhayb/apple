@@ -95,6 +95,8 @@ export function progressToFrame(progress: number): number {
 
 /** Buy: 0.01 / $BITE (moderate). Burn: 1 / $BITE (bigger bite). Sell 1.5× buy. Early-eater 2× on burns. Wager: 0.001 / $BITE staked on entry — a side bet, not a bite. */
 export const BUY_SCORE_K = 0.01;
+/** In-app native buys (fee skim → kitchen) score 2× DEX buys. */
+export const NATIVE_BUY_MULT = 2;
 export const SELL_SCORE_MULT = 1.5;
 export const SELL_SCORE_K = BUY_SCORE_K * SELL_SCORE_MULT;
 export const TAP_SCORE_K = 1;
@@ -112,8 +114,12 @@ export const LEGACY_BURN_K = 50;
 /** Intermediate v2_centi burn rate before burn-lead. */
 export const CENTI_BURN_K = 0.1;
 
-export function scoreBuy(quoteVolume: number): number {
-  return quoteVolume * BUY_SCORE_K;
+export function scoreBuy(
+  quoteVolume: number,
+  opts?: { native?: boolean },
+): number {
+  const mult = opts?.native ? NATIVE_BUY_MULT : 1;
+  return quoteVolume * BUY_SCORE_K * mult;
 }
 
 export function scoreSell(quoteVolume: number): number {

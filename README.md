@@ -70,7 +70,7 @@ Eydeet CC-BY frames live in `public/apple/frames/0.glb`…`9.glb` (UI frame *i* 
 
 `AppleKitchen` lives in `contracts/src/AppleKitchen.sol` — `bite`, `digest` (50/50), `revealCore` (swarm minus deployer), `revealRot` (pot to deployer). Deploy **after** mint.
 
-`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` → wallet `bind(referrer)`; orchard bot attests buy+burn then `qualify`. Default reward is **1000 BITE** (owner can `setRewardPerReferral` later).
+`ReferralEscrow` (`contracts/src/ReferralEscrow.sol`) is a **UUPS** escrow: fixed `$BITE` per in-app referral via attester `qualify`. Fund the **proxy** (not the implementation). Site `?ref=` → wallet `bind(referrer)`; orchard bot attests buy+burn then `qualify`. Display fallback is **250,000 BITE** (owner sets live value via `setRewardPerReferral`; fund escrow for limited Windfall seats).
 
 **Vercel:** set `NEXT_PUBLIC_REFERRAL_ESCROW` to your proxy address after deploy.
 

@@ -29,6 +29,8 @@ type ReferralChecklistBannerProps = {
   onBite: () => void;
   tradingOpen: boolean;
   burnsOpen: boolean;
+  /** Fires when the invite strip is actually rendered (or not). */
+  onActiveChange?: (active: boolean) => void;
 };
 
 const CONNECTOR_LABELS: Record<string, string> = {
@@ -69,6 +71,7 @@ export function ReferralChecklistBanner({
   onBite,
   tradingOpen,
   burnsOpen,
+  onActiveChange,
 }: ReferralChecklistBannerProps) {
   const { address, isConnected } = useAccount();
   const { connect, connectors, isPending: connecting } = useConnect();
@@ -183,8 +186,14 @@ export function ReferralChecklistBanner({
     });
   };
 
-  if (!hydrated || !hasReferralIntent) return null;
-  if (qualified || stepsDone) return null;
+  const active =
+    hydrated && hasReferralIntent && !qualified && !stepsDone;
+
+  useEffect(() => {
+    onActiveChange?.(active);
+  }, [active, onActiveChange]);
+
+  if (!active) return null;
 
   const showBind =
     isConnected &&

@@ -311,6 +311,7 @@ export function Leaderboard({
         </p>
         <div className="space-y-1 text-[13px] text-[#6e6e73]">
           <p>{copy.leaderboard.scoring.buy}</p>
+          <p>{copy.leaderboard.scoring.buyNative}</p>
           <p>{copy.leaderboard.scoring.sell}</p>
           <p>{copy.leaderboard.scoring.tap}</p>
           <p>{copy.leaderboard.scoring.wager}</p>

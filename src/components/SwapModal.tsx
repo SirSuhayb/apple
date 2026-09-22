@@ -586,6 +586,11 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
                   )
                 : copy.swap.slippage(SWAP_SLIPPAGE_PERCENT)}
             </p>
+            {buying ? (
+              <p className="mt-1.5 text-[11px] leading-snug text-[#34c759]">
+                {copy.swap.nativeBonus}
+              </p>
+            ) : null}
           </div>
 
           {quoteError && (

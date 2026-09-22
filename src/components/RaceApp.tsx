@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAccount } from "wagmi";
 import type { Eater, RaceState, SupplyStats } from "@/lib/race";
 import { FRAME_COUNT } from "@/lib/race";
 import { buildDemoRaceState } from "@/lib/demo-state";
@@ -25,12 +26,14 @@ import {
   socialLinks,
 } from "@/lib/copy";
 import { resolvePhaseFlags, type SiteAct } from "@/lib/phase";
+import { useBiteBalance } from "@/lib/use-bite-balance";
 import { BiteModal, type BiteResult } from "./BiteModal";
 import { Countdown } from "./Countdown";
 import { useLeaderboardLive } from "@/lib/use-leaderboard";
-import { resolveAppleTotal, weiToTokens } from "@/lib/leaderboard-rank";
+import { resolveAppleTotal, sameWallet, weiToTokens } from "@/lib/leaderboard-rank";
 import { EatersBoard } from "./EatersBoard";
 import { AppleConditionBanner } from "./AppleConditionBanner";
+import { FirstBiteQuestBanner } from "./FirstBiteQuestBanner";
 import { ReferralChecklistBanner } from "./ReferralChecklistBanner";
 import {
   MetaWagerEmpty,
@@ -407,6 +410,13 @@ export function RaceApp({
   const [playFrame, setPlayFrame] = useState(0);
   const [prefillAmount, setPrefillAmount] = useState<string | null>(null);
   const [qaDecay, setQaDecay] = useState<number | null>(null);
+  const [referralChecklistActive, setReferralChecklistActive] = useState(false);
+
+  const { address, isConnected } = useAccount();
+  const { holdBalance } = useBiteBalance(
+    Boolean(isConnected && address),
+    address,
+  );
 
   useEffect(() => {
     if (!isLocalDecayHost()) return;
@@ -419,35 +429,43 @@ export function RaceApp({
     }
   }, []);
 
-  // Deep links: #swap opens native swap; #burn / #burn?amount=X opens burn section
+  // Deep links: #swap opens native swap; #burn / #burn?amount=X opens burn modal
   useEffect(() => {
-    const hash = window.location.hash; // e.g. "#burn?amount=1000" or "#swap"
-    const base = hash.split("?")[0]?.toLowerCase() ?? "";
+    const openFromHash = () => {
+      const hash = window.location.hash; // e.g. "#burn?amount=1000" or "#swap"
+      const base = hash.split("?")[0]?.toLowerCase() ?? "";
 
-    if (base === "#swap") {
-      if (SWAP_PROVIDER !== "pons") {
-        setSwapOpen(true);
+      if (base === "#swap") {
+        if (SWAP_PROVIDER !== "pons") {
+          setSwapOpen(true);
+        }
+        return;
       }
-      return;
-    }
 
-    if (!base.startsWith("#burn")) return;
+      if (!base.startsWith("#burn")) return;
 
-    // Parse amount from hash params (e.g. #burn?amount=1000)
-    const qIdx = hash.indexOf("?");
-    if (qIdx >= 0) {
-      const params = new URLSearchParams(hash.slice(qIdx + 1));
-      const amt = params.get("amount");
-      if (amt && /^\d+$/.test(amt)) {
-        setPrefillAmount(amt);
+      // Parse amount from hash params (e.g. #burn?amount=1000)
+      const qIdx = hash.indexOf("?");
+      if (qIdx >= 0) {
+        const params = new URLSearchParams(hash.slice(qIdx + 1));
+        const amt = params.get("amount");
+        if (amt && /^\d+$/.test(amt)) {
+          setPrefillAmount(amt);
+        }
       }
-    }
 
-    // Scroll to the burn section after layout settles
-    requestAnimationFrame(() => {
-      const el = document.getElementById("burn");
-      if (el) el.scrollIntoView({ behavior: "smooth" });
-    });
+      // Open burn modal when burns are live; still scroll to the burn section.
+      setSwapOpen(false);
+      setModalOpen(true);
+      requestAnimationFrame(() => {
+        const el = document.getElementById("burn");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      });
+    };
+
+    openFromHash();
+    window.addEventListener("hashchange", openFromHash);
+    return () => window.removeEventListener("hashchange", openFromHash);
   }, []);
 
   const refresh = useCallback(async () => {
@@ -553,6 +571,55 @@ export function RaceApp({
     setModalOpen(true);
   };
 
+  const connectedEater = useMemo(() => {
+    if (!address) return null;
+    return boardEaters.find((e) => sameWallet(e.address, address)) ?? null;
+  }, [boardEaters, address]);
+
+  const eaterCount = useMemo(
+    () =>
+      boardEaters.filter((e) => (e.tapCount ?? 0) > 0 || (e.burned ?? 0) > 0)
+        .length,
+    [boardEaters],
+  );
+
+  const hasTakenBite = Boolean(
+    connectedEater &&
+      ((connectedEater.tapCount ?? 0) > 0 || (connectedEater.burned ?? 0) > 0),
+  );
+  const holdingBite =
+    isConnected && holdBalance != null && holdBalance > 0;
+
+  type HeroPrimary = "soon" | "trade" | "buyThenBite" | "firstBite" | "burn";
+  const heroPrimary: HeroPrimary = (() => {
+    if (!flags.tradingOpen) return "soon";
+    if (!flags.burnsOpen || raceEnded) return "trade";
+    if (!holdingBite) return "buyThenBite";
+    if (!hasTakenBite) return "firstBite";
+    return "burn";
+  })();
+
+  const heroPrimaryLabel =
+    heroPrimary === "soon"
+      ? copy.hero.ctaPrimarySoon
+      : heroPrimary === "buyThenBite"
+        ? copy.hero.ctaBuyThenBite
+        : heroPrimary === "firstBite"
+          ? copy.hero.ctaFirstBite
+          : heroPrimary === "burn"
+            ? copy.hero.ctaBurn
+            : copy.hero.ctaPrimary;
+
+  const heroPrimaryAction =
+    heroPrimary === "buyThenBite" || heroPrimary === "trade"
+      ? openBuy
+      : heroPrimary === "firstBite" || heroPrimary === "burn"
+        ? openBite
+        : undefined;
+
+  const heroSecondaryIsTrade =
+    heroPrimary === "firstBite" || heroPrimary === "burn";
+
   return (
     <div className="flex min-h-screen flex-col bg-[#fbfbfd] text-[#1d1d1f]">
       <header className="sticky top-0 z-40 border-b border-[#d2d2d7] bg-[rgba(251,251,253,0.82)] backdrop-blur-[20px] backdrop-saturate-150">
@@ -624,6 +691,13 @@ export function RaceApp({
         onBite={openBite}
         tradingOpen={flags.tradingOpen}
         burnsOpen={flags.burnsOpen && !raceEnded}
+        onActiveChange={setReferralChecklistActive}
+      />
+      <FirstBiteQuestBanner
+        eaters={boardEaters}
+        onBite={openBite}
+        burnsOpen={flags.burnsOpen && !raceEnded}
+        suppressed={referralChecklistActive}
       />
 
       {/* Hero */}
@@ -685,26 +759,41 @@ export function RaceApp({
         </div>
 
         <div className="animate-rise-delay-2 mt-3 flex flex-wrap items-center justify-center gap-3.5">
-          {flags.tradingOpen ? (
+          {heroPrimary === "soon" ? (
+            <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-6 py-3 text-[15px] font-semibold text-[#6e6e73]">
+              {heroPrimaryLabel}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={heroPrimaryAction}
+              className="rounded-full bg-[#1d1d1f] px-6 py-3 text-[15px] font-semibold text-white transition hover:bg-black"
+            >
+              {heroPrimaryLabel}
+            </button>
+          )}
+          {heroSecondaryIsTrade ? (
             <button
               type="button"
               onClick={openBuy}
-              className="rounded-full bg-[#1d1d1f] px-6 py-3 text-[15px] font-semibold text-white transition hover:bg-black"
+              className="flex items-center text-[15px] text-[#2997ff]"
             >
-              {copy.hero.ctaPrimary}
+              {copy.hero.ctaTradeSecondary}
             </button>
           ) : (
-            <span className="rounded-full border border-[#d2d2d7] bg-[#f5f5f7] px-6 py-3 text-[15px] font-semibold text-[#6e6e73]">
-              {copy.hero.ctaPrimarySoon}
-            </span>
+            <a
+              href={flags.act <= 1 ? "#game" : "#how"}
+              className="flex items-center text-[15px] text-[#2997ff] no-underline"
+            >
+              {copy.hero.ctaSecondary[flags.act]}
+            </a>
           )}
-          <a
-            href={flags.act <= 1 ? "#game" : "#how"}
-            className="flex items-center text-[15px] text-[#2997ff] no-underline"
-          >
-            {copy.hero.ctaSecondary[flags.act]}
-          </a>
         </div>
+        {flags.burnsOpen && eaterCount > 0 ? (
+          <p className="mx-auto mt-3 text-center text-[12px] text-[#6e6e73]">
+            {copy.hero.eaterCount(eaterCount)}
+          </p>
+        ) : null}
 
         {DAY_ONE_PLAYTHROUGH && (
           <p className="mx-auto mt-4 max-w-sm text-center text-xs leading-relaxed text-[#6e6e73]">

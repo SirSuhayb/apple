@@ -30,5 +30,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "contracts", "src/lib/decay-floor.test.ts"]
+  "exclude": ["node_modules", "contracts", "src/lib/decay-floor.test.ts", "src/lib/score-buy.test.ts"]
 }
