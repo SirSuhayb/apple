@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     },
     {
       status: result.ok ? 200 : 502,
-      headers: { "Cache-Control": "no-store", ...supplyApiHeaders },
+      headers: { ...supplyApiHeaders, "Cache-Control": "no-store" },
     },
   );
 }
