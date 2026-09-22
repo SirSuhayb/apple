@@ -170,10 +170,12 @@ def note_in_app_buys_from_transfers(
         if not fee_to_kitchen or not buy_amounts:
             continue
         for addr, amount in buy_amounts.items():
+            prev = buyers.get(addr)
+            prev_raw = int(prev.get("bite_raw") or 0) if isinstance(prev, dict) else 0
             buyers[addr] = {
                 "tx": tx,
                 "at": time.time(),
-                "bite_raw": amount,
+                "bite_raw": prev_raw + amount,
             }
             hits += 1
     return hits
