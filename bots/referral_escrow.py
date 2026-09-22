@@ -11,6 +11,8 @@ Env (never commit secrets):
   REFERRAL_AUTO_QUALIFY    1 (default) to auto-qualify in poll; 0 to disable
   REFERRAL_MIN_SWAP_USD    minimum swap value in USD to qualify (default 25)
   REFERRAL_MIN_SWAP_BITE   BITE-amount fallback when no price (default 500000)
+  REFERRAL_MIN_BURN_USD    minimum burn value in USD to qualify (default 5)
+  REFERRAL_MIN_BURN_BITE   BITE-amount fallback when no price (default 100000)
 """
 
 from __future__ import annotations
@@ -35,6 +37,9 @@ REFERRAL_AUTO_QUALIFY = os.getenv("REFERRAL_AUTO_QUALIFY", "1").strip().lower() 
 
 REFERRAL_MIN_SWAP_USD = float(os.getenv("REFERRAL_MIN_SWAP_USD", "25"))
 REFERRAL_MIN_SWAP_BITE_RAW = int(os.getenv("REFERRAL_MIN_SWAP_BITE", "500000")) * 10**18
+
+REFERRAL_MIN_BURN_USD = float(os.getenv("REFERRAL_MIN_BURN_USD", "5"))
+REFERRAL_MIN_BURN_BITE_RAW = int(os.getenv("REFERRAL_MIN_BURN_BITE", "100000")) * 10**18
 
 REFERRAL_ESCROW_ABI = [
     {
@@ -181,19 +186,30 @@ def note_in_app_buys_from_transfers(
     return hits
 
 
-def kitchen_burn_referees_from_transfers(
+def note_kitchen_burns_from_transfers(
+    state: dict,
     events,
     *,
     kitchen: str | None,
     contract_addrs: set[str],
     dev_wallets: set[str] | None = None,
 ) -> list[str]:
-    """EOAs that sent BITE to kitchen (bite / sweep). Skips contract→kitchen digest."""
+    """EOAs that sent BITE to kitchen (bite / sweep). Skips contract→kitchen digest.
+
+    Accumulates burn amounts in state["referral_burns"] for min-burn enforcement.
+    Returns list of burner addresses seen in this batch.
+    """
     if not kitchen or not events:
         return []
     kitchen_l = kitchen.lower()
     contracts = {a.lower() for a in contract_addrs}
     devs = {a.lower() for a in (dev_wallets or set())}
+
+    burns = state.setdefault("referral_burns", {})
+    if not isinstance(burns, dict):
+        burns = {}
+        state["referral_burns"] = burns
+
     out: list[str] = []
     seen: set[str] = set()
     for event in events:
@@ -204,10 +220,15 @@ def kitchen_burn_referees_from_transfers(
             continue
         if from_l in contracts and from_l not in devs:
             continue
-        if from_l in seen:
-            continue
-        seen.add(from_l)
-        out.append(from_l)
+        prev = burns.get(from_l)
+        prev_raw = int(prev.get("bite_raw") or 0) if isinstance(prev, dict) else 0
+        burns[from_l] = {
+            "at": time.time(),
+            "bite_raw": prev_raw + value,
+        }
+        if from_l not in seen:
+            seen.add(from_l)
+            out.append(from_l)
     return out
 
 
@@ -319,15 +340,15 @@ def _bite_usd_price(state: dict) -> float | None:
         return None
 
 
-def _meets_referral_min_swap(bite_raw: int, state: dict) -> bool:
-    """True when a buyer's BITE amount meets the referral minimum ($25 default)."""
-    if REFERRAL_MIN_SWAP_USD <= 0:
+def _meets_referral_min(bite_raw: int, state: dict, usd_min: float, bite_fallback: int) -> bool:
+    """True when a BITE amount meets a USD minimum (BITE-amount fallback if no price)."""
+    if usd_min <= 0:
         return True
     price = _bite_usd_price(state)
     if price is not None:
         usd_val = (bite_raw / 10**18) * price
-        return usd_val >= REFERRAL_MIN_SWAP_USD
-    return bite_raw >= REFERRAL_MIN_SWAP_BITE_RAW
+        return usd_val >= usd_min
+    return bite_raw >= bite_fallback
 
 
 def maybe_qualify_referees(
@@ -365,12 +386,17 @@ def maybe_qualify_referees(
         state["referral_qualified"] = done
     done_set = {a.lower() for a in done if isinstance(a, str)}
 
-    candidates = kitchen_burn_referees_from_transfers(
+    candidates = note_kitchen_burns_from_transfers(
+        state,
         events,
         kitchen=kitchen,
         contract_addrs=contract_addrs,
         dev_wallets=dev_wallets,
     )
+
+    burns = state.get("referral_burns") or {}
+    if not isinstance(burns, dict):
+        burns = {}
 
     for addr in candidates:
         if addr in done_set:
@@ -378,11 +404,19 @@ def maybe_qualify_referees(
         if addr not in buyers:
             continue
         buyer_info = buyers[addr]
-        bite_raw = int(buyer_info.get("bite_raw") or 0) if isinstance(buyer_info, dict) else 0
-        if not _meets_referral_min_swap(bite_raw, state):
+        swap_raw = int(buyer_info.get("bite_raw") or 0) if isinstance(buyer_info, dict) else 0
+        if not _meets_referral_min(swap_raw, state, REFERRAL_MIN_SWAP_USD, REFERRAL_MIN_SWAP_BITE_RAW):
             print(
                 f"[referral] skip {addr}: swap below ${REFERRAL_MIN_SWAP_USD} min "
-                f"({bite_raw / 10**18:.1f} BITE)"
+                f"({swap_raw / 10**18:.1f} BITE)"
+            )
+            continue
+        burn_info = burns.get(addr)
+        burn_raw = int(burn_info.get("bite_raw") or 0) if isinstance(burn_info, dict) else 0
+        if not _meets_referral_min(burn_raw, state, REFERRAL_MIN_BURN_USD, REFERRAL_MIN_BURN_BITE_RAW):
+            print(
+                f"[referral] skip {addr}: burn below ${REFERRAL_MIN_BURN_USD} min "
+                f"({burn_raw / 10**18:.1f} BITE)"
             )
             continue
         result = send_qualify(w3, addr, dry_run=dry_run)

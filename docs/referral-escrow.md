@@ -17,19 +17,23 @@ Do **not** fund the first mistaken proxy `0x30526A0E…783B` (owner was sirsu.et
 
 Owner can raise/lower the reward later with `setRewardPerReferral` (e.g. when wager fees refill escrow).
 
-## Minimum swap for qualification
+## Minimum swap & burn for qualification
 
-The attester enforces a **$25 minimum swap** before qualifying a referee.
-This prevents dust swaps from farming referral rewards.
+The attester enforces minimum thresholds before qualifying a referee.
+This prevents dust transactions from farming referral rewards.
+Swaps and burns of any size are still allowed — the minimums only gate
+referral eligibility. Amounts accumulate across multiple transactions.
 
 | Env var | Default | Description |
 |---|---|---|
-| `REFERRAL_MIN_SWAP_USD` | `25` | USD minimum for the referee's in-app buy |
+| `REFERRAL_MIN_SWAP_USD` | `25` | USD minimum for the referee's cumulative in-app buys |
 | `REFERRAL_MIN_SWAP_BITE` | `500000` | BITE-amount fallback when Dexscreener price is unavailable |
+| `REFERRAL_MIN_BURN_USD` | `5` | USD minimum for the referee's cumulative kitchen burns |
+| `REFERRAL_MIN_BURN_BITE` | `100000` | BITE-amount fallback when Dexscreener price is unavailable |
 
-When the bot has a Dexscreener price, it converts the BITE received by the
-buyer to USD. If no price is available, it falls back to the raw BITE amount
-threshold. Set `REFERRAL_MIN_SWAP_USD=0` to disable the minimum.
+When the bot has a Dexscreener price, it converts BITE to USD. If no price
+is available, it falls back to the raw BITE amount threshold.
+Set either to `0` to disable that minimum.
 
 ## Why an attester?
 
@@ -66,6 +70,10 @@ REFERRAL_AUTO_QUALIFY=1
 REFERRAL_MIN_SWAP_USD=25
 # BITE-amount fallback when Dexscreener price unavailable (500k default)
 REFERRAL_MIN_SWAP_BITE=500000
+# Minimum burn value to qualify a referral ($5 default, 0 to disable)
+REFERRAL_MIN_BURN_USD=5
+# BITE-amount fallback when Dexscreener price unavailable (100k default)
+REFERRAL_MIN_BURN_BITE=100000
 ```
 
 Manual attest:
