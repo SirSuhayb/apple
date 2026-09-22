@@ -310,6 +310,8 @@ TRADE_SIDE_MODE = "v4_swap_delta_v1"
 # burn_count so the site can show participation. Does not add points and does
 # not bump TRADE_INDEX_MODE (keeps the v4 7702 classification).
 DUST_BURN_INDEX_MODE = "dust_burns_v1"
+# Race progress: kitchen.burned + kitchen-held BITE / coreTarget (matches site).
+BURN_PROGRESS_MODE = "core_target_v1"
 # MetaWager BetPlaced backfill. Does not bump TRADE_INDEX_MODE.
 WAGER_INDEX_MODE = "wager_bets_v1"
 # Native (in-app) swap fee-skim index. Does not bump TRADE_INDEX_MODE.
@@ -679,6 +681,13 @@ def broadcast(
             token, chat_id, photo_url, text, dry_run=dry_run,
             reply_markup=reply_markup, parse_mode=parse_mode,
         )
+        # Broken PNG / Telegram URL fetch must not drop the burn/buy alert.
+        if not sent and not dry_run:
+            print("[TG] photo failed — falling back to text")
+            sent = tg_send(
+                token, chat_id, text, dry_run=dry_run,
+                reply_markup=reply_markup, parse_mode=parse_mode,
+            )
     else:
         sent = tg_send(
             token, chat_id, text, dry_run=dry_run,
@@ -3836,11 +3845,7 @@ def handle_command(
         }
 
     if cmd == "burn":
-        burn_pct = float(state.get("last_burn_pct") or 0)
-        total_supply = int(state.get("total_supply") or 0)
-        total_burned = int(state.get("total_burned") or 0)
-        if total_supply > 0 and burn_pct <= 0:
-            burn_pct = (total_burned / total_supply) * 100
+        burn_pct = race_burn_progress_pct(state, contract=contract)
         burn_line = f"Current burn: {burn_pct:.1f}% | Target: 50%"
 
         # Build deep link with optional pre-filled amount
@@ -3900,7 +3905,8 @@ def handle_command(
         ss = state.get("supply_stats") or {}
         ts = ss.get("total_supply") or (int(state.get("total_supply") or 0) / 10**18)
         tb = ss.get("total_burned") or (int(state.get("total_burned") or 0) / 10**18)
-        burn_pct = (tb / ts * 100) if ts > 0 else 0
+        # Race progress toward core (same as site), not burned/totalSupply.
+        burn_pct = race_burn_progress_pct(state, contract=contract)
         eoa_held = ss.get("eoa_held_bite") or 0
         contract_held = ss.get("contract_held_bite") or 0
         realistically_burnable = ss.get("realistically_burnable") or 0
@@ -3921,7 +3927,8 @@ def handle_command(
             f"📊 $BITE Supply Stats\n"
             f"\n"
             f"Total supply: {fmt_amount(int(ts * 10**18))}\n"
-            f"🔥 Burned: {fmt_amount(int(tb * 10**18))} ({burn_pct:.2f}%)\n"
+            f"🔥 Burned: {fmt_amount(int(tb * 10**18))} "
+            f"({burn_pct:.2f}% to core)\n"
             f"\n"
             f"👤 Held by wallets (EOA): {fmt_amount(int(eoa_held * 10**18))}\n"
             f"📦 In LP/contracts: {fmt_amount(int(contract_held * 10**18))}\n"
@@ -4317,40 +4324,87 @@ def process_telegram_commands(
 
 
 def get_burn_pct(contract):
+    """Race progress toward core — same formula as src/lib/fetch-race.ts.
+
+    burned = kitchen.burned() + BITE sitting in the kitchen (sweep sends)
+    pct = burned / kitchen.coreTarget() * 100
+
+    Returns (pct, burned_raw, total_supply_raw, core_target_raw).
+    On RPC failure returns None so callers keep the last good state
+    (a 429 previously reset last_burn_pct to 0.0% and poisoned /burn).
+    """
     try:
-        total = contract.functions.totalSupply().call()
-        # Tokens sent to dead address
-        dead_burned = contract.functions.balanceOf(
-            Web3.to_checksum_address(DEAD_ADDRESS)
-        ).call()
-        # Tokens burned via kitchen bite() — tracked by kitchen.burned()
+        total = int(contract.functions.totalSupply().call())
         kitchen_burned = 0
-        # Sweep burns: BITE sitting in kitchen (sent directly, not via bite())
         kitchen_balance = 0
+        core_target = 0
         if KITCHEN_CONTRACT and Web3:
             kitchen_addr = Web3.to_checksum_address(KITCHEN_CONTRACT)
             try:
-                kitchen_abi = [{"constant": True, "inputs": [], "name": "burned",
-                                "outputs": [{"name": "", "type": "uint256"}], "type": "function"}]
+                kitchen_abi = [
+                    {
+                        "constant": True,
+                        "inputs": [],
+                        "name": "burned",
+                        "outputs": [{"name": "", "type": "uint256"}],
+                        "type": "function",
+                    },
+                    {
+                        "constant": True,
+                        "inputs": [],
+                        "name": "coreTarget",
+                        "outputs": [{"name": "", "type": "uint256"}],
+                        "type": "function",
+                    },
+                ]
                 kc = contract.w3.eth.contract(address=kitchen_addr, abi=kitchen_abi)
-                kitchen_burned = kc.functions.burned().call()
+                kitchen_burned = int(kc.functions.burned().call())
+                core_target = int(kc.functions.coreTarget().call())
             except Exception as e:
-                print(f"kitchen.burned() error: {e}")
+                print(f"kitchen burned/coreTarget error: {e}")
+                return None
             try:
-                kitchen_balance = contract.functions.balanceOf(kitchen_addr).call()
+                kitchen_balance = int(contract.functions.balanceOf(kitchen_addr).call())
             except Exception as e:
                 print(f"kitchen balanceOf error: {e}")
-        # Total burned = dead + kitchen.burned() + any BITE sitting in kitchen
-        # (kitchen_balance includes tokens that _destroy sent to dead or burned,
-        #  but after _destroy they're gone — so balance = only unswepped direct sends)
-        burned = dead_burned + kitchen_burned + kitchen_balance
-        if total == 0:
-            return 0.0, 0, 0
-        pct = (burned / total) * 100
-        return pct, burned, total
+        burned = kitchen_burned + kitchen_balance
+        if core_target > 0:
+            pct = min(100.0, (burned / core_target) * 100)
+        elif total > 0:
+            pct = (burned / total) * 100
+        else:
+            pct = 0.0
+        return pct, burned, total, core_target
     except Exception as e:
         print(f"Error reading burn: {e}")
-        return 0.0, 0, 0
+        return None
+
+
+def race_burn_progress_pct(state: dict, contract=None) -> float:
+    """% to core for Telegram replies — live kitchen read, else last good state."""
+    try:
+        w3, bite = get_web3()
+        bite = bite or contract
+        if w3 and bite:
+            live = read_kitchen_live(w3, bite)
+            target = int(live.get("core_target_raw") or 0)
+            if target > 0:
+                pct = int(live.get("progress_bps_effective") or 0) / 100.0
+                state["last_burn_pct"] = pct
+                state["total_burned"] = int(live.get("burned_effective_raw") or 0)
+                state["core_target"] = target
+                return pct
+    except Exception as e:
+        print(f"[burn-progress] live refresh failed: {e}")
+
+    pct = float(state.get("last_burn_pct") or 0)
+    if pct > 0:
+        return pct
+    burned = int(state.get("total_burned") or 0)
+    target = int(state.get("core_target") or 0)
+    if target > 0:
+        return min(100.0, (burned / target) * 100)
+    return 0.0
 
 
 def get_wager_state(w3) -> dict | None:
@@ -4598,9 +4652,29 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
             return state
 
     known = set(a.lower() for a in (state.get("known_holders") or []))
-    burn_pct, total_burned, total_supply = get_burn_pct(contract)
-    state["total_burned"] = total_burned
-    state["total_supply"] = total_supply
+    progress = get_burn_pct(contract)
+    if progress is None:
+        burn_pct = float(state.get("last_burn_pct") or 0)
+        total_burned = int(state.get("total_burned") or 0)
+        total_supply = int(state.get("total_supply") or 0)
+        print(
+            f"[burn] RPC read failed — keeping last_burn_pct={burn_pct:.2f}% "
+            f"(not writing 0)"
+        )
+    else:
+        burn_pct, total_burned, total_supply, core_target = progress
+        state["total_burned"] = total_burned
+        state["total_supply"] = total_supply
+        state["core_target"] = core_target
+        # One-shot scale migrate: old burned/totalSupply → coreTarget progress.
+        if state.get("burn_progress_mode") != BURN_PROGRESS_MODE:
+            prev_mode = state.get("burn_progress_mode")
+            state["burn_progress_mode"] = BURN_PROGRESS_MODE
+            _seed_burn_milestone(state, burn_pct)
+            print(
+                f"[burn] progress mode {prev_mode!r} → {BURN_PROGRESS_MODE}; "
+                f"milestones re-seeded at {burn_pct:.2f}% to core"
+            )
 
     # Seed milestones to current levels on first poll to prevent replays
     _seed_holder_milestone(state)
@@ -4726,8 +4800,30 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
             known.add(to_l)
 
         if is_burn:
-            if not _meets_usd_threshold(value, state, MIN_BURN_USD, MIN_BURN_RAW):
+            # apply_trade_events already counted this Transfer into burn_count.
+            entry = (state.get("points") or {}).get(from_l) or {}
+            is_wallet_first_burn = int(entry.get("burn_count") or 0) <= 1
+            meets = _meets_usd_threshold(value, state, MIN_BURN_USD, MIN_BURN_RAW)
+            if not meets and not is_wallet_first_burn:
+                usd_val = _bite_usd_value(value, state)
+                if usd_val is not None:
+                    print(
+                        f"[burn] skip under ${MIN_BURN_USD:.0f} floor "
+                        f"{fmt_amount(value)} (~${usd_val:.2f}) "
+                        f"from {short_addr(from_addr)}"
+                    )
+                else:
+                    print(
+                        f"[burn] skip under floor {fmt_amount(value)} "
+                        f"from {short_addr(from_addr)} "
+                        f"(no USD price; raw < MIN_BURN_AMOUNT)"
+                    )
                 continue
+            if not meets and is_wallet_first_burn:
+                print(
+                    f"[burn] first-burn waive ${MIN_BURN_USD:.0f} floor "
+                    f"{fmt_amount(value)} from {short_addr(from_addr)}"
+                )
             if PHASE >= 2 and not is_catch_up:
                 if value / 10**18 >= 10_000:
                     msg = burn_large_copy(from_addr, value, burn_pct)
@@ -4819,7 +4915,7 @@ def poll(w3, contract, twitter, tg_token, tg_chat, state, *, dry_run: bool = Fal
     print(
         f"Polled blocks {from_block}–{current_block}: "
         f"{len(transfer_filter)} transfers, ~{holder_count} holders, "
-        f"{burn_pct:.2f}% burned (PHASE={PHASE})"
+        f"{burn_pct:.2f}% to core (PHASE={PHASE})"
         f"{' [catch-up]' if is_catch_up else ''}"
     )
     return state
@@ -5529,8 +5625,11 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         try:
             block = w3.eth.block_number
-            pct, burned, total = get_burn_pct(contract)
-            print(f"RPC ok. block={block} burn={pct:.4f}% burned={burned} supply={total}")
+            pct, burned, total, core_target = get_burn_pct(contract) or (0.0, 0, 0, 0)
+            print(
+                f"RPC ok. block={block} burn={pct:.4f}% to core "
+                f"burned={burned} supply={total} coreTarget={core_target}"
+            )
             return 0
         except Exception as e:
             print(f"Smoke failed: {e}")
