@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:decay": "node --experimental-strip-types --test src/lib/decay-floor.test.ts",
     "reserved-math": "node scripts/reserved-math.mjs",
     "bake-apple": "node scripts/bake-apple-frames.mjs",
     "bake-apple-fit": "node scripts/bake-apple-fit-scales.mjs",

@@ -10,10 +10,17 @@ import {
   type TouchEvent,
 } from "react";
 import { copy } from "@/lib/copy";
-import { appleLooksRotting } from "@/lib/decay";
+import {
+  appleLooksRotting,
+  DECAY_FLOOR_NEXT_WEEK_USD,
+  DECAY_FLOOR_THIS_WEEK_USD,
+} from "@/lib/decay";
+import { formatFloorUsd } from "@/lib/decay-week";
+import type { DecayFloors } from "@/lib/decay-week";
 
 type AppleConditionBannerProps = {
   decay: number;
+  floors?: DecayFloors | null;
 };
 
 const SLIDES = copy.decay.slides;
@@ -22,13 +29,33 @@ const SWIPE_PX = 40;
 const FRESH_CUTOUT = "/apple/cutouts/frame-00.png";
 const ROT_GIF = "/apple/rot-loop.gif";
 
+function resolveFloors(floors?: DecayFloors | null): {
+  thisWeekUsd: number;
+  nextWeekUsd: number;
+  thisWeekLabel: string;
+  nextWeekLabel: string;
+} {
+  const thisWeekUsd = floors?.thisWeekUsd ?? DECAY_FLOOR_THIS_WEEK_USD;
+  const nextWeekUsd = floors?.nextWeekUsd ?? DECAY_FLOOR_NEXT_WEEK_USD;
+  return {
+    thisWeekUsd,
+    nextWeekUsd,
+    thisWeekLabel: floors?.thisWeekLabel ?? formatFloorUsd(thisWeekUsd),
+    nextWeekLabel: floors?.nextWeekLabel ?? formatFloorUsd(nextWeekUsd),
+  };
+}
+
 /** Hero strip: FRESH vs ROTTING looks. Not kitchen revealCore / revealRot. */
-export function AppleConditionBanner({ decay }: AppleConditionBannerProps) {
+export function AppleConditionBanner({
+  decay,
+  floors,
+}: AppleConditionBannerProps) {
   const [open, setOpen] = useState(false);
   const [slide, setSlide] = useState(0);
   const titleId = useId();
   const rotting = appleLooksRotting(decay);
   const line = rotting ? copy.decay.bannerRotting : copy.decay.bannerFresh;
+  const liveFloors = resolveFloors(floors);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -90,6 +117,7 @@ export function AppleConditionBanner({ decay }: AppleConditionBannerProps) {
         <ConditionCarousel
           slide={slide}
           titleId={titleId}
+          floors={liveFloors}
           onClose={close}
           onGo={go}
         />
@@ -101,17 +129,23 @@ export function AppleConditionBanner({ decay }: AppleConditionBannerProps) {
 function ConditionCarousel({
   slide,
   titleId,
+  floors,
   onClose,
   onGo,
 }: {
   slide: number;
   titleId: string;
+  floors: ReturnType<typeof resolveFloors>;
   onClose: () => void;
   onGo: (n: number) => void;
 }) {
   const touchStartX = useRef<number | null>(null);
   const item = SLIDES[slide];
   const isLast = slide >= LAST;
+  const body =
+    slide === LAST
+      ? [copy.decay.floorSlideBody(floors.thisWeekLabel, floors.nextWeekLabel)]
+      : item.body;
 
   const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     touchStartX.current = e.changedTouches[0]?.clientX ?? null;
@@ -157,13 +191,13 @@ function ConditionCarousel({
           </button>
         </div>
 
-        <SlideVisual slide={slide} />
+        <SlideVisual slide={slide} floors={floors} />
 
         <h3 className="text-[19px] font-bold tracking-[-0.02em] text-[#1d1d1f]">
           {item.title}
         </h3>
         <div className="mt-2.5 min-h-[5.5rem] space-y-2 text-[15px] leading-relaxed text-[#6e6e73]">
-          {item.body.map((para) => (
+          {body.map((para) => (
             <p key={para}>{para}</p>
           ))}
         </div>
@@ -206,7 +240,13 @@ function ConditionCarousel({
   );
 }
 
-function SlideVisual({ slide }: { slide: number }) {
+function SlideVisual({
+  slide,
+  floors,
+}: {
+  slide: number;
+  floors: ReturnType<typeof resolveFloors>;
+}) {
   if (slide === 0) {
     return (
       <div className="relative mb-4 aspect-[4/3] w-full overflow-hidden rounded-2xl bg-[#f5f5f7]">
@@ -233,22 +273,27 @@ function SlideVisual({ slide }: { slide: number }) {
       </div>
     );
   }
-  return <FloorChart />;
+  return <FloorChart floors={floors} />;
 }
 
-function FloorChart() {
+function FloorChart({
+  floors,
+}: {
+  floors: ReturnType<typeof resolveFloors>;
+}) {
   // 4:3 viewBox matches the card so overlay apples share the plot coordinates.
   const vb = { w: 320, h: 240 };
   const plot = { left: 56, right: 292, top: 56, bottom: 176 };
-  const yAt = (k: number) =>
-    plot.bottom - (k / 150) * (plot.bottom - plot.top);
+  const topUsd = Math.max(floors.thisWeekUsd, floors.nextWeekUsd, 1);
+  const yAt = (usd: number) =>
+    plot.bottom - (usd / topUsd) * (plot.bottom - plot.top);
   const xThis = 110;
   const xNext = 236;
-  const y50 = yAt(50);
-  const y150 = yAt(150);
+  const yThis = yAt(floors.thisWeekUsd);
+  const yNext = yAt(floors.nextWeekUsd);
   const apples = [
-    { x: xThis, y: y50, delay: "0.18s" },
-    { x: xNext, y: y150, delay: "0.55s" },
+    { x: xThis, y: yThis, delay: "0.18s" },
+    { x: xNext, y: yNext, delay: "0.55s" },
   ] as const;
 
   return (
@@ -257,7 +302,7 @@ function FloorChart() {
         viewBox={`0 0 ${vb.w} ${vb.h}`}
         className="h-full w-full"
         role="img"
-        aria-label="Market floor rising from 50k this week to 150k next week"
+        aria-label={`Market floor rising from ${floors.thisWeekLabel} this week to ${floors.nextWeekLabel} next week`}
       >
         <line
           x1={plot.left}
@@ -277,17 +322,17 @@ function FloorChart() {
         />
         <line
           x1={plot.left}
-          y1={y50}
+          y1={yThis}
           x2={plot.right}
-          y2={y50}
+          y2={yThis}
           stroke="#ececef"
           strokeWidth="1"
         />
         <line
           x1={plot.left}
-          y1={y150}
+          y1={yNext}
           x2={plot.right}
-          y2={y150}
+          y2={yNext}
           stroke="#ececef"
           strokeWidth="1"
         />
@@ -302,28 +347,28 @@ function FloorChart() {
         </text>
         <text
           x={plot.left - 8}
-          y={y50 + 4}
+          y={yThis + 4}
           textAnchor="end"
           fontSize="10"
           fill="#86868b"
         >
-          50k
+          {floors.thisWeekLabel}
         </text>
         <text
           x={plot.left - 8}
-          y={y150 + 4}
+          y={yNext + 4}
           textAnchor="end"
           fontSize="10"
           fill="#86868b"
         >
-          150k
+          {floors.nextWeekLabel}
         </text>
         <line
           className="floor-chart-line"
           x1={xThis}
-          y1={y50}
+          y1={yThis}
           x2={xNext}
-          y2={y150}
+          y2={yNext}
           stroke="#8a5a2b"
           strokeWidth="2.5"
           strokeLinecap="round"

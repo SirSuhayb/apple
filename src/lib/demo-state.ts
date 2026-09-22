@@ -7,6 +7,12 @@ import {
 import { copy } from "./copy";
 import { scoreDecay } from "./decay";
 import {
+  DECAY_FLOOR_SEED_USD,
+  DECAY_WEEK_ATH_SEED_USD,
+  formatFloorUsd,
+  rollWeeklyFloors,
+} from "./decay-week";
+import {
   type RaceState,
   computeCoreTarget,
   progressToFrame,
@@ -117,6 +123,7 @@ export function buildDemoRaceState(): RaceState {
     Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60;
   const now = Math.floor(Date.now() / 1000);
   const lastEatAt = now - 12 * 60;
+  const weekly = rollWeeklyFloors(null, now * 1000, DECAY_WEEK_ATH_SEED_USD);
   const weather = scoreDecay({
     nowSec: now,
     lastEatAt,
@@ -125,8 +132,10 @@ export function buildDemoRaceState(): RaceState {
     peakVolumeH24: 235_125,
     peakVolumeH6: 235_125,
     mcapUsd: 16_700,
-    peakMcapUsd: 37_706,
+    peakMcapUsd: Math.max(DECAY_WEEK_ATH_SEED_USD, 37_706),
+    currentWeekFloorUsd: weekly.currentWeekFloorUsd || DECAY_FLOOR_SEED_USD,
   });
+  const nextFloor = Math.max(weekly.weekAthMcapUsd, DECAY_WEEK_ATH_SEED_USD);
 
   return {
     phase: "preview",
@@ -144,6 +153,14 @@ export function buildDemoRaceState(): RaceState {
     quietRotPreview: weather.quietRotPreview,
     decay: weather.decay,
     decayBreakdown: weather.breakdown,
+    decayFloors: {
+      weekId: weekly.weekId,
+      thisWeekUsd: weekly.currentWeekFloorUsd,
+      nextWeekUsd: nextFloor,
+      weekAthMcapUsd: weekly.weekAthMcapUsd,
+      thisWeekLabel: formatFloorUsd(weekly.currentWeekFloorUsd),
+      nextWeekLabel: formatFloorUsd(nextFloor),
+    },
     lastEatSource: "kitchen",
     potAapl: "0",
     eaters: DEMO_EATERS,
