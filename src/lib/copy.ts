@@ -105,6 +105,7 @@ export const copy = {
     body: [
       "Your goal is to eat the apple to its core before the timer runs out.",
       "Win, and you split the rewards from every trade with the other eaters.",
+      "Only eaters are eligible for the prize pool.",
       "Lose, and the farmer takes the pot.",
     ] as const,
   },
@@ -232,10 +233,12 @@ export const copy = {
   eaters: {
     intro: ["Who", "traded the most."],
     introAct2: ["Who", "ate the most."],
+    prizeEligible: "Only eaters are eligible for the prize pool.",
     columns: ["Rank", "Eater", "Burned", "Buys", "Sells"] as const,
     rowMeta: (burned: string, buys: string, sells: string) =>
       `burned ${burned} · ${buys} buys · ${sells} sells`,
     empty: "No traders yet. Be first.",
+    noBurners: "No bites yet. Burn $BITE to take a spot.",
     emptyHint: "The leaderboard activates when the race begins in Act II.",
     emptyHintPrologue: "The leaderboard waits for the first eaters.",
   },
@@ -255,7 +258,14 @@ export const copy = {
     burnedAmount: (amount: string) => `${amount} burned`,
     wageredAmount: (amount: string) => `${amount} wagered`,
     eatenPct: (pct: string) => `${pct} of apple`,
+    ofApple: "of apple",
+    inThePot: "In the pot",
+    notInThePot: "Not in the pot",
+    homeUnrankedHint:
+      "This board is eaters only. Burn $BITE to take a spot.",
     topEater: "Top eater",
+    topPlayer: "Top player",
+    topTrader: "Top trader",
     buys: "Buys",
     sells: "Sells",
     burns: "Burns",
@@ -266,7 +276,8 @@ export const copy = {
     emptyHintAct1:
       "All wallets trading or holding $BITE since launch appear here. DM the bot your 0x… in Telegram to claim identity for /points.",
     viewAll: "Show full leaderboard",
-    viewAllHint: "Top 10 on the home board — open the full list for every trader.",
+    viewAllHint:
+      "Home board is eaters only. The full list ranks every wallet by points.",
     devBadge: "Dev",
     ineligible: "Ineligible",
     yourRank: "Your Rank",
@@ -307,7 +318,7 @@ export const copy = {
       devNote:
         "Dev wallets appear on the board with a Dev badge and are ineligible to win.",
       eligibility:
-        "Only wallets with points > 0 are ranked. Dev and team wallets are shown but marked ineligible — they cannot win the pot.",
+        "Only eaters are eligible for the prize pool. A trade without a bite does not get you in. Wallets with points above zero are still ranked. Dev and team wallets are shown but cannot win the pot.",
     },
     back: "← Back",
     shareRank: "Share your rank",

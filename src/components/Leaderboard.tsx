@@ -193,6 +193,7 @@ export function Leaderboard({
             hero
             appleTotal={appleTotal}
             isYou={sameWallet(podium[0].address, you)}
+            leadLabel={sortLeadLabel(sortBy)}
           />
           {podium.length >= 3 ? (
             <PodiumCard
@@ -337,18 +338,26 @@ export function Leaderboard({
   );
 }
 
+function sortLeadLabel(sortBy: LeaderboardSortKey): string {
+  if (sortBy === "trades") return copy.leaderboard.topTrader;
+  if (sortBy === "burned") return copy.leaderboard.topEater;
+  return copy.leaderboard.topPlayer;
+}
+
 function PodiumCard({
   eater,
   rank,
   hero,
   appleTotal,
   isYou,
+  leadLabel,
 }: {
   eater: Eater;
   rank: 1 | 2 | 3;
   hero?: boolean;
   appleTotal: number;
   isYou?: boolean;
+  leadLabel?: string;
 }) {
   const colors = {
     1: "text-[#e53935]",
@@ -379,7 +388,7 @@ function PodiumCard({
       </div>
       <EaterIdentity
         address={eater.address}
-        topEater={rank === 1}
+        leadLabel={rank === 1 ? leadLabel : undefined}
         isYou={isYou}
         avatarSize={hero ? "lg" : "md"}
         layout="stack"

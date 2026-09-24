@@ -8,8 +8,11 @@ import type { Eater } from "@/lib/race";
 import {
   HOME_BOARD_LIMIT,
   biteToSecureTop10,
+  biteToSecureTop10ByBurn,
+  formatAppleEatenPct,
   formatCompactAmount,
   lookupConnectedRank,
+  type LeaderboardRankKey,
 } from "@/lib/leaderboard-rank";
 import { useBoardWallet } from "@/lib/use-board-wallet";
 import { sharePageUrl } from "@/lib/share";
@@ -68,16 +71,23 @@ function scrollToEater(address: string) {
 function Top10Nudge({
   eaters,
   score,
+  burned = 0,
+  placement = "score",
   inTop10,
   className = "mt-2 text-[13px] leading-snug text-[#6e6e73]",
 }: {
   eaters: Eater[];
   score: number;
+  burned?: number;
+  placement?: LeaderboardRankKey;
   inTop10?: boolean;
   className?: string;
 }) {
   if (inTop10) return null;
-  const needed = biteToSecureTop10(score, eaters);
+  const needed =
+    placement === "burned"
+      ? biteToSecureTop10ByBurn(burned, eaters)
+      : biteToSecureTop10(score, eaters);
   if (needed == null || needed <= 0) return null;
   return (
     <p className={className}>
@@ -152,13 +162,16 @@ export function YourRankCard({
   eaters,
   appleTotal,
   compact = false,
+  placement = "score",
 }: {
   eaters: Eater[];
   appleTotal: number;
   compact?: boolean;
+  /** Home board ranks by burn share. The full leaderboard stays on points. */
+  placement?: LeaderboardRankKey;
 }) {
   const you = useBoardWallet();
-  const status = lookupConnectedRank(eaters, you);
+  const status = lookupConnectedRank(eaters, you, placement);
 
   if (!you || !status) {
     return <ConnectHint compact={compact} />;
@@ -183,7 +196,7 @@ export function YourRankCard({
         <p className="mt-1 text-[13px] leading-relaxed text-[#6e6e73]">
           {copy.leaderboard.notOnBoardHint}
         </p>
-        <Top10Nudge eaters={eaters} score={0} />
+        <Top10Nudge eaters={eaters} score={0} placement={placement} />
       </div>
     );
   }
@@ -192,11 +205,15 @@ export function YourRankCard({
     const title =
       status.kind === "ineligible"
         ? copy.leaderboard.ineligibleYou
-        : copy.leaderboard.belowThreshold;
+        : placement === "burned"
+          ? copy.leaderboard.notInThePot
+          : copy.leaderboard.belowThreshold;
     const hint =
       status.kind === "ineligible"
         ? copy.leaderboard.ineligibleYouHint
-        : copy.leaderboard.belowThresholdHint;
+        : placement === "burned"
+          ? copy.leaderboard.homeUnrankedHint
+          : copy.leaderboard.belowThresholdHint;
     return (
       <div className="rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa] px-4 py-4">
         <p className="text-[11px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
@@ -217,7 +234,12 @@ export function YourRankCard({
           className="mt-2"
         />
         {status.kind === "unranked" ? (
-          <Top10Nudge eaters={eaters} score={status.eater.score} />
+          <Top10Nudge
+            eaters={eaters}
+            score={status.eater.score}
+            burned={status.eater.burned}
+            placement={placement}
+          />
         ) : null}
       </div>
     );
@@ -244,14 +266,25 @@ export function YourRankCard({
             <p className="mt-0.5 text-[12px] text-[#6e6e73]">
               {copy.leaderboard.rankOf(rank, total)}
             </p>
-            <EaterStats eater={eater} appleTotal={appleTotal} className="mt-1.5" />
+            <EaterStats
+              eater={eater}
+              appleTotal={appleTotal}
+              showShare={placement !== "burned"}
+              className="mt-1.5"
+            />
           </div>
         </div>
         <div className="text-right">
           <div className="text-[22px] font-extrabold tabular-nums text-[#1d1d1f]">
-            {fmtScore(eater.score)}
+            {placement === "burned"
+              ? formatAppleEatenPct(eater.burned, appleTotal)
+              : fmtScore(eater.score)}
           </div>
-          <div className="text-[11px] text-[#6e6e73]">{copy.leaderboard.pts}</div>
+          <div className="text-[11px] text-[#6e6e73]">
+            {placement === "burned"
+              ? copy.leaderboard.ofApple
+              : copy.leaderboard.pts}
+          </div>
           <button
             type="button"
             onClick={() => scrollToEater(eater.address)}
@@ -264,6 +297,8 @@ export function YourRankCard({
       <Top10Nudge
         eaters={eaters}
         score={eater.score}
+        burned={eater.burned}
+        placement={placement}
         inTop10={rank <= HOME_BOARD_LIMIT}
       />
       {!compact && (
@@ -281,12 +316,14 @@ export function YourRankCard({
 export function YourRankStickyRow({
   eaters,
   appleTotal,
+  placement = "score",
 }: {
   eaters: Eater[];
   appleTotal: number;
+  placement?: LeaderboardRankKey;
 }) {
   const you = useBoardWallet();
-  const status = lookupConnectedRank(eaters, you);
+  const status = lookupConnectedRank(eaters, you, placement);
   if (status?.kind !== "ranked" || status.rank <= HOME_BOARD_LIMIT) return null;
 
   const { eater, rank } = status;
@@ -309,16 +346,25 @@ export function YourRankStickyRow({
             avatarSize="sm"
             nameClassName="font-medium text-[#1d1d1f]"
           />
-          <EaterStats eater={eater} appleTotal={appleTotal} className="mt-0.5" />
+          <EaterStats
+            eater={eater}
+            appleTotal={appleTotal}
+            showShare={placement !== "burned"}
+            className="mt-0.5"
+          />
           <Top10Nudge
             eaters={eaters}
             score={eater.score}
+            burned={eater.burned}
+            placement={placement}
             inTop10={false}
             className="mt-1 text-[12px] leading-snug text-[#6e6e73]"
           />
         </div>
         <span className="shrink-0 tabular-nums text-[#1d1d1f]">
-          {fmtScore(eater.score)}
+          {placement === "burned"
+            ? formatAppleEatenPct(eater.burned, appleTotal)
+            : fmtScore(eater.score)}
         </span>
       </li>
     </ul>

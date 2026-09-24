@@ -130,6 +130,9 @@ export function LeaderboardPage({
             ? copy.leaderboard.subtitleAct1
             : copy.leaderboard.subtitle}
         </p>
+        <p className="mx-auto mt-3 max-w-[440px] text-[15px] font-semibold leading-snug text-[#1d1d1f]">
+          {copy.eaters.prizeEligible}
+        </p>
         {updatedAt && (
           <p className="mt-1 text-[11px] text-[#6e6e73]">
             Updated {new Date(updatedAt).toLocaleTimeString()}

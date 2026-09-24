@@ -42,6 +42,9 @@ export function burnCount(e: Eater): number {
 
 export type LeaderboardSortKey = "score" | "trades" | "burned";
 
+/** Official points rank, or the home board’s burn-share order. */
+export type LeaderboardRankKey = "score" | "burned";
+
 /**
  * Board-tab order. Points = combined score; trades = buy+sell count
  * (volume tiebreak); burns = $BITE burned (count tiebreak).
@@ -157,6 +160,21 @@ export function biteToSecureTop10(
   return Math.max(0, (tenth.score - pts) / TAP_SCORE_K);
 }
 
+/**
+ * Extra $BITE to burn to pass the home board’s 10th place.
+ * Home placement is burn share, so the gap is tokens, not points.
+ * Null when fewer than 10 eligible wallets are on the board.
+ */
+export function biteToSecureTop10ByBurn(
+  burned: number,
+  eaters: Eater[],
+): number | null {
+  const tenth = rankedEligible(eaters, "burned")[HOME_BOARD_LIMIT - 1];
+  if (!tenth) return null;
+  const mine = Number.isFinite(burned) ? burned : 0;
+  return Math.max(0, tenth.burned - mine);
+}
+
 /** Default board order: eligible first, then score, then trades. */
 export function compareLeaderboardRows(a: Eater, b: Eater): number {
   const ai = isLeaderboardIneligible(a) ? 1 : 0;
@@ -184,11 +202,30 @@ export function partitionLeaderboard(eaters: Eater[]): {
   };
 }
 
-/** Home mini-board is exactly the first N ranked rows of the full board. */
+/** Home mini-board shows this many wallets, ordered by burn share. */
 export const HOME_BOARD_LIMIT = 10;
 
+/**
+ * Eligible wallets in the order used for a rank.
+ * Score is the full board: burners and non-burners by points.
+ * Burned is the home board: only wallets that have eaten, by share of the apple.
+ */
+export function rankedEligible(
+  eaters: Eater[],
+  by: LeaderboardRankKey = "score",
+): Eater[] {
+  const { eligible } = partitionLeaderboard(eaters);
+  if (by === "burned") {
+    return sortLeaderboardBy(
+      eligible.filter((e) => e.burned > 0),
+      "burned",
+    );
+  }
+  return eligible;
+}
+
 export function topLeaderboard(eaters: Eater[], limit = HOME_BOARD_LIMIT): Eater[] {
-  return partitionLeaderboard(eaters).eligible.slice(0, limit);
+  return rankedEligible(eaters, "burned").slice(0, limit);
 }
 
 export function sameWallet(
@@ -286,15 +323,18 @@ export function migrateLegacyScore(opts: {
 }
 
 /**
- * Official score rank for a connected wallet.
- * Rank is 1-based among eligible (score > 0) rows — same order as the board.
+ * Rank for a connected wallet.
+ * Default is the official points order. `"burned"` matches the home board.
+ * Rank is 1-based among eligible (score > 0) rows.
  */
 export function lookupConnectedRank(
   eaters: Eater[],
   address: string | undefined | null,
+  by: LeaderboardRankKey = "score",
 ): ConnectedRank | null {
   if (!address) return null;
-  const { eligible, ineligible } = partitionLeaderboard(eaters);
+  const { ineligible } = partitionLeaderboard(eaters);
+  const eligible = rankedEligible(eaters, by);
   const rankedIdx = eligible.findIndex((e) => sameWallet(e.address, address));
   if (rankedIdx >= 0) {
     return {

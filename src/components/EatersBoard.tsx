@@ -5,8 +5,10 @@ import type { Eater } from "@/lib/race";
 import { copy } from "@/lib/copy";
 import {
   HOME_BOARD_LIMIT,
+  formatAppleEatenPct,
   isLeaderboardDev,
   partitionLeaderboard,
+  rankedEligible,
   sameWallet,
 } from "@/lib/leaderboard-rank";
 import { useBoardWallet } from "@/lib/use-board-wallet";
@@ -15,11 +17,31 @@ import {
   EaterName,
   EaterStats,
   eaterDomId,
-  fmtScore,
   youSurfaceClass,
 } from "./LeaderboardRow";
 import { AppleAvatar } from "./AppleAvatar";
 import { YourRankCard, YourRankStickyRow } from "./YourRank";
+
+function PotStatus({
+  burned,
+  className = "",
+}: {
+  burned: number;
+  className?: string;
+}) {
+  const inPot = burned > 0;
+  return (
+    <p
+      className={[
+        "text-[11px] font-semibold leading-snug",
+        inPot ? "text-[#e53935]" : "text-[#86868b]",
+        className,
+      ].join(" ")}
+    >
+      {inPot ? copy.leaderboard.inThePot : copy.leaderboard.notInThePot}
+    </p>
+  );
+}
 
 function DevBadge() {
   return (
@@ -29,7 +51,11 @@ function DevBadge() {
   );
 }
 
-/** Apple Store-style bento leaderboard — points-first with per-person stats */
+function burnShare(burned: number, appleTotal: number) {
+  return formatAppleEatenPct(burned, appleTotal);
+}
+
+/** Home board — placement is each wallet’s share of the apple burned. */
 export function EatersBoard({
   eaters,
   mode = "kitchen",
@@ -42,12 +68,18 @@ export function EatersBoard({
 }) {
   const isAct1 = mode === "act1";
   const you = useBoardWallet();
-  const { eligible, ineligible } = partitionLeaderboard(eaters);
+  const eligible = rankedEligible(eaters, "burned");
+  const { ineligible } = partitionLeaderboard(eaters);
 
   if (!eaters.length) {
     return (
       <div className="grid grid-cols-1 gap-2.5">
-        <YourRankCard eaters={eaters} appleTotal={appleTotal} compact />
+        <YourRankCard
+          eaters={eaters}
+          appleTotal={appleTotal}
+          compact
+          placement="burned"
+        />
         <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-10 text-center">
           <p className="text-[17px] text-[#6e6e73]">{copy.eaters.empty}</p>
           {isAct1 && (
@@ -60,7 +92,7 @@ export function EatersBoard({
     );
   }
 
-  // Home board: top of the full ranked list; remainder lives on /leaderboard
+  // Home board: top burners only. Everyone else is on /leaderboard, by points.
   const topTen = eligible.slice(0, HOME_BOARD_LIMIT);
   const top = topTen[0];
   const mid = topTen.slice(1, 3);
@@ -73,7 +105,18 @@ export function EatersBoard({
 
   return (
     <div className="grid grid-cols-1 gap-2.5">
-      <YourRankCard eaters={eaters} appleTotal={appleTotal} compact />
+      <YourRankCard
+        eaters={eaters}
+        appleTotal={appleTotal}
+        compact
+        placement="burned"
+      />
+
+      {!top && (
+        <div className="rounded-[18px] border border-[#d2d2d7] bg-[#f5f5f7] px-5 py-10 text-center">
+          <p className="text-[17px] text-[#6e6e73]">{copy.eaters.noBurners}</p>
+        </div>
+      )}
 
       {/* #1 */}
       {top && (
@@ -103,16 +146,18 @@ export function EatersBoard({
                 <EaterStats
                   eater={top}
                   appleTotal={appleTotal}
+                  showShare={false}
                   className="mt-1.5 text-xs"
                 />
+                <PotStatus burned={top.burned} className="mt-1.5" />
               </div>
             </div>
             <div className="text-right">
               <div className="text-[28px] font-extrabold tabular-nums text-[#1d1d1f]">
-                {fmtScore(top.score)}
+                {burnShare(top.burned, appleTotal)}
               </div>
               <div className="text-[11px] text-[#6e6e73]">
-                {copy.leaderboard.pts}
+                {copy.leaderboard.ofApple}
               </div>
             </div>
           </div>
@@ -154,16 +199,18 @@ export function EatersBoard({
                   nameClassName="text-sm font-semibold text-[#1d1d1f]"
                 />
                 <div className="mt-0.5 text-xs font-medium tabular-nums text-[#1d1d1f]">
-                  {fmtScore(e.score)}{" "}
+                  {burnShare(e.burned, appleTotal)}{" "}
                   <span className="text-[#6e6e73]">
-                    {copy.leaderboard.pts}
+                    {copy.leaderboard.ofApple}
                   </span>
                 </div>
                 <EaterStats
                   eater={e}
                   appleTotal={appleTotal}
+                  showShare={false}
                   className="mt-1"
                 />
+                <PotStatus burned={e.burned} className="mt-1" />
               </div>
             );
           })}
@@ -200,14 +247,16 @@ export function EatersBoard({
                   nameClassName="text-[11px] font-semibold text-[#1d1d1f]"
                 />
                 <div className="mt-0.5 text-[10px] tabular-nums text-[#6e6e73]">
-                  {fmtScore(e.score)} {copy.leaderboard.pts}
+                  {burnShare(e.burned, appleTotal)} {copy.leaderboard.ofApple}
                 </div>
                 <EaterStats
                   eater={e}
                   appleTotal={appleTotal}
+                  showShare={false}
                   layout="stack"
                   className="mt-1 items-center text-[10px]"
                 />
+                <PotStatus burned={e.burned} className="mt-1" />
               </div>
             );
           })}
@@ -236,10 +285,16 @@ export function EatersBoard({
                   avatarSize="sm"
                   nameClassName="font-medium text-[#1d1d1f]"
                 />
-                <EaterStats eater={e} appleTotal={appleTotal} className="mt-0.5" />
+                <EaterStats
+                  eater={e}
+                  appleTotal={appleTotal}
+                  showShare={false}
+                  className="mt-0.5"
+                />
+                <PotStatus burned={e.burned} className="mt-0.5" />
               </div>
               <span className="shrink-0 tabular-nums text-[#1d1d1f]">
-                {fmtScore(e.score)}
+                {burnShare(e.burned, appleTotal)}
               </span>
             </li>
             );
@@ -247,7 +302,11 @@ export function EatersBoard({
         </ul>
       )}
 
-      <YourRankStickyRow eaters={eaters} appleTotal={appleTotal} />
+      <YourRankStickyRow
+        eaters={eaters}
+        appleTotal={appleTotal}
+        placement="burned"
+      />
 
       {/* Dev / ineligible — visible, not ranked (home: show Dev only) */}
       {showDev.length > 0 && (
@@ -274,10 +333,15 @@ export function EatersBoard({
                   nameClassName="font-medium text-[#1d1d1f]"
                 />
                 {isLeaderboardDev(e) && <DevBadge />}
-                <EaterStats eater={e} appleTotal={appleTotal} className="mt-0.5" />
+                <EaterStats
+                  eater={e}
+                  appleTotal={appleTotal}
+                  showShare={false}
+                  className="mt-0.5"
+                />
               </div>
               <span className="shrink-0 tabular-nums text-[#1d1d1f]">
-                {fmtScore(e.score)}
+                {burnShare(e.burned, appleTotal)}
               </span>
             </li>
             );

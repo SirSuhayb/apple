@@ -937,11 +937,14 @@ export function RaceApp({
       {/* Biggest eaters */}
       <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
         <div className="mx-auto max-w-[580px]">
-          <p className="mb-4 text-[17px] text-[#6e6e73]">
-            {flags.act <= 1 ? copy.eaters.intro[0] : copy.eaters.introAct2[0]}{" "}
+          <p className="text-[17px] text-[#6e6e73]">
+            {copy.eaters.introAct2[0]}{" "}
             <span className="font-bold text-[#1d1d1f]">
-              {flags.act <= 1 ? copy.eaters.intro[1] : copy.eaters.introAct2[1]}
+              {copy.eaters.introAct2[1]}
             </span>
+          </p>
+          <p className="mt-2 mb-4 text-[15px] font-semibold leading-snug text-[#1d1d1f]">
+            {copy.eaters.prizeEligible}
           </p>
           <EatersBoard
             eaters={boardEaters}

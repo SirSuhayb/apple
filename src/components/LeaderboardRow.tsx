@@ -53,7 +53,13 @@ export function YouBadge({ className = "" }: { className?: string }) {
   );
 }
 
-export function TopEaterBadge({ className = "" }: { className?: string }) {
+export function TopEaterBadge({
+  label = copy.leaderboard.topEater,
+  className = "",
+}: {
+  label?: string;
+  className?: string;
+}) {
   return (
     <span
       className={[
@@ -61,7 +67,7 @@ export function TopEaterBadge({ className = "" }: { className?: string }) {
         className,
       ].join(" ")}
     >
-      {copy.leaderboard.topEater}
+      {label}
     </span>
   );
 }
@@ -69,23 +75,27 @@ export function TopEaterBadge({ className = "" }: { className?: string }) {
 export function EaterName({
   address,
   topEater,
+  leadLabel,
   isYou,
   className = "",
 }: {
   address: string;
   topEater?: boolean;
+  /** Rank-1 label for the active board. Home burn board uses `topEater`. */
+  leadLabel?: string;
   isYou?: boolean;
   className?: string;
 }) {
   const ens = useEnsName(address);
   const label = ens ?? shortAddr(address);
+  const badge = leadLabel ?? (topEater ? copy.leaderboard.topEater : null);
   return (
     <div className={["flex min-w-0 flex-wrap items-center gap-1.5", className].join(" ")}>
       <span className="truncate" title={ens ? `${ens} · ${address}` : address}>
         {label}
       </span>
       {isYou ? <YouBadge /> : null}
-      {topEater ? <TopEaterBadge /> : null}
+      {badge ? <TopEaterBadge label={badge} /> : null}
     </div>
   );
 }
@@ -94,6 +104,7 @@ export function EaterName({
 export function EaterIdentity({
   address,
   topEater,
+  leadLabel,
   isYou,
   avatarSize = "sm",
   layout = "row",
@@ -102,6 +113,7 @@ export function EaterIdentity({
 }: {
   address: string;
   topEater?: boolean;
+  leadLabel?: string;
   isYou?: boolean;
   avatarSize?: AppleAvatarSize;
   layout?: "row" | "stack";
@@ -115,6 +127,7 @@ export function EaterIdentity({
         <EaterName
           address={address}
           topEater={topEater}
+          leadLabel={leadLabel}
           isYou={isYou}
           className={["mt-1 justify-center", nameClassName].join(" ")}
         />
@@ -127,6 +140,7 @@ export function EaterIdentity({
       <EaterName
         address={address}
         topEater={topEater}
+        leadLabel={leadLabel}
         isYou={isYou}
         className={["min-w-0 flex-1", nameClassName].join(" ")}
       />
@@ -140,11 +154,14 @@ export function EaterStats({
   appleTotal,
   layout = "inline",
   className = "",
+  showShare = true,
 }: {
   eater: Eater;
   appleTotal: number;
   layout?: "inline" | "stack";
   className?: string;
+  /** Home board already headlines the burn share, so the line can omit it. */
+  showShare?: boolean;
 }) {
   const items = [copy.leaderboard.trades(tradeCount(eater))];
   if (eater.burned > 0) {
@@ -158,7 +175,7 @@ export function EaterStats({
       copy.leaderboard.wageredAmount(formatCompactAmount(eater.wagered ?? 0)),
     );
   }
-  if (appleTotal > 0) {
+  if (showShare && appleTotal > 0) {
     items.push(
       copy.leaderboard.eatenPct(formatAppleEatenPct(eater.burned, appleTotal)),
     );
