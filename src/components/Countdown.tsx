@@ -7,10 +7,16 @@ export function Countdown({
   secondsLeft,
   deadline,
   urgent = false,
+  compact = false,
+  onDark = false,
 }: {
   secondsLeft: number;
   deadline: number;
   urgent?: boolean;
+  /** Smaller figures for the hero tile. */
+  compact?: boolean;
+  /** Light type for the dark prize-pool tiles. */
+  onDark?: boolean;
 }) {
   const [left, setLeft] = useState(secondsLeft);
   const labels = copy.core.countdown;
@@ -31,19 +37,29 @@ export function Countdown({
 
   const numClass = urgent
     ? "text-[#e53935]"
-    : "text-[#1d1d1f]";
+    : onDark
+      ? "text-white"
+      : "text-[#1d1d1f]";
+  const labelClass = onDark ? "text-white/55" : "text-[#6e6e73]";
 
   const cell = (value: number, label: string) => (
     <div className="flex flex-col items-center text-center">
       <span
         className={[
-          "text-[36px] font-extrabold leading-none tabular-nums",
+          compact
+            ? "text-[clamp(16px,4.6vw,26px)] font-bold leading-none tabular-nums"
+            : "text-[36px] font-extrabold leading-none tabular-nums",
           numClass,
         ].join(" ")}
       >
         {String(value).padStart(2, "0")}
       </span>
-      <span className="mt-1 text-[10px] tracking-[1.5px] text-[#6e6e73] uppercase">
+      <span
+        className={[
+          "mt-1 text-[10px] tracking-[1.5px] uppercase",
+          labelClass,
+        ].join(" ")}
+      >
         {label}
       </span>
     </div>
@@ -52,7 +68,8 @@ export function Countdown({
   return (
     <div
       className={[
-        "flex items-end justify-center gap-5",
+        "flex items-end justify-center",
+        compact ? "gap-2.5 sm:gap-3" : "gap-5",
         urgent && left < 3600 ? "animate-pulse" : "",
       ].join(" ")}
     >

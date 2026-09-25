@@ -101,13 +101,8 @@ export const copy = {
   /** Core game explainer — visible in Act I (and later acts) before mechanics */
   game: {
     eyebrow: "The game",
-    headline: "The game is simple.",
-    body: [
-      "Your goal is to eat the apple to its core before the timer runs out.",
-      "Win, and you split the rewards from every trade with the other eaters.",
-      "Only eaters are eligible for the prize pool.",
-      "Lose, and the farmer takes the pot.",
-    ] as const,
+    headline: "The game is simple—eat the apple.",
+    body: "Buy. Sell. Transfer. Every time $BITE moves, supply is burned forever. The apple gets smaller. Your share gets bigger.",
   },
 
   line: {
@@ -125,7 +120,7 @@ export const copy = {
   },
 
   how: {
-    intro: ["A few ways", "$BITE gets smaller."],
+    intro: "How to eat the apple",
     comingAct1: "Coming in Act I",
     comingAct2: "Coming in Act II",
     items: [
@@ -218,6 +213,7 @@ export const copy = {
     countdown: ["days", "hours", "min", "sec"] as const,
     remaining: (n: string) => `${n} remaining`,
     burned: (n: string) => `${n} burned`,
+    notStarted: "The race hasn't started.",
   },
 
   pairing: {
@@ -514,6 +510,32 @@ export const copy = {
     binding: "Confirm bind…",
     doneBuy: "Bought",
     doneBurn: "Burned",
+  },
+
+  /** Internal ETH claim desk. Not linked from the public nav. */
+  claim: {
+    title: "Claim desk",
+    eyebrow: "Internal",
+    notOpen: "Claim desk is not open yet.",
+    about: "About $1 in ETH.",
+    headline: "You can claim $1 in ETH.",
+    amountLine: (eth: string, wei: string) => `${eth} ETH (${wei} wei) per claim.`,
+    seatsLine: (n: string) => `${n} claims left that the contract can pay.`,
+    connectHint: "Connect the wallet that is on the list.",
+    connectCta: "Connect wallet",
+    connecting: "Connecting…",
+    wrongChain: "Switch to Robinhood Chain.",
+    switchCta: "Switch network",
+    reading: "Reading the claim desk…",
+    notEligible: "This wallet is not on the list.",
+    alreadyClaimed: "Already claimed.",
+    nothingLeft: "Nothing left to claim.",
+    claimCta: "Claim",
+    claiming: "Confirm in your wallet…",
+    claimed: "Claimed.",
+    failed: "Claim failed.",
+    readFailed: "Could not read the claim desk.",
+    back: "← Back",
   },
 
   invite: {

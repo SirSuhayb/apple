@@ -6,8 +6,6 @@ import { copy } from "@/lib/copy";
 import {
   HOME_BOARD_LIMIT,
   formatAppleEatenPct,
-  isLeaderboardDev,
-  partitionLeaderboard,
   rankedEligible,
   sameWallet,
 } from "@/lib/leaderboard-rank";
@@ -21,35 +19,6 @@ import {
 } from "./LeaderboardRow";
 import { AppleAvatar } from "./AppleAvatar";
 import { YourRankCard, YourRankStickyRow } from "./YourRank";
-
-function PotStatus({
-  burned,
-  className = "",
-}: {
-  burned: number;
-  className?: string;
-}) {
-  const inPot = burned > 0;
-  return (
-    <p
-      className={[
-        "text-[11px] font-semibold leading-snug",
-        inPot ? "text-[#e53935]" : "text-[#86868b]",
-        className,
-      ].join(" ")}
-    >
-      {inPot ? copy.leaderboard.inThePot : copy.leaderboard.notInThePot}
-    </p>
-  );
-}
-
-function DevBadge() {
-  return (
-    <span className="ml-1 inline-flex align-middle rounded px-1 py-0.5 text-[9px] font-semibold tracking-wide text-[#6e6e73] ring-1 ring-[#d2d2d7]">
-      {copy.leaderboard.devBadge}
-    </span>
-  );
-}
 
 function burnShare(burned: number, appleTotal: number) {
   return formatAppleEatenPct(burned, appleTotal);
@@ -69,7 +38,6 @@ export function EatersBoard({
   const isAct1 = mode === "act1";
   const you = useBoardWallet();
   const eligible = rankedEligible(eaters, "burned");
-  const { ineligible } = partitionLeaderboard(eaters);
 
   if (!eaters.length) {
     return (
@@ -98,10 +66,6 @@ export function EatersBoard({
   const mid = topTen.slice(1, 3);
   const low = topTen.slice(3, 6);
   const rest = topTen.slice(6, HOME_BOARD_LIMIT);
-  const showDev =
-    isAct1 && ineligible.some((e) => isLeaderboardDev(e))
-      ? ineligible.filter((e) => isLeaderboardDev(e)).slice(0, 1)
-      : [];
 
   return (
     <div className="grid grid-cols-1 gap-2.5">
@@ -149,7 +113,6 @@ export function EatersBoard({
                   showShare={false}
                   className="mt-1.5 text-xs"
                 />
-                <PotStatus burned={top.burned} className="mt-1.5" />
               </div>
             </div>
             <div className="text-right">
@@ -210,7 +173,6 @@ export function EatersBoard({
                   showShare={false}
                   className="mt-1"
                 />
-                <PotStatus burned={e.burned} className="mt-1" />
               </div>
             );
           })}
@@ -256,7 +218,6 @@ export function EatersBoard({
                   layout="stack"
                   className="mt-1 items-center text-[10px]"
                 />
-                <PotStatus burned={e.burned} className="mt-1" />
               </div>
             );
           })}
@@ -291,7 +252,6 @@ export function EatersBoard({
                   showShare={false}
                   className="mt-0.5"
                 />
-                <PotStatus burned={e.burned} className="mt-0.5" />
               </div>
               <span className="shrink-0 tabular-nums text-[#1d1d1f]">
                 {burnShare(e.burned, appleTotal)}
@@ -307,47 +267,6 @@ export function EatersBoard({
         appleTotal={appleTotal}
         placement="burned"
       />
-
-      {/* Dev / ineligible — visible, not ranked (home: show Dev only) */}
-      {showDev.length > 0 && (
-        <ul className="divide-y divide-[#d2d2d7] rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa]">
-          {showDev.map((e) => {
-            const isYou = sameWallet(e.address, you);
-            return (
-            <li
-              key={e.address}
-              id={eaterDomId(e.address)}
-              className={youSurfaceClass(
-                isYou,
-                "flex items-center gap-2 px-4 py-3 text-sm first:rounded-t-[14px] last:rounded-b-[14px]",
-              )}
-            >
-              <span className="w-6 shrink-0 text-[11px] font-semibold uppercase text-[#6e6e73]">
-                —
-              </span>
-              <div className="min-w-0 flex-1">
-                <EaterIdentity
-                  address={e.address}
-                  isYou={isYou}
-                  avatarSize="sm"
-                  nameClassName="font-medium text-[#1d1d1f]"
-                />
-                {isLeaderboardDev(e) && <DevBadge />}
-                <EaterStats
-                  eater={e}
-                  appleTotal={appleTotal}
-                  showShare={false}
-                  className="mt-0.5"
-                />
-              </div>
-              <span className="shrink-0 tabular-nums text-[#1d1d1f]">
-                {burnShare(e.burned, appleTotal)}
-              </span>
-            </li>
-            );
-          })}
-        </ul>
-      )}
 
       {/* Full leaderboard CTA */}
       <div className="mt-2 text-center">

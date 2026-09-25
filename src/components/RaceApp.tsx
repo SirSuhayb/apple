@@ -42,7 +42,6 @@ import {
 } from "./MetaWager";
 import { SiteFooter } from "./SiteFooter";
 import { SwapModal } from "./SwapModal";
-import { DigestButton } from "./DigestButton";
 
 const AppleScene = dynamic(
   () => import("./AppleScene").then((m) => m.AppleScene),
@@ -238,7 +237,7 @@ function ContractBlock({
 
 function HowCards({ act }: { act: SiteAct }) {
   return (
-    <div className="page-gutter mx-auto max-w-[980px]">
+    <div id="how" className="page-gutter mx-auto max-w-[980px]">
       <div className="flex gap-4 overflow-x-auto pb-3 snap-x snap-mandatory [-webkit-overflow-scrolling:touch] md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:pb-0">
         {copy.how.items.map((item) => {
           const isLocked = act < item.lockUntilAct;
@@ -288,95 +287,153 @@ function fmtCompact(n: number): string {
   return n.toFixed(2);
 }
 
-function SupplyStatsCard({ stats }: { stats: SupplyStats }) {
-  const burned = stats.totalBurned;
-  const burnPct =
-    stats.totalSupply > 0 ? (burned / stats.totalSupply) * 100 : 0;
-  const eoaPct =
-    stats.totalSupply > 0 ? (stats.eoaHeldBite / stats.totalSupply) * 100 : 0;
-  const contractPct =
-    stats.totalSupply > 0
-      ? (stats.contractHeldBite / stats.totalSupply) * 100
-      : 0;
-
-  const prizeLabel = stats.prizePoolAapl > 0
-    ? `${fmtCompact(stats.prizePoolAapl)} AAPL`
-    : "0 AAPL";
-  const prizeUsd =
-    stats.prizePoolUsd != null && stats.prizePoolUsd > 0
-      ? `$${stats.prizePoolUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-      : null;
-
-  const cells = [
-    {
-      label: "Prize Pool",
-      value: prizeLabel,
-      sub: prizeUsd,
-      accent: true,
-    },
-    {
-      label: "Held by Wallets",
-      value: `${fmtCompact(stats.eoaHeldBite)}`,
-      sub: `${eoaPct.toFixed(1)}% of supply`,
-    },
-    {
-      label: "In LP / Contracts",
-      value: `${fmtCompact(stats.contractHeldBite)}`,
-      sub: `${contractPct.toFixed(1)}% of supply`,
-    },
-    {
-      label: "Burnable by Holders",
-      value: `${fmtCompact(stats.realisticallyBurnable)}`,
-      sub: `${eoaPct.toFixed(1)}% of supply`,
-    },
+function PrizePoolBento({
+  stats,
+  showProgress,
+  secondsLeft,
+  deadline,
+  urgent,
+  burnedDisplay,
+  progressPct,
+  progress,
+}: {
+  stats: SupplyStats | null;
+  showProgress: boolean;
+  secondsLeft: number;
+  deadline: number;
+  urgent: boolean;
+  burnedDisplay: string;
+  progressPct: string;
+  progress: number;
+}) {
+  const total = stats?.totalSupply ?? 0;
+  const burned = Math.max(0, stats?.totalBurned ?? 0);
+  const wallets = Math.max(0, stats?.eoaHeldBite ?? 0);
+  // LP is whatever supply is left after wallets and burns, so the three parts sum to supply.
+  const contracts = Math.max(0, total - wallets - burned);
+  const pctOf = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+  const segments = [
     {
       label: "Burned",
-      value: `${fmtCompact(burned)}`,
-      sub: `${burnPct.toFixed(2)}%`,
+      amount: burned,
+      pct: pctOf(burned),
+      bar: "bg-[#e53935]",
     },
     {
-      label: "Holders",
-      value: stats.holderCount.toLocaleString(),
-      sub: stats.bitePriceUsd
-        ? `$${stats.bitePriceUsd.toFixed(6)}`
-        : null,
+      label: "Held by wallets",
+      amount: wallets,
+      pct: pctOf(wallets),
+      bar: "bg-[#1d1d1f]",
+    },
+    {
+      label: "In LP / contracts",
+      amount: contracts,
+      pct: pctOf(contracts),
+      bar: "bg-[#86868b]",
     },
   ];
 
+  const prizeLabel =
+    stats && stats.prizePoolAapl > 0
+      ? `${fmtCompact(stats.prizePoolAapl)} AAPL`
+      : "0 AAPL";
+  const prizeUsd =
+    stats?.prizePoolUsd != null && stats.prizePoolUsd > 0
+      ? `$${stats.prizePoolUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      : null;
+  const holderCount = stats?.holderCount ?? 0;
+
+  const tile =
+    "rounded-[28px] border border-[#d2d2d7] bg-white text-[#1d1d1f]";
+
   return (
-    <div className="mx-auto max-w-[580px]">
-      <p className="mb-4 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-        Supply breakdown
-      </p>
-      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-        {cells.map((c) => (
-          <div
-            key={c.label}
-            className={[
-              "rounded-[14px] border px-3 py-4 text-center",
-              c.accent
-                ? "border-[#e53935]/30 bg-[#e53935]/5"
-                : "border-[#d2d2d7] bg-white",
-            ].join(" ")}
-          >
-            <div className="mb-1 text-[10px] font-semibold tracking-[1.2px] text-[#6e6e73] uppercase">
-              {c.label}
-            </div>
-            <div
-              className={[
-                "text-[17px] font-bold leading-snug tabular-nums",
-                c.accent ? "text-[#e53935]" : "text-[#1d1d1f]",
-              ].join(" ")}
-            >
-              {c.value}
-            </div>
-            {c.sub && (
-              <div className="mt-0.5 text-[11px] text-[#6e6e73]">{c.sub}</div>
-            )}
+    <div className="grid gap-3">
+      <div className={`${tile} px-6 py-7 text-center sm:px-8 sm:py-8`}>
+        <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+          Prize pool
+        </p>
+        <p className="mt-2 text-[clamp(40px,5vw,64px)] font-bold leading-none tracking-[-0.04em] text-[#e53935] tabular-nums">
+          {prizeLabel}
+        </p>
+        {prizeUsd && (
+          <p className="mt-2 text-[17px] tabular-nums text-[#6e6e73]">
+            {prizeUsd}
+          </p>
+        )}
+        <div className="mt-6 text-left">
+          <div className="flex h-1.5 overflow-hidden rounded-full bg-[#d2d2d7]">
+            {segments.map((segment) => (
+              <div
+                key={segment.label}
+                className={segment.bar}
+                style={{ width: `${Math.min(100, segment.pct)}%` }}
+              />
+            ))}
           </div>
-        ))}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {segments.map((segment) => (
+              <div key={segment.label}>
+                <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
+                  {segment.label}
+                </div>
+                <div className="mt-0.5 text-[13px] font-semibold tabular-nums text-[#1d1d1f]">
+                  {fmtCompact(segment.amount)}
+                </div>
+                <div className="text-[11px] tabular-nums text-[#6e6e73]">
+                  {segment.pct.toFixed(1)}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
-      <DigestButton />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className={`${tile} flex flex-col px-4 py-5 sm:px-5`}>
+          {showProgress ? (
+            <Countdown
+              secondsLeft={secondsLeft}
+              deadline={deadline}
+              urgent={urgent}
+              compact
+            />
+          ) : (
+            <p className="text-center text-[15px] font-medium leading-snug text-[#1d1d1f]">
+              {copy.core.notStarted}
+            </p>
+          )}
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <span className="text-[11px] text-[#6e6e73]">
+                {copy.core.burned(showProgress ? burnedDisplay : "0")}
+              </span>
+              <span className="text-[15px] font-bold tabular-nums text-[#e53935]">
+                {showProgress ? progressPct : "0.0"}%
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-[#d2d2d7]">
+              <div
+                className="progress-fill h-full rounded-full bg-gradient-to-r from-[#66bb6a] to-[#e53935] transition-[width] duration-1000"
+                style={{
+                  width: `${showProgress ? Math.min(100, progress * 100) : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+          <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+            Players
+          </p>
+          <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums">
+            {holderCount.toLocaleString()}
+          </p>
+          <p className="mt-2 text-[13px] text-[#6e6e73]">
+            {fmtCompact(wallets)} held
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -543,7 +600,6 @@ export function RaceApp({
     : state.progress;
   const pct = (displayProgress * 100).toFixed(1);
   const burnedDisplay = formatTokenAmount(state.burned);
-  const remainingDisplay = formatTokenAmount(state.totalSupply);
   const daysLeft = state.secondsLeft / 86_400;
   const tagline = heroTagline(flags.act, state.phase);
   const raceEnded = state.phase === "core" || state.phase === "rot";
@@ -703,9 +759,11 @@ export function RaceApp({
       {/* Hero */}
       <section
         id="top"
-        className="page-gutter bg-[#fbfbfd] pt-[60px] pb-10 text-center"
+        className="page-gutter bg-[#fbfbfd] pt-[60px] pb-10"
       >
-        <h1 className="animate-rise text-[clamp(56px,14vw,96px)] font-bold leading-none tracking-[-0.04em]">
+        <div className="mx-auto grid max-w-[1080px] items-center gap-10 lg:grid-cols-2 lg:gap-8">
+        <div className="text-center">
+        <h1 className="animate-rise text-[clamp(48px,8vw,72px)] font-bold leading-none tracking-[-0.04em]">
           {copy.brand}
         </h1>
         <p className="animate-rise-delay-1 mt-2 text-[clamp(19px,4vw,28px)] font-normal text-[#6e6e73]">
@@ -802,84 +860,35 @@ export function RaceApp({
               : copy.tap.dayOne.note}
           </p>
         )}
-      </section>
+        </div>
 
-      {/* Game explainer — Act I first (and later acts) so stakes are clear early */}
-      <section
-        id="game"
-        className="page-gutter bg-[#f5f5f7] py-16 text-center"
-      >
-        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-          {copy.game.eyebrow}
-        </p>
-        <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
-          {copy.game.headline}
-        </h2>
-        <div className="mx-auto mt-3.5 max-w-[460px] space-y-3 text-[17px] leading-relaxed text-[#6e6e73]">
-          {copy.game.body.map((line) => (
-            <p key={line}>{line}</p>
-          ))}
+        <PrizePoolBento
+          stats={supplyStats}
+          showProgress={flags.showProgress}
+          secondsLeft={state.secondsLeft}
+          deadline={state.deadline}
+          urgent={flags.countdownUrgent}
+          burnedDisplay={burnedDisplay}
+          progressPct={pct}
+          progress={displayProgress}
+        />
         </div>
       </section>
 
-      {/* Countdown + progress — Act II+ */}
-      {flags.showProgress && (
-        <div className="page-gutter bg-[#f5f5f7] py-7 text-center">
-          <div className="mx-auto max-w-[460px]">
-            <p className="mb-3.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-              {copy.core.eyebrow}
-            </p>
-            <Countdown
-              secondsLeft={state.secondsLeft}
-              deadline={state.deadline}
-              urgent={flags.countdownUrgent}
-            />
-            <div className="mt-5">
-              <div className="mb-1.5 flex items-baseline justify-between">
-                <span className="text-xs text-[#6e6e73]">
-                  {copy.core.remaining(remainingDisplay)}
-                </span>
-                <span className="text-2xl font-bold text-[#e53935]">{pct}%</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded bg-[#d2d2d7]">
-                <div
-                  className="progress-fill h-full rounded bg-gradient-to-r from-[#66bb6a] to-[#e53935] transition-[width] duration-1000"
-                  style={{
-                    width: `${Math.min(100, displayProgress * 100)}%`,
-                  }}
-                />
-              </div>
-              <div className="mt-1.5 text-right text-[11px] text-[#6e6e73]">
-                {copy.core.burned(burnedDisplay)}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* The line — supporting mechanics after the game stakes */}
-      <section className="page-gutter bg-[#fbfbfd] py-20 text-center">
-        <h2 className="text-[clamp(26px,6vw,44px)] font-bold leading-[1.1] tracking-[-0.03em] whitespace-pre-line">
-          {(flags.act <= 1
-            ? copy.line.headline[flags.act === 0 ? 0 : 1]
-            : copy.line.headline.racing
-          ).join("\n")}
-        </h2>
-        <p className="mx-auto mt-3.5 max-w-[440px] text-[17px] leading-relaxed text-[#6e6e73]">
-          {flags.act === 0
-            ? copy.line.body[0]
-            : flags.act === 1
-              ? copy.line.body[1]
-              : copy.line.body.racing}
-        </p>
-      </section>
-
-      {/* How */}
-      <section id="how" className="bg-[#f5f5f7] py-[60px]">
+      {/* Game */}
+      <section id="game" className="bg-[#f5f5f7] py-16 text-center">
         <div className="page-gutter mx-auto max-w-[980px]">
-          <p className="mb-5 text-[17px] text-[#6e6e73]">
-            {copy.how.intro[0]}{" "}
-            <span className="font-bold text-[#1d1d1f]">{copy.how.intro[1]}</span>
+          <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+            {copy.game.eyebrow}
+          </p>
+          <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+            {copy.game.headline}
+          </h2>
+          <p className="mx-auto mt-3.5 max-w-[440px] text-[17px] leading-relaxed text-[#6e6e73]">
+            {copy.game.body}
+          </p>
+          <p className="mt-10 mb-5 text-[17px] font-bold text-[#1d1d1f]">
+            {copy.how.intro}
           </p>
         </div>
         <HowCards act={flags.act} />
@@ -927,25 +936,17 @@ export function RaceApp({
         </section>
       )}
 
-      {/* Supply stats */}
-      {supplyStats && supplyStats.totalSupply > 0 && (
-        <section id="supply" className="page-gutter bg-[#f5f5f7] py-10">
-          <SupplyStatsCard stats={supplyStats} />
-        </section>
-      )}
-
       {/* Biggest eaters */}
       <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
         <div className="mx-auto max-w-[580px]">
-          <p className="text-[17px] text-[#6e6e73]">
-            {copy.eaters.introAct2[0]}{" "}
-            <span className="font-bold text-[#1d1d1f]">
-              {copy.eaters.introAct2[1]}
-            </span>
-          </p>
-          <p className="mt-2 mb-4 text-[15px] font-semibold leading-snug text-[#1d1d1f]">
-            {copy.eaters.prizeEligible}
-          </p>
+          <div className="mb-6 text-center">
+            <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+              {copy.eaters.introAct2[0]} {copy.eaters.introAct2[1]}
+            </h2>
+            <p className="mt-3 text-[15px] font-semibold leading-snug text-[#1d1d1f]">
+              {copy.eaters.prizeEligible}
+            </p>
+          </div>
           <EatersBoard
             eaters={boardEaters}
             mode={boardMode}
