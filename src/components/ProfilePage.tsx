@@ -24,6 +24,7 @@ import { sharePageUrl } from "@/lib/share";
 import { useBiteBalance } from "@/lib/use-bite-balance";
 import { useBoardWallet } from "@/lib/use-board-wallet";
 import { useLeaderboardLive } from "@/lib/use-leaderboard";
+import { SeedsCounter, SeedsEmpty } from "./SeedsCounter";
 import {
   EaterIdentity,
   EaterStats,
@@ -209,6 +210,7 @@ function ProfileBody({
   appleTotal,
   holdBalance,
   holdLoading,
+  seedCount,
 }: {
   address: string;
   isOwn: boolean;
@@ -216,6 +218,7 @@ function ProfileBody({
   appleTotal: number;
   holdBalance: number | null;
   holdLoading: boolean;
+  seedCount: number;
 }) {
   const status = lookupConnectedRank(eaters, address);
   const eater =
@@ -386,6 +389,14 @@ function ProfileBody({
         />
       </div>
 
+      {isOwn ? (
+        seedCount > 0 ? (
+          <SeedsCounter seeds={seedCount} className="mt-6" />
+        ) : (
+          <SeedsEmpty className="mt-6" />
+        )
+      ) : null}
+
       <ProfileTitles
         titles={titles}
         holdNote={holdNote}
@@ -419,7 +430,7 @@ export function ProfileMePage({
   const { address, isConnected } = useAccount();
   const qaOrWallet = useBoardWallet();
   const profileAddress = address ?? qaOrWallet;
-  const { eaters, supplyStats, coreTarget } = useLeaderboardLive(
+  const { eaters, supplyStats, coreTarget, seedMap } = useLeaderboardLive(
     initialEaters,
     initialSupplyStats,
     initialCoreTarget,
@@ -432,6 +443,9 @@ export function ProfileMePage({
     Boolean(profileAddress),
     profileAddress,
   );
+  const mySeedCount = profileAddress
+    ? (seedMap[profileAddress.toLowerCase()] ?? 0)
+    : 0;
 
   if (!profileAddress) {
     return (
@@ -459,6 +473,7 @@ export function ProfileMePage({
         appleTotal={appleTotal}
         holdBalance={holdBalance}
         holdLoading={holdLoading}
+        seedCount={mySeedCount}
       />
       {isConnected && address ? (
         <p className="mt-8 text-center">
@@ -487,7 +502,7 @@ export function ProfilePublicPage({
 }) {
   const { address: connected } = useAccount();
   const isOwn = sameWallet(connected, address);
-  const { eaters, supplyStats, coreTarget } = useLeaderboardLive(
+  const { eaters, supplyStats, coreTarget, seedMap } = useLeaderboardLive(
     initialEaters,
     initialSupplyStats,
     initialCoreTarget,
@@ -497,6 +512,7 @@ export function ProfilePublicPage({
     supplyStats?.totalSupply,
   );
   const { holdBalance, holdLoading } = useBiteBalance(isOwn, address);
+  const publicSeedCount = seedMap[address.toLowerCase()] ?? 0;
 
   return (
     <ProfileShell backHref="/leaderboard">
@@ -507,6 +523,7 @@ export function ProfilePublicPage({
         appleTotal={appleTotal}
         holdBalance={isOwn ? holdBalance : null}
         holdLoading={isOwn && holdLoading}
+        seedCount={publicSeedCount}
       />
     </ProfileShell>
   );

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { LEADERBOARD_POLL_MS } from "@/lib/config";
 import type { Eater, SupplyStats } from "@/lib/race";
 
+export type SeedMap = Record<string, number>;
+
 /**
  * Shared live board for home + /leaderboard.
  * Both surfaces poll /api/leaderboard on the same cadence and apply
@@ -20,6 +22,7 @@ export function useLeaderboardLive(
   );
   const [coreTarget, setCoreTarget] = useState(initialCoreTarget);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
+  const [seedMap, setSeedMap] = useState<SeedMap>({});
   const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {
@@ -31,6 +34,7 @@ export function useLeaderboardLive(
         supplyStats?: SupplyStats | null;
         updatedAt?: string | null;
         coreTarget?: number | null;
+        seedMap?: SeedMap | null;
       };
       if (!mountedRef.current) return;
       if (Array.isArray(data.eaters)) setEaters(data.eaters);
@@ -39,6 +43,7 @@ export function useLeaderboardLive(
         setCoreTarget(data.coreTarget);
       }
       if (data.updatedAt) setUpdatedAt(data.updatedAt);
+      if (data.seedMap) setSeedMap(data.seedMap);
     } catch {
       // silent — next poll retries
     }
@@ -55,5 +60,5 @@ export function useLeaderboardLive(
     };
   }, [refresh]);
 
-  return { eaters, supplyStats, coreTarget, updatedAt, refresh };
+  return { eaters, supplyStats, coreTarget, updatedAt, seedMap, refresh };
 }

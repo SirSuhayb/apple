@@ -4,6 +4,7 @@ import { supplyApiHeaders } from "@/lib/circulating-supply";
 import { fetchRaceState } from "@/lib/fetch-race";
 import { sortLeaderboard, weiToTokens } from "@/lib/leaderboard-rank";
 import { resolveSiteAct } from "@/lib/phase";
+import { computeAllSeeds } from "@/lib/seeds";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -22,6 +23,8 @@ export async function GET() {
     act1.eaters.length > 0
       ? act1.eaters
       : sortLeaderboard(state.eaters);
+  const seedMap = Object.fromEntries(computeAllSeeds(eaters));
+
   return NextResponse.json(
     {
       eaters,
@@ -33,6 +36,7 @@ export async function GET() {
       progress: state.progress,
       coreTarget: weiToTokens(state.coreTarget),
       supplyStats: act1.supplyStats ?? null,
+      seedMap,
     },
     { headers: supplyApiHeaders },
   );

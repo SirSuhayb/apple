@@ -40,6 +40,7 @@ import {
   MetaWagerInfo,
   MetaWagerLive,
 } from "./MetaWager";
+import { SeedsModal } from "./SeedsModal";
 import { SiteFooter } from "./SiteFooter";
 import { SwapModal } from "./SwapModal";
 
@@ -451,6 +452,7 @@ export function RaceApp({
     eaters: liveEaters,
     supplyStats: liveSupply,
     coreTarget: liveCoreTarget,
+    seedMap,
     refresh: refreshBoard,
   } = useLeaderboardLive(
     act1Eaters,
@@ -1068,6 +1070,8 @@ export function RaceApp({
       </section>
 
       <SiteFooter />
+
+      <SeedsModal seedMap={seedMap} />
 
       {flags.burnsOpen && !raceEnded && (
         <BiteModal
