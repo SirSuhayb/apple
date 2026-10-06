@@ -53,14 +53,20 @@ export function computeSeedCount(
   return Math.max(1, Math.floor(Math.sqrt(walletScore) * scale));
 }
 
+function isIneligible(e: Eater): boolean {
+  return Boolean(e.ineligible) || Boolean(e.dev) || e.badge === "dev";
+}
+
 /**
  * Batch compute seeds for all eaters. Returns a map of address → seed count.
+ * Dev and ineligible wallets are excluded — they appear on the board but
+ * cannot earn seeds (same as prize pot eligibility).
  */
 export function computeAllSeeds(
   eaters: Eater[],
 ): Map<string, number> {
-  const withScore = eaters.filter((e) => e.score > 0);
-  const totalSqrt = withScore.reduce(
+  const eligible = eaters.filter((e) => e.score > 0 && !isIneligible(e));
+  const totalSqrt = eligible.reduce(
     (sum, e) => sum + Math.sqrt(e.score),
     0,
   );
@@ -68,7 +74,7 @@ export function computeAllSeeds(
 
   const scale = TARGET_TOTAL_SEEDS / totalSqrt;
   const result = new Map<string, number>();
-  for (const e of withScore) {
+  for (const e of eligible) {
     const seeds = Math.max(1, Math.floor(Math.sqrt(e.score) * scale));
     result.set(e.address.toLowerCase(), seeds);
   }
