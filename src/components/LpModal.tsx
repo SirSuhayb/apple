@@ -15,8 +15,8 @@ import {
 import { getPublicClient, sendTransaction, switchChain } from "wagmi/actions";
 import { formatEther, isAddress, parseEther } from "viem";
 import { erc20Abi } from "@/lib/abis";
-import { robinhoodChain } from "@/lib/chain";
-import { AAPL_TOKEN, BITE_TOKEN } from "@/lib/config";
+import { baseChain, robinhoodChain } from "@/lib/chain";
+import { USDC_TOKEN as AAPL_TOKEN, JUICE_TOKEN as BITE_TOKEN } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import {
   LP_QUOTE_MAX_AGE_MS,
@@ -610,7 +610,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
           <label className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
             <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.intoPool}</span>
-              <span>{SWAP_TOKENS.bite.symbol}</span>
+              <span>{SWAP_TOKENS.juice.symbol}</span>
             </div>
             <input
               inputMode="decimal"
@@ -628,7 +628,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
                 {Number(formatEther(biteBalance)).toLocaleString(undefined, {
                   maximumFractionDigits: 2,
                 })}{" "}
-                {SWAP_TOKENS.bite.symbol}
+                {SWAP_TOKENS.juice.symbol}
               </p>
             )}
           </label>
@@ -636,7 +636,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
           <label className="rounded-2xl border border-dashed border-[#d2d2d7] bg-white px-4 py-3">
             <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.keepAside}</span>
-              <span>{SWAP_TOKENS.bite.symbol}</span>
+              <span>{SWAP_TOKENS.juice.symbol}</span>
             </div>
             <input
               inputMode="decimal"
@@ -656,7 +656,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
           <div className="rounded-2xl bg-[#f5f5f7] px-4 py-3">
             <div className="flex items-center justify-between text-[12px] text-[#6e6e73]">
               <span>{copy.lp.matching}</span>
-              <span>{SWAP_TOKENS.aapl.symbol}</span>
+              <span>{SWAP_TOKENS.eth.symbol}</span>
             </div>
             <p className="mt-1 text-[28px] font-semibold tracking-[-0.03em] text-[#1d1d1f]">
               {quoting && !matchingAapl ? copy.lp.quoting : matchingAapl ?? "—"}
@@ -670,7 +670,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
                 {Number(formatEther(aaplBalance)).toLocaleString(undefined, {
                   maximumFractionDigits: 6,
                 })}{" "}
-                {SWAP_TOKENS.aapl.symbol}
+                {SWAP_TOKENS.eth.symbol}
               </p>
             )}
           </div>
@@ -750,7 +750,7 @@ export function LpModal({ open, onClose }: LpModalProps) {
           )}
           {insufficientAapl && (
             <p className="text-center text-[13px] text-[#ff3b30]">
-              {copy.lp.insufficient(SWAP_TOKENS.aapl.symbol)}
+              {copy.lp.insufficient(SWAP_TOKENS.eth.symbol)}
             </p>
           )}
           {keepWei < 0n && (
@@ -892,10 +892,10 @@ export function LpModal({ open, onClose }: LpModalProps) {
                         </p>
                         <p className="text-[15px] font-semibold text-[#1d1d1f]">
                           {formatSwapAmount(biteFees.toString())}{" "}
-                          {SWAP_TOKENS.bite.symbol}
+                          {SWAP_TOKENS.juice.symbol}
                           {" · "}
                           {formatSwapAmount(aaplFees.toString())}{" "}
-                          {SWAP_TOKENS.aapl.symbol}
+                          {SWAP_TOKENS.eth.symbol}
                         </p>
                         <button
                           type="button"

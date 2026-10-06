@@ -77,13 +77,13 @@ async function handleQuote(params: {
 }) {
   try {
     assertRobinhoodChain(UNISWAP_TRADE_CHAIN_ID_STR);
-    const tokenIn = params.tokenIn ?? "aapl";
-    const tokenOut = params.tokenOut ?? "bite";
+    const tokenIn = params.tokenIn ?? "eth";
+    const tokenOut = params.tokenOut ?? "juice";
     const tokenInAddress = sideToAddress(tokenIn);
     const tokenInMeta =
       Object.values(SWAP_TOKENS).find(
         (t) => t.address.toLowerCase() === tokenInAddress.toLowerCase(),
-      ) ?? SWAP_TOKENS.aapl;
+      ) ?? SWAP_TOKENS.eth;
     const amount = resolveAmount(params.amount, params.amountWei, tokenInMeta.decimals);
     const body = quoteBody({
       tokenIn,

@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
 import { ReferralCapture } from "@/components/ReferralCapture";
-import { robinhoodChain } from "@/lib/chain";
+import { baseChain } from "@/lib/chain";
 import { RPC_URL, SITE_URL as CONFIG_SITE_URL } from "@/lib/config";
 
 const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID?.trim() ?? "";
@@ -22,7 +22,7 @@ if (!WC_PROJECT_ID && typeof window !== "undefined") {
 }
 
 const config = createConfig({
-  chains: [robinhoodChain],
+  chains: [baseChain],
   connectors: [
     injected({ shimDisconnect: true }),
     ...(WC_PROJECT_ID
@@ -30,8 +30,8 @@ const config = createConfig({
           walletConnect({
             projectId: WC_PROJECT_ID,
             metadata: {
-              name: "$BITE",
-              description: "Eat the apple to the core.",
+              name: "$JUICE",
+              description: "Squeeze every drop. Revnet-backed on Base.",
               url: SITE_URL,
               icons: [`${SITE_URL}/favicon.png`],
             },
@@ -40,12 +40,12 @@ const config = createConfig({
         ]
       : []),
     coinbaseWallet({
-      appName: "$BITE",
+      appName: "$JUICE",
       appLogoUrl: `${SITE_URL}/favicon.png`,
     }),
   ],
   transports: {
-    [robinhoodChain.id]: http(RPC_URL),
+    [baseChain.id]: http(RPC_URL),
   },
   ssr: true,
 });

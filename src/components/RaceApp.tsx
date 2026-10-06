@@ -9,11 +9,11 @@ import type { Eater, RaceState, SupplyStats } from "@/lib/race";
 import { FRAME_COUNT } from "@/lib/race";
 import { buildDemoRaceState } from "@/lib/demo-state";
 import {
-  BITE_TOKEN,
+  JUICE_TOKEN as BITE_TOKEN,
   DAY_ONE_PLAYTHROUGH,
   DECAY_PREVIEW_OVERRIDE,
   LEADERBOARD_POLL_MS,
-  PONS_TOKEN_URL,
+  SWAP_OPEN_URL,
   SWAP_PROVIDER,
 } from "@/lib/config";
 import { isLocalDecayHost, parseDecayOverride } from "@/lib/decay";
@@ -43,6 +43,8 @@ import {
 import { SeedsModal } from "./SeedsModal";
 import { SiteFooter } from "./SiteFooter";
 import { SwapModal } from "./SwapModal";
+import { JuiceboxPanel } from "./JuiceboxPanel";
+import { ContainerNftMint } from "./ContainerNftMint";
 
 const AppleScene = dynamic(
   () => import("./AppleScene").then((m) => m.AppleScene),
@@ -465,6 +467,7 @@ export function RaceApp({
   const [juicePulse, setJuicePulse] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
   const [swapOpen, setSwapOpen] = useState(false);
+  const [juiceboxOpen, setJuiceboxOpen] = useState(false);
 
   const [playFrame, setPlayFrame] = useState(0);
   const [prefillAmount, setPrefillAmount] = useState<string | null>(null);
@@ -495,7 +498,7 @@ export function RaceApp({
       const base = hash.split("?")[0]?.toLowerCase() ?? "";
 
       if (base === "#swap") {
-        if (SWAP_PROVIDER !== "pons") {
+        if (SWAP_PROVIDER !== "external") {
           setSwapOpen(true);
         }
         return;
@@ -614,11 +617,10 @@ export function RaceApp({
     supplyStats?.totalSupply,
   );
 
-  /** Default: in-site AAPL↔$BITE swap. NEXT_PUBLIC_SWAP_PROVIDER=pons keeps the launchpad deep-link. */
   const openBuy = () => {
     if (!flags.tradingOpen) return;
-    if (SWAP_PROVIDER === "pons") {
-      window.open(PONS_TOKEN_URL, "_blank", "noreferrer");
+    if (SWAP_PROVIDER === "external") {
+      window.open(SWAP_OPEN_URL, "_blank", "noreferrer");
       return;
     }
     setSwapOpen(true);
@@ -1069,6 +1071,37 @@ export function RaceApp({
         </div>
       </section>
 
+      {/* Revnet Treasury */}
+      <section id="revnet" className="page-gutter bg-[#f97316]/5 py-20 text-center">
+        <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#f97316] uppercase">
+          {copy.revnet.eyebrow}
+        </p>
+        <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+          {copy.revnet.headline}
+        </h2>
+        <p className="mx-auto mt-3.5 max-w-[520px] text-[15px] leading-relaxed text-[#6e6e73]">
+          {copy.revnet.body}
+        </p>
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setJuiceboxOpen(true)}
+            className="rounded-full bg-[#f97316] px-7 py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#ea580c]"
+          >
+            Open treasury
+          </button>
+        </div>
+      </section>
+
+      {/* NFT Container Mint */}
+      {address && (seedMap[address.toLowerCase()] ?? 0) > 0 && (
+        <section id="nft" className="page-gutter bg-[#fbfbfd] py-16">
+          <div className="mx-auto max-w-[480px]">
+            <ContainerNftMint seeds={seedMap[address.toLowerCase()] ?? 0} />
+          </div>
+        </section>
+      )}
+
       <SiteFooter />
 
       <SeedsModal seedMap={seedMap} />
@@ -1085,9 +1118,11 @@ export function RaceApp({
         />
       )}
 
-      {SWAP_PROVIDER !== "pons" && (
+      {SWAP_PROVIDER !== "external" && (
         <SwapModal open={swapOpen} onClose={() => setSwapOpen(false)} />
       )}
+
+      <JuiceboxPanel open={juiceboxOpen} onClose={() => setJuiceboxOpen(false)} />
     </div>
   );
 }

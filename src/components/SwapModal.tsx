@@ -16,13 +16,12 @@ import {
 import { getPublicClient, sendTransaction, switchChain } from "wagmi/actions";
 import { formatUnits, isAddress, parseUnits } from "viem";
 import { erc20Abi } from "@/lib/abis";
-import { robinhoodChain } from "@/lib/chain";
+import { baseChain, robinhoodChain } from "@/lib/chain";
 import {
-  AAPL_TOKEN,
-  BITE_TOKEN,
-  PONS_TOKEN_URL,
-  SWAP_OPEN_REVERSE_URL,
+  USDC_TOKEN,
+  JUICE_TOKEN,
   SWAP_OPEN_URL,
+  SWAP_OPEN_REVERSE_URL,
 } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import {
@@ -93,9 +92,8 @@ function errorMessage(error: unknown): string {
 }
 
 function defaultAmountFor(side: SwapSide): string {
-  if (side === "bite") return "1000";
-  if (side === "usdg") return "10";
-  if (side === "aapl") return "0.01";
+  if (side === "juice") return "1000";
+  if (side === "usdc") return "10";
   return "0.01";
 }
 
@@ -116,8 +114,8 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
     [rawConnectors],
   );
 
-  const [tokenInSide, setTokenInSide] = useState<SwapSide>("aapl");
-  const [lastBuySide, setLastBuySide] = useState<BuySide>("aapl");
+  const [tokenInSide, setTokenInSide] = useState<SwapSide>("eth");
+  const [lastBuySide, setLastBuySide] = useState<BuySide>("eth");
   const [amount, setAmount] = useState("0.01");
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
   const [quotedAt, setQuotedAt] = useState(0);
@@ -294,7 +292,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
         tokenOut: tokenOut.symbol,
         amountIn,
         amountOut,
-        feeToken: side === "buy" ? "BITE" : "AAPL",
+        feeToken: side === "buy" ? "JUICE" : "ETH",
       }),
     }).catch(() => {
       /* KPI ingest is best-effort; never block the swap UI */
@@ -339,8 +337,8 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
 
   const flipDirection = () => {
     if (buying) {
-      setTokenInSide("bite");
-      setAmount(defaultAmountFor("bite"));
+      setTokenInSide("juice");
+      setAmount(defaultAmountFor("juice"));
     } else {
       setTokenInSide(lastBuySide);
       setAmount(defaultAmountFor(lastBuySide));
@@ -458,6 +456,8 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
         : copy.swap.swapping;
 
   const uniswapHref = buying ? SWAP_OPEN_URL : SWAP_OPEN_REVERSE_URL;
+  const AAPL_TOKEN = USDC_TOKEN;
+  const BITE_TOKEN = JUICE_TOKEN;
 
   return (
     <div
@@ -713,7 +713,7 @@ export function SwapModal({ open, onClose }: SwapModalProps) {
               {copy.swap.openUniswap}
             </a>
             <a
-              href={PONS_TOKEN_URL}
+              href={SWAP_OPEN_URL}
               target="_blank"
               rel="noreferrer"
               className="text-[13px] text-[#2997ff]"

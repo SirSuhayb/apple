@@ -1,22 +1,22 @@
 import { formatEther } from "viem";
 import {
-  BITE_TOKEN,
+  JUICE_TOKEN,
   CHAIN_ID,
-  PONS_TOKEN_URL,
+  SWAP_OPEN_URL,
 } from "./config";
 import type { SiteAct } from "./phase";
 
-/** Central site copy — keep in sync with COPY.md */
+/** Central site copy — juice/revnet rebrand on Base */
 
 export const copy = {
   meta: {
-    title: "$BITE — Eat it to the core.",
+    title: "$JUICE — Squeeze every drop.",
     description:
-      "A deflationary token on Robinhood Chain, priced in AAPL. Every transaction burns supply. Tap to destroy your $BITE and push toward the core. Reach the core before the deadline — or the apple rots.",
+      "A revnet-backed token on Base. Every transaction squeezes supply through the press. Seeds grow into containers of juice. Powered by Juicebox V6.",
   },
 
-  brand: "$BITE",
-  tagline: "Eat it to the core.",
+  brand: "$JUICE",
+  tagline: "Squeeze every drop.",
 
   nav: {
     buy: "Buy",
@@ -28,119 +28,111 @@ export const copy = {
       soon: "Soon",
       preparing: "Preparing",
       live: "Live",
-      racing: "Racing",
+      racing: "Pressing",
     },
   },
 
   phases: {
     prologue: "Prologue",
     labels: [
-      "Finding the apple",
-      "First bite",
-      "To the core",
+      "Loading the press",
+      "First squeeze",
+      "To the last drop",
     ] as const,
     banners: {
       prologue:
-        "The orchard is closed. $BITE mints soon — check back when trading opens.",
-      act1: "The orchard is being prepared. Trading is live — burns begin in Act II.",
+        "The grove is closed. $JUICE presses soon — check back when trading opens.",
+      act1: "The grove is being prepared. Trading is live — squeezes begin in Act II.",
       earlyEater:
-        "🔥 EARLY EATER BONUS — Burns in the first 72 hours count 2× toward your leaderboard rank.",
+        "🍊 EARLY SQUEEZER BONUS — Squeezes in the first 72 hours count 2× toward your leaderboard rank.",
       earlyEaterRemaining: (remaining: string) =>
-        `🔥 EARLY EATER BONUS — ${remaining} remaining.`,
+        `🍊 EARLY SQUEEZER BONUS — ${remaining} remaining.`,
       urgency: (pct: string, days: string) =>
-        `🍎 ${pct}% eaten. ${days} days left. The whole orchard is watching.`,
-      browning: "The apple is browning.",
+        `🍊 ${pct}% squeezed. ${days} days left. The whole grove is watching.`,
+      browning: "The fruit is drying.",
       minutes: "Minutes remain.",
-      core: "🔥 Core reached. Payouts processing.",
-      rot: "🪱 Deadline passed. The farmer collects.",
+      core: "🍊 Last drop squeezed. Payouts processing.",
+      rot: "🪱 Deadline passed. The grower collects.",
     },
   },
 
   hero: {
     tagline: {
-      0: "Before the first bite.",
-      1: "Finding the right apple.",
-      2: "Eat it to the core.",
-      3: "Eat it to the core.",
-      core: "They ate it to the core.",
-      rot: "The apple has rotted.",
+      0: "Before the first squeeze.",
+      1: "Loading the press.",
+      2: "Squeeze every drop.",
+      3: "Squeeze every drop.",
+      core: "They squeezed every drop.",
+      rot: "The fruit has dried up.",
     } as const,
-    /** Short stake line under Prologue / Act I tagline */
     support: {
-      0: "Eat to the core before time runs out — winners split the pot. Lose, and the farmer takes it.",
-      1: "Eat to the core before time runs out — winners split the pot.",
+      0: "Squeeze to the last drop before time runs out — winners split the pot. Lose, and the grower takes it.",
+      1: "Squeeze to the last drop before time runs out — winners split the pot.",
     } as const,
-    ctaPrimary: "Trade on bite.party",
-    /** Act 2+: no bags — open native swap, then bite. */
-    ctaBuyThenBite: "Buy then bite",
-    /** Act 2+: holding $BITE, never kitchen-tapped. */
-    ctaFirstBite: "Take a first bite",
-    /** Act 2+: already bitten — keep eating. */
-    ctaBurn: "Burn $BITE",
-    /** Text link when primary is a burn action. */
+    ctaPrimary: "Trade on juice.party",
+    ctaBuyThenBite: "Buy then squeeze",
+    ctaFirstBite: "Take a first squeeze",
+    ctaBurn: "Squeeze $JUICE",
     ctaTradeSecondary: "Trade",
     ctaSeed: "Seed the pool",
-    ctaPrimarySoon: "Mint soon",
+    ctaPrimarySoon: "Press soon",
     ctaSecondary: {
       0: "The game ↓",
       1: "The game ↓",
-      2: "How eating works ↓",
-      3: "How eating works ↓",
+      2: "How pressing works ↓",
+      3: "How pressing works ↓",
     } as const,
     eaterCount: (n: number) =>
-      n === 1 ? "1 has taken a bite." : `${n} have taken a bite.`,
-    appleLabel: "Tap the apple.",
-    /** Produce-sticker lines on the hero apple */
+      n === 1 ? "1 has squeezed." : `${n} have squeezed.`,
+    appleLabel: "Tap the press.",
     sticker: {
-      kicker: "$BITE",
-      action: "Tap the apple",
-      detail: "to burn $BITE",
+      kicker: "$JUICE",
+      action: "Tap the press",
+      detail: "to squeeze $JUICE",
     },
   },
 
-  /** Core game explainer — visible in Act I (and later acts) before mechanics */
   game: {
     eyebrow: "The game",
-    headline: "The game is simple—eat the apple.",
-    body: "Buy. Sell. Transfer. Every time $BITE moves, supply is burned forever. The apple gets smaller. Your share gets bigger.",
+    headline: "The game is simple—squeeze the fruit.",
+    body: "Buy. Sell. Transfer. Every time $JUICE moves, supply flows through the press. The fruit gets lighter. Your share gets richer. Revenue backs the treasury through the revnet.",
   },
 
   line: {
     headline: {
-      0: ["Every transaction", "will take a bite."],
-      1: ["Every transaction", "will take a bite."],
-      racing: ["Every transaction", "takes a bite."],
+      0: ["Every transaction", "will squeeze the press."],
+      1: ["Every transaction", "will squeeze the press."],
+      racing: ["Every transaction", "squeezes the press."],
     } as const,
     body: {
-      0: "When $BITE launches, every buy, sell, and transfer will burn supply. Right now the orchard is quiet. The race hasn't started.",
-      1: "When the burn contract goes live in Act II, every buy, sell, and transfer will burn supply. Right now, you're accumulating. The race hasn't started.",
+      0: "When $JUICE launches, every buy, sell, and transfer will squeeze supply through the press. Right now the grove is quiet.",
+      1: "When the press goes live in Act II, every trade squeezes supply. Right now, you're accumulating.",
       racing:
-        "Buy. Sell. Transfer. Every time $BITE moves, supply is burned forever. The apple gets smaller. Your share gets bigger.",
+        "Buy. Sell. Transfer. Every time $JUICE moves, supply is squeezed through the press. The fruit gets lighter. Your container fills up.",
     },
   },
 
   how: {
-    intro: "How to eat the apple",
+    intro: "How to press the fruit",
     comingAct1: "Coming in Act I",
     comingAct2: "Coming in Act II",
     items: [
       {
         icon: "↔",
         title: "Trade.",
-        body: "Buys and sells both burn supply. Selling chews harder — a larger cut on the way out.",
-        /** Locked in Prologue; active from Act I when trading opens */
+        body: "Buys and sells both squeeze supply. Revenue flows through the revnet treasury on Base.",
         lockUntilAct: 1 as const,
       },
       {
-        icon: "👆",
-        title: "Tap.",
-        body: "The only real burn. Destroy your $BITE directly and push toward the core.",
+        icon: "🍊",
+        title: "Squeeze.",
+        body: "The real press. Destroy your $JUICE directly and push toward the last drop. Seeds earn for every squeeze.",
         lockUntilAct: 2 as const,
       },
       {
         icon: "◐",
         title: "Digest.",
-        body: "Creator fees split fifty-fifty. Half buys and burns. Half fills the prize pot.",
+        body: "Revenue splits through the revnet. Half squeezes more $JUICE. Half fills the prize pot.",
         lockUntilAct: 2 as const,
       },
     ],
@@ -148,132 +140,131 @@ export const copy = {
 
   wager: {
     eyebrow: "The wager",
-    headline: ["Half the supply.", "One deadline. One farmer."],
-    body: "Burn 50% of the burnable supply before the deadline. Reach the core and the prize pot pays eaters. Miss it, and the apple rots. Only the farmer is paid.",
+    headline: ["Half the supply.", "One deadline. One grower."],
+    body: "Squeeze 50% of the supply through the press before the deadline. Reach the last drop and the prize pot pays squeezers. Miss it, and the fruit dries. Only the grower is paid.",
     clarifier:
-      "The farmer is the deployer. The eaters are you. This is not a metaphor. It is fruit.",
+      "The grower is the deployer. The squeezers are you. This is not a metaphor. It is fruit.",
   },
 
   decay: {
-    bannerFresh: "The apple is fresh.",
-    bannerRotting: "The apple is rotting.",
-    statusFresh: "Fresh",
-    statusRotting: "Rotting",
-    tooltipLabel: "Fresh or Rotten",
-    modalTitle: "Fresh or Rotten",
+    bannerFresh: "The fruit is ripe.",
+    bannerRotting: "The fruit is drying.",
+    statusFresh: "Ripe",
+    statusRotting: "Drying",
+    tooltipLabel: "Ripe or Dry",
+    modalTitle: "Ripe or Dry",
     modalPrev: "Back",
     modalNext: "Next",
     modalDone: "Done",
     slides: [
       {
-        title: "Keep the apple fresh",
+        title: "Keep the fruit ripe",
         body: [
-          "When the market is active, the apple stays fresh to eat. Frequent activity keeps the decay at bay. Low activity lets the rot in.",
+          "When the market is active, the fruit stays ripe to squeeze. Frequent activity keeps the press turning.",
         ],
       },
       {
-        title: "Or the apple rots over time",
+        title: "Or the fruit dries over time",
         body: [
-          "The apple begins to turn brown when the market is quiet. When trading volume and the market cap slumps, the rot follows.",
+          "The fruit dries when the market is quiet. Low volume and soft prices let the pulp harden.",
         ],
       },
       {
         title: "The floor rises every week",
-        // Static fallback; live floors replace via floorSlideBody().
         body: [
-          "The ATH of each week determines the floor of the next week. This week's floor is 50k. Next week's is 151k. Below the floor, the rot grows.",
+          "The ATH of each week determines the floor of the next week. Below the floor, the fruit dries.",
         ],
       },
     ] as const,
     floorSlideBody: (thisWeek: string, nextWeek: string) =>
-      `The ATH of each week determines the floor of the next week. This week's floor is ${thisWeek}. Next week's is ${nextWeek}. Below the floor, the rot grows.`,
-    eatenLabel: "Eaten",
-    eatenPct: (pct: string) => `${pct}% eaten`,
+      `The ATH of each week determines the floor of the next week. This week's floor is ${thisWeek}. Next week's is ${nextWeek}. Below the floor, the fruit dries.`,
+    eatenLabel: "Squeezed",
+    eatenPct: (pct: string) => `${pct}% squeezed`,
     qaChip: (n: string) => `QA decay ${n} — localhost only`,
   },
 
   metaWager: {
     eyebrow: "The meta wager",
-    emptyTitle: "Core or rot?",
+    emptyTitle: "Last drop or dry?",
     emptyBody:
-      "The meta wager opens when the burn hits 10%. Pick a side — will the eaters reach the core, or will the apple rot?",
-    opensAt: "Opens at 10% burned",
+      "The meta wager opens when squeezing hits 10%. Pick a side — will the squeezers reach the last drop, or will the fruit dry?",
+    opensAt: "Opens at 10% squeezed",
     thresholdProgress: (pct: string) => `${pct}% of 10% threshold`,
     liveLead: "The worms are betting against you.",
-    liveCta: "Pick a side. Stake your $BITE.",
-    betCore: "Bet CORE",
-    betRot: "Bet ROT",
+    liveCta: "Pick a side. Stake your $JUICE.",
+    betCore: "Bet LAST DROP",
+    betRot: "Bet DRY",
     infoTitle: "The Meta Wager",
     infoBody:
-      "A side bet on the outcome. Stake $BITE on CORE (50% reached before deadline) or ROT (deadline first). Odds shift with every wager. Winners split the pot proportionally.",
+      "A side bet on the outcome. Stake $JUICE on LAST DROP (50% squeezed before deadline) or DRY (deadline first). Odds shift with every wager. Winners split the pot proportionally.",
   },
 
   core: {
-    eyebrow: "To the core",
+    eyebrow: "To the last drop",
     countdown: ["days", "hours", "min", "sec"] as const,
     remaining: (n: string) => `${n} remaining`,
-    burned: (n: string) => `${n} burned`,
-    notStarted: "The race hasn't started.",
+    burned: (n: string) => `${n} squeezed`,
+    notStarted: "The press hasn't started.",
   },
 
   pairing: {
-    eyebrow: "Why AAPL",
+    eyebrow: "Why Base × Juicebox",
     headline: [
-      "The most valuable company on earth,",
-      "being eaten alive.",
+      "Revenue-backed juice,",
+      "pressed on Base.",
     ],
-    body: "The Apple logo is an apple with a bite taken out of it. Rob Janoff designed it in 1977. He said the bite was for scale — so you'd know it was an apple, not a cherry.",
-    then: "$BITE is priced in AAPL. A three-trillion-dollar company, denominated in a token whose entire purpose is to be consumed.",
+    body: "Juicebox V6 revnets give $JUICE a real treasury. Every payment mints tokens. Every revenue deposit backs holders. Cash-outs are backed by surplus. All onchain, all transparent.",
+    then: "$JUICE is backed by a revnet on Base. Revenue flows in, token supply is programmatic, and holders can cash out against real surplus.",
   },
 
   eaters: {
     intro: ["Who", "traded the most."],
-    introAct2: ["Who", "ate the most."],
-    prizeEligible: "Only eaters are eligible for the prize pool.",
-    columns: ["Rank", "Eater", "Burned", "Buys", "Sells"] as const,
+    introAct2: ["Who", "squeezed the most."],
+    prizeEligible: "Only squeezers are eligible for the prize pool.",
+    columns: ["Rank", "Squeezer", "Squeezed", "Buys", "Sells"] as const,
     rowMeta: (burned: string, buys: string, sells: string) =>
-      `burned ${burned} · ${buys} buys · ${sells} sells`,
+      `squeezed ${burned} · ${buys} buys · ${sells} sells`,
     empty: "No traders yet. Be first.",
-    noBurners: "No bites yet. Burn $BITE to take a spot.",
-    emptyHint: "The leaderboard activates when the race begins in Act II.",
-    emptyHintPrologue: "The leaderboard waits for the first eaters.",
+    noBurners: "No squeezes yet. Squeeze $JUICE to take a spot.",
+    emptyHint: "The leaderboard activates when the press begins in Act II.",
+    emptyHintPrologue: "The leaderboard waits for the first squeezers.",
   },
 
   leaderboard: {
     title: "Leaderboard",
     headline: "Every trade counts.",
-    headlineAct1: "Accumulate. Hold. Burn. Climb.",
+    headlineAct1: "Accumulate. Hold. Squeeze. Climb.",
     subtitle:
-      "Points from buys, sells, and burns. Wagers are a side bet — they count a little.",
+      "Points from buys, sells, and squeezes. Wagers are a side bet — they count a little.",
     subtitleAct1:
-      "Points from buying, holding, and burning $BITE. Act I accumulation carries into Act II.",
+      "Points from buying, holding, and squeezing $JUICE. Act I accumulation carries into Act II.",
     columns: ["Rank", "Trader", "Points", "Trades"] as const,
     pts: "pts",
     trades: (n: number) => `${n} trade${n === 1 ? "" : "s"}`,
-    burnsCount: (n: number) => `${n} burn${n === 1 ? "" : "s"}`,
-    burnedAmount: (amount: string) => `${amount} burned`,
+    burnsCount: (n: number) => `${n} squeeze${n === 1 ? "" : "s"}`,
+    burnedAmount: (amount: string) => `${amount} squeezed`,
     wageredAmount: (amount: string) => `${amount} wagered`,
-    eatenPct: (pct: string) => `${pct} of apple`,
-    ofApple: "of apple",
+    eatenPct: (pct: string) => `${pct} of fruit`,
+    ofApple: "of fruit",
     inThePot: "In the pot",
     notInThePot: "Not in the pot",
     homeUnrankedHint:
-      "This board is eaters only. Burn $BITE to take a spot.",
-    topEater: "Top eater",
+      "This board is squeezers only. Squeeze $JUICE to take a spot.",
+    topEater: "Top squeezer",
     topPlayer: "Top player",
     topTrader: "Top trader",
     buys: "Buys",
     sells: "Sells",
-    burns: "Burns",
+    burns: "Squeezes",
     totalTrades: "Total trades",
     totalPoints: "Total points",
     empty: "No trades yet.",
     emptyHint: "The leaderboard populates when trading begins.",
     emptyHintAct1:
-      "All wallets trading or holding $BITE since launch appear here. DM the bot your 0x… in Telegram to claim identity for /points.",
+      "All wallets trading or holding $JUICE since launch appear here.",
     viewAll: "Show full leaderboard",
     viewAllHint:
-      "Home board is eaters only. The full list ranks every wallet by points.",
+      "Home board is squeezers only. The full list ranks every wallet by points.",
     devBadge: "Dev",
     ineligible: "Ineligible",
     yourRank: "Your Rank",
@@ -284,7 +275,7 @@ export const copy = {
     showOnBoard: "Show on board",
     notOnBoard: "Not on the board yet.",
     notOnBoardHint:
-      "This wallet isn’t in the ranked list — no points yet, below the threshold, or a contract. Trade or burn $BITE from an eligible wallet to appear.",
+      "This wallet isn't in the ranked list — no points yet, below the threshold, or a contract. Trade or squeeze $JUICE from an eligible wallet to appear.",
     belowThreshold: "Not ranked yet.",
     belowThresholdHint:
       "This wallet is on file but has no ranking points. Only wallets with points above zero are ranked.",
@@ -292,105 +283,105 @@ export const copy = {
     ineligibleYouHint:
       "This wallet is marked ineligible — it can appear on the board but cannot take the pot.",
     top10Spot: (amount: string) =>
-      `Burn ${amount} $BITE to secure a top 10 spot`,
+      `Squeeze ${amount} $JUICE to secure a top 10 spot`,
     searchPlaceholder: "Search by address",
     searchEmpty: "No wallets match that address.",
     searchClear: "Clear",
     scoring: {
       eyebrow: "How scoring works",
-      buy: "Buy — 0.01 pts per $BITE (Dexscreener / external)",
+      buy: "Buy — 0.01 pts per $JUICE (DEX)",
       buyNative:
-        "Buy on bite.party — 0.02 pts per $BITE (2× · feeds the kitchen)",
-      sell: "Sell — 0.015 pts per $BITE (1.5× buy)",
-      tap: "Burn — 1 pt per $BITE (2× in the early-eater window)",
-      wager: "Wager — 0.001 pts per $BITE staked on entry (side bet, not a bite)",
-      accum: "Act I — Accumulation: +0.01 pt per whole $BITE gained",
-      hold: "Act I — Holding: 100 $BITE held for 1 hour = 0.01 pt",
-      burn: "Act II — Burns: kitchen.bite() scores 1 pt per $BITE",
+        "Buy on juice.party — 0.02 pts per $JUICE (2× · feeds the treasury)",
+      sell: "Sell — 0.015 pts per $JUICE (1.5× buy)",
+      tap: "Squeeze — 1 pt per $JUICE (2× in the early-squeezer window)",
+      wager: "Wager — 0.001 pts per $JUICE staked on entry (side bet, not a squeeze)",
+      accum: "Act I — Accumulation: +0.01 pt per whole $JUICE gained",
+      hold: "Act I — Holding: 100 $JUICE held for 1 hour = 0.01 pt",
+      burn: "Act II — Squeezes: press scores 1 pt per $JUICE",
       tapFloor:
-        "Every kitchen burn scores. Telegram still only posts burns over $50.",
+        "Every press squeeze scores. Telegram still only posts squeezes over $50.",
       tradesAct1:
-        "Trades — buys since launch count (all wallets; link in Telegram for /points identity)",
+        "Trades — buys since launch count (all wallets)",
       devNote:
         "Dev wallets appear on the board with a Dev badge and are ineligible to win.",
       eligibility:
-        "Only eaters are eligible for the prize pool. A trade without a bite does not get you in. Wallets with points above zero are still ranked. Dev and team wallets are shown but cannot win the pot.",
+        "Only squeezers are eligible for the prize pool. A trade without a squeeze does not get you in.",
     },
     back: "← Back",
     shareRank: "Share your rank",
   },
 
   tap: {
-    eyebrow: "Tap the apple",
-    headline: "The only real burn.",
-    body: "Trades write the tape — they move the price and burn a little. Tapping destroys your $BITE permanently and pushes the whole race toward the core.",
-    cta: "Burn $BITE",
-    ctaLocked: "Burns open in Act II. Accumulate now.",
-    ctaLockedPrologue: "Burns open after mint. Stay hungry.",
-    raceOver: "The race is over.",
+    eyebrow: "Tap the press",
+    headline: "The only real squeeze.",
+    body: "Trades write the tape — they move the price and squeeze a little. Pressing destroys your $JUICE permanently and pushes the whole race toward the last drop. Seeds grow with every squeeze.",
+    cta: "Squeeze $JUICE",
+    ctaLocked: "Squeezes open in Act II. Accumulate now.",
+    ctaLockedPrologue: "Squeezes open after press. Stay thirsty.",
+    raceOver: "The press is done.",
     connect: "Connect wallet",
     connecting: "Connecting…",
     disconnect: "Disconnect",
-    burn: (amount: string) => `Burn ${amount} $BITE`,
-    burning: "Chomping…",
-    kitchenMissing: "Kitchen not deployed yet",
-    demoBurn: "Simulate burn (preview)",
-    confirm: (amount: string) => `You ate ${amount} $BITE. Gone forever.`,
+    burn: (amount: string) => `Squeeze ${amount} $JUICE`,
+    burning: "Pressing…",
+    kitchenMissing: "Press not deployed yet",
+    demoBurn: "Simulate squeeze (preview)",
+    confirm: (amount: string) => `You squeezed ${amount} $JUICE. Gone forever.`,
     approve: "Approve",
-    amountPlaceholder: "BITE amount",
+    amountPlaceholder: "JUICE amount",
     presets: [
-      { label: "Nibble", amount: "100" },
-      { label: "Mouthful", amount: "1000" },
-      { label: "Big bite", amount: "5000" },
+      { label: "Sip", amount: "100" },
+      { label: "Glass", amount: "1000" },
+      { label: "Pitcher", amount: "5000" },
     ] as const,
     modal: {
       close: "Close",
-      stepConnect: "Connect your wallet to take a bite.",
-      stepAmount: "How much do you want to eat?",
+      stepConnect: "Connect your wallet to squeeze.",
+      stepAmount: "How much do you want to press?",
       stepBurning: "Confirm in your wallet…",
-      completeTitle: "Bite taken.",
+      completeTitle: "Juice squeezed.",
       completePoints: (points: string) => `+${points} pts`,
-      completeProgress: (pct: string) => `${pct}% of the apple eaten`,
+      completeProgress: (pct: string) => `${pct}% of the fruit squeezed`,
       done: "Done",
       demoNote:
-        "Preview mode — no chain required. Wire kitchen + token for live burns.",
-      share: "Share this bite",
+        "Preview mode — no chain required. Wire revnet + token for live squeezes.",
+      share: "Share this squeeze",
     },
     dayOne: {
-      note: "Day one — watch the apple eaten to the core. Burns unlock when the kitchen is live.",
+      note: "Day one — watch the fruit squeezed to the last drop. Squeezes unlock when the press is live.",
       notePrologue:
-        "Watch the apple. Trading opens when $BITE mints — check back soon.",
+        "Watch the fruit. Trading opens when $JUICE goes live on Base — check back soon.",
     },
   },
 
   share: {
-    eyebrow: "$BITE",
+    eyebrow: "$JUICE",
     postX: "Post on X",
     share: "Share",
     copy: "Copy text",
     copied: "Copied.",
     takeSpot: "Take their spot",
-    eatenBoast: (pct: string) => `I ate ${pct} of the apple`,
+    eatenBoast: (pct: string) => `I squeezed ${pct} of the fruit`,
     pitch:
-      "the game is simple — burn more, rank higher, earn more when the pot pays out.",
-    home: "Return to bite.party",
+      "the game is simple — squeeze more, rank higher, earn more when the pot pays out.",
+    home: "Return to juice.party",
     fallback:
-      "i just took a $bite of the apple to earn a piece of the pie.",
+      "i just squeezed some $juice and filled my container.",
     burn: (_amount: string, _rank?: number) =>
-      "I just burned $BITE and climbed the leaderboard. the game is simple — burn more, rank higher, earn more when the pot pays out.",
+      "I just squeezed $JUICE and climbed the leaderboard. the game is simple — squeeze more, rank higher, earn more when the pot pays out.",
     rank: (_rank: number) =>
-      "i just took a $bite of the apple to earn a piece of the pie.",
+      "i just squeezed some $juice and filled my container.",
     ogBurnTitle: (amount: string, rank?: number) =>
       rank
-        ? `I just burned ${amount} $BITE · #${rank}`
-        : `I just burned ${amount} $BITE`,
-    ogRankTitle: (rank: number) => `I'm #${rank} on $BITE`,
+        ? `I just squeezed ${amount} $JUICE · #${rank}`
+        : `I just squeezed ${amount} $JUICE`,
+    ogRankTitle: (rank: number) => `I'm #${rank} on $JUICE`,
   },
 
   profile: {
     title: "Profile",
-    headline: "Your bite.",
-    headlinePublic: "Eater profile.",
+    headline: "Your juice.",
+    headlinePublic: "Squeezer profile.",
     subtitle: "Rank, stats, and titles from the board — no new contracts.",
     back: "← Back",
     connectHint: "Connect a wallet to open your profile.",
@@ -398,10 +389,10 @@ export const copy = {
     viewPublic: "Public profile",
     notOnBoard: "Not on the board yet.",
     notOnBoardHint:
-      "No scored trades or burns for this wallet yet. Trade or burn $BITE to appear.",
+      "No scored trades or squeezes for this wallet yet. Trade or squeeze $JUICE to appear.",
     rankLabel: "Rank",
     scoreLabel: "Score",
-    burnedLabel: "Burned",
+    burnedLabel: "Squeezed",
     buysLabel: "Buys",
     sellsLabel: "Sells",
     holdLabel: "Holding",
@@ -410,7 +401,7 @@ export const copy = {
       "Hold titles need a live wallet balance — available on your own profile.",
     titlesEyebrow: "Titles",
     titlesHeadline: "Unlocked so far.",
-    titlesEmpty: "No titles yet — take a first bite.",
+    titlesEmpty: "No titles yet — take a first squeeze.",
     titlesPickHint: "Tap an unlocked title to use it on your share.",
     titlesPickNone: "Share without a title until you unlock one.",
     forShare: "On share",
@@ -420,57 +411,56 @@ export const copy = {
     unavailable: "Unavailable",
     comingSoon: "Coming soon",
     titles: {
-      // Orchard arc: pick → keep → bite toward the core → invite the grove.
       first_burn: {
-        name: "First Bite",
-        body: "Take your first kitchen bite of $BITE.",
+        name: "First Squeeze",
+        body: "Take your first press squeeze of $JUICE.",
       },
       first_buy: {
         name: "Fresh Pick",
-        body: "Pick $BITE from the orchard at least once.",
+        body: "Pick $JUICE from the grove at least once.",
       },
       hold_1m: {
-        name: "Bushel",
-        body: "Keep over 1M $BITE in hand.",
+        name: "Juice Box",
+        body: "Keep over 1M $JUICE in hand.",
       },
       hold_10m: {
-        name: "Laden Bough",
-        body: "Keep over 10M $BITE — a branch heavy with fruit.",
+        name: "Bottle",
+        body: "Keep over 10M $JUICE — filling up.",
       },
       hold_25m: {
-        name: "Rootstock",
-        body: "Keep over 25M $BITE — planted deep.",
+        name: "Mason Jar",
+        body: "Keep over 25M $JUICE — packed and sealed.",
       },
       burn_1m: {
-        name: "Past the Skin",
-        body: "Burn over 1M $BITE — into the flesh.",
+        name: "Past the Rind",
+        body: "Squeeze over 1M $JUICE — into the pulp.",
       },
       burn_10m: {
-        name: "Corebound",
-        body: "Burn over 10M $BITE — closing on the core.",
+        name: "Pulped",
+        body: "Squeeze over 10M $JUICE — nothing but juice left.",
       },
       burn_25m: {
-        name: "To the Core",
-        body: "Burn over 25M $BITE — eaten through.",
+        name: "Last Drop",
+        body: "Squeeze over 25M $JUICE — wrung dry.",
       },
       referrals: {
         name: "Windfall",
-        body: "Earn 250,000 $BITE when someone you invite swaps at least $25 and burns at least $5 in-app. Limited seats in the orchard.",
+        body: "Earn 250,000 $JUICE when someone you invite swaps at least $25 and squeezes at least $5 in-app. Limited seats in the grove.",
       },
     },
     referrals: {
       eyebrow: "Referrals",
-      headline: "Invite the orchard.",
-      body: "Share your link. When they connect, they bind you on-chain. Once their in-app swaps total at least $25 and they burn at least $5, you earn 250,000 $BITE from escrow — while seats last.",
+      headline: "Invite the grove.",
+      body: "Share your link. When they connect, they bind you on-chain. Once their in-app swaps total at least $25 and they squeeze at least $5, you earn 250,000 $JUICE from escrow — while seats last.",
       linkLabel: "Your link",
       copyLink: "Copy link",
       copied: "Copied.",
       shareText:
-        "Take a bite with me and share a pot of apple stock!",
+        "Take a squeeze with me and fill your container!",
       countLabel: "Paid referrals",
       earningsLabel: "Earnings",
       rewardLabel: "Payout",
-      rewardAmount: (n: string) => `${n} $BITE`,
+      rewardAmount: (n: string) => `${n} $JUICE`,
       remainingLabel: "Windfalls left",
       remainingCount: (n: number) =>
         n === 1 ? "1 Windfall left" : `${n} Windfalls left`,
@@ -483,36 +473,33 @@ export const copy = {
       binding: "Confirm bind in your wallet…",
       bindCta: "Bind referrer",
       bindSuccess: "Referrer bound on-chain.",
-      selfBlocked: "You can’t refer yourself.",
+      selfBlocked: "You can't refer yourself.",
       escrowOffline: "Referral escrow is unavailable right now.",
     },
   },
 
-  /** Home /me quest for holders who have never kitchen-tapped. */
   firstBiteQuest: {
-    headline: "You've got $BITE. Take a first bite.",
-    body: "Tape doesn't pay the pot. Eating does — unlock First Bite.",
-    cta: "Take a first bite",
+    headline: "You've got $JUICE. Take a first squeeze.",
+    body: "Tape doesn't pay the pot. Squeezing does — unlock First Squeeze.",
+    cta: "Take a first squeeze",
   },
 
-  /** Thin home banner for referees arriving via ?ref= / bound invite. */
   referralChecklist: {
     headline: "Someone sent you into the grove.",
-    body: "Swap at least $25 total and burn at least $5 to count — then they earn 250,000 $BITE (Windfall).",
+    body: "Swap at least $25 total and squeeze at least $5 to count — then they earn 250,000 $JUICE (Windfall).",
     connect: "Connect wallet",
     connecting: "Connecting…",
-    buy: "Swap $25+ total on bite.party",
+    buy: "Swap $25+ total on juice.party",
     buyCta: "Trade",
-    burn: "Burn via the kitchen",
-    burnCta: "Bite",
+    burn: "Squeeze via the press",
+    burnCta: "Squeeze",
     bindHint: "Confirm bind in your wallet to lock in who invited you.",
     bindCta: "Bind referrer",
     binding: "Confirm bind…",
     doneBuy: "Bought",
-    doneBurn: "Burned",
+    doneBurn: "Squeezed",
   },
 
-  /** Internal ETH claim desk. Not linked from the public nav. */
   claim: {
     title: "Claim desk",
     eyebrow: "Internal",
@@ -524,7 +511,7 @@ export const copy = {
     connectHint: "Connect the wallet that is on the list.",
     connectCta: "Connect wallet",
     connecting: "Connecting…",
-    wrongChain: "Switch to Robinhood Chain.",
+    wrongChain: "Switch to Base.",
     switchCta: "Switch network",
     reading: "Reading the claim desk…",
     notEligible: "This wallet is not on the list.",
@@ -539,30 +526,30 @@ export const copy = {
   },
 
   invite: {
-    eyebrow: "$BITE",
-    title: "Take a bite with me.",
+    eyebrow: "$JUICE",
+    title: "Squeeze with me.",
     description:
-      "Take a bite with me and share a pot of apple stock!",
-    cta: "Take a bite",
-    home: "Return to bite.party",
+      "Squeeze with me and fill your container!",
+    cta: "Start squeezing",
+    home: "Return to juice.party",
   },
 
   finePrint: {
-    chain: "Robinhood\n4663",
+    chain: "Base\n8453",
     standard: "ERC-20",
-    pair: "AAPL",
-    mechanism: "Burn on\nevery tx",
+    pair: "ETH",
+    mechanism: "Squeeze on\nevery tx",
     phase: (act: SiteAct) => (act === 0 ? "Prologue" : `Act ${act} of 3`),
     burned: (pct: string) => `${pct}%`,
   },
 
   take: {
-    headline: "Take a $BITE.",
-    headlinePrologue: "Get ready for $BITE.",
+    headline: "Get some $JUICE.",
+    headlinePrologue: "Get ready for $JUICE.",
     copyAddress: "Copy address →",
     copied: "Copied.",
-    buy: "Buy on PONS",
-    buySoon: "Mint soon",
+    buy: "Buy $JUICE",
+    buySoon: "Press soon",
     social: {
       twitter: "Twitter",
       telegram: "Telegram",
@@ -574,30 +561,30 @@ export const copy = {
     title: "Swap",
     close: "Close",
     iframeTitle: "Uniswap swap",
-    uniswapNote: "Buy $BITE with AAPL, USDG, or ETH · sell to AAPL",
+    uniswapNote: "Buy $JUICE with ETH, USDC, or WETH on Base",
     nativeBonus:
-      "Buys here score 2× on the board and feed the kitchen pot.",
-    ponsNote: "Trade on pons",
+      "Buys here score 2× on the board and feed the treasury pot.",
+    ponsNote: "Trade on Uniswap",
     ponsBody:
-      "Open pons to trade $BITE from your wallet.",
+      "Open Uniswap to trade $JUICE from your wallet.",
     deepLinkBody:
-      "Buy $BITE with AAPL, USDG, WETH, or ETH on Robinhood Chain. Sell only to AAPL. Uniswap and pons stay available if this quote misses.",
-    pairLabel: (aapl: string, bite: string) =>
-      `Buy with AAPL / USDG / ETH → $BITE (${bite.slice(0, 6)}…${bite.slice(-4)}). Sell → AAPL (${aapl.slice(0, 6)}…${aapl.slice(-4)}).`,
+      "Buy $JUICE with ETH, USDC, or WETH on Base. Uniswap stays available as fallback.",
+    pairLabel: (usdc: string, juice: string) =>
+      `Buy with ETH / USDC / WETH → $JUICE (${juice.slice(0, 6)}…${juice.slice(-4)}). Sell → ETH.`,
     openUniswap: "Open Uniswap",
-    openUniswapFallback: "Or try Uniswap AAPL → $BITE →",
-    openPons: "Open pons →",
+    openUniswapFallback: "Or try Uniswap ETH → $JUICE →",
+    openPons: "Open Uniswap →",
     youPay: "You pay",
     youReceive: "You receive",
     flip: "Switch direction",
     choosePayToken: "Pay with",
     quoting: "Quoting…",
-    quoteFailed: "Couldn’t quote this size. Try Uniswap or pons.",
+    quoteFailed: "Couldn't quote this size. Try Uniswap directly.",
     invalidAmount: "Enter a valid amount.",
     slippage: (pct: number, feeLine?: string) =>
       feeLine
-        ? `${pct}% slippage · ${feeLine} · Uniswap v4`
-        : `${pct}% slippage · Uniswap v4`,
+        ? `${pct}% slippage · ${feeLine} · Uniswap on Base`
+        : `${pct}% slippage · Uniswap on Base`,
     balance: "Balance",
     insufficient: (symbol: string) => `Not enough ${symbol}`,
     cta: "Swap",
@@ -605,86 +592,86 @@ export const copy = {
     chooseWallet: "Choose a wallet",
     back: "Back",
     connecting: "Connecting…",
-    eating: "Eating to the core…",
-    switchNetwork: "Switch to Robinhood",
+    eating: "Squeezing to the last drop…",
+    switchNetwork: "Switch to Base",
     approving: "Approve in wallet…",
     signing: "Sign permit…",
     swapping: "Confirm swap…",
     disconnect: "Disconnect",
     complete: "Swap submitted.",
-    failed: "Swap didn’t go through. Try again, or use Uniswap / pons.",
+    failed: "Swap didn't go through. Try again, or use Uniswap directly.",
   },
 
   digest: {
-    label: "Kitchen surplus",
-    none: "No surplus AAPL yet. Digest splits kitchen AAPL 50/50 into a $BITE burn and the prize pot — it never runs in the background.",
+    label: "Treasury surplus",
+    none: "No surplus yet. Digest splits treasury ETH 50/50 into a $JUICE squeeze and the prize pot.",
     ready: (amount: string) =>
-      `${amount} AAPL ready. 50% buy+burn $BITE · 50% prize pot. Confirm in your wallet.`,
+      `${amount} ETH ready. 50% squeeze $JUICE · 50% prize pot. Confirm in your wallet.`,
     cta: "Digest",
     connect: "Connect to digest",
     chooseWallet: "Choose a wallet",
     back: "Back",
     connecting: "Connecting…",
-    switchNetwork: "Switch to Robinhood",
+    switchNetwork: "Switch to Base",
     pending: "Confirm digest…",
     complete: "Digested.",
-    failed: "Digest didn’t go through. Try again.",
-    racingOnly: "Digest is only available while the race is on.",
+    failed: "Digest didn't go through. Try again.",
+    racingOnly: "Digest is only available while the press is on.",
   },
 
   lp: {
     title: "Seed the pool",
     close: "Close",
-    note: "1% $BITE / AAPL · Uniswap v4",
-    body: "Two pots. Liquidity goes into a 1% BITE/AAPL pool (no hook). Keep-aside stays in this wallet — Uniswap does not stake $BITE, and those tokens never go into LP.",
+    note: "1% $JUICE / ETH · Uniswap on Base",
+    body: "Two pots. Liquidity goes into a 1% JUICE/ETH pool. Keep-aside stays in this wallet.",
     hookExplain:
-      "The live Dexscreener pool is 0% fee with a custom hook. Uniswap LPs there collect nothing from volume — you cannot turn a fee on that pool. Seed below uses a separate 1% pool with no hook.",
+      "The revnet handles token issuance. This LP pool is separate from the revnet treasury.",
     intoPool: "Into the pool",
     keepAside: "Keep aside",
-    keepHint: "Stays in this wallet. Not LP’d. Still circulating.",
-    matching: "Matching AAPL",
+    keepHint: "Stays in this wallet. Not LP'd. Still circulating.",
+    matching: "Matching ETH",
     quoting: "Sizing…",
-    quoteFailed: "Couldn’t size this LP. Try a smaller amount.",
+    quoteFailed: "Couldn't size this LP. Try a smaller amount.",
     invalidAmount: "Enter a valid amount.",
     slippage: (pct: number) => `${pct}% slippage · full range`,
     balance: "Balance",
     insufficient: (symbol: string) => `Not enough ${symbol}`,
-    insufficientKeep: "Keep-aside plus pool amount exceeds your $BITE.",
-    pots: "Circulating supply counts wallet-held $BITE only. Pool tokens leave circulating. Keep-aside does not.",
+    insufficientKeep: "Keep-aside plus pool amount exceeds your $JUICE.",
+    pots: "Circulating supply counts wallet-held $JUICE only. Pool tokens leave circulating. Keep-aside does not.",
     cta: "Seed the pool",
     connect: "Connect wallet",
     chooseWallet: "Choose a wallet",
     back: "Back",
     connecting: "Connecting…",
-    switchNetwork: "Switch to Robinhood",
+    switchNetwork: "Switch to Base",
     approving: "Approve in wallet…",
     signing: "Sign permit…",
     depositing: "Confirm liquidity…",
     disconnect: "Disconnect",
     complete: "Position submitted. Keep-aside never left your wallet.",
-    failed: "LP didn’t go through. Try again.",
+    failed: "LP didn't go through. Try again.",
     keepOnly: "Keep-aside does not send a transaction.",
     feeTitle: "Fee estimate",
     feeDisclaimer: "Estimate — not a promise.",
-    feeShare: (share: string, bite: string, aapl: string) =>
-      `If you seed ${bite} $BITE (~${aapl} AAPL), your share of the pool is ${share}.`,
+    feeShare: (share: string, juice: string, eth: string) =>
+      `If you seed ${juice} $JUICE (~${eth} ETH), your share of the pool is ${share}.`,
     feeTake: (fee: string, share: string) =>
-      `LP fee ${fee}. At your share, you earn ${fee} × ${share} of this pool’s swap volume.`,
-    feeDaily: (usd: string) => `At recent volume that’s about ${usd} / day.`,
+      `LP fee ${fee}. At your share, you earn ${fee} × ${share} of this pool's swap volume.`,
+    feeDaily: (usd: string) => `At recent volume that's about ${usd} / day.`,
     feeZeroFee:
       "Uniswap lists a 0% fee for this pool, so LPs collect nothing from volume.",
     feeNoVolume:
-      "Uniswap doesn’t report volume on this 1% pool yet, so we can’t project $/day. LPs still earn 1% of swaps that route here.",
+      "Uniswap doesn't report volume on this pool yet, so we can't project $/day.",
     feeThin:
-      "Recent volume is too thin to project daily fees. This pool may be small.",
+      "Recent volume is too thin to project daily fees.",
     feeHook:
-      "The live 0% pool’s hook can run extra swap/add-liquidity logic for its owner. That is not Uniswap LP APR, and claim_fees on that pool has been 0.",
+      "The revnet may run extra logic on payments. LP fees are separate from revnet flows.",
     feeLoading: "Estimating share…",
     feeNeedAmount: "Enter an amount into the pool to estimate fees.",
     feeTierLabel: (fee: string) => `${fee} LP fee`,
     positionsTitle: "Your positions",
     positionsHint:
-      "Uncollected $BITE and AAPL from your LP NFT on this pair. Keep-aside wallet $BITE is not a position and cannot be claimed here. Claiming fees does not withdraw liquidity. 0% positions earn no swap fees.",
+      "Uncollected $JUICE and ETH from your LP NFT on this pair.",
     positionsEmpty: "No LP position on this pool yet.",
     positionsLoading: "Looking up positions…",
     uncollected: "Uncollected fees",
@@ -699,59 +686,98 @@ export const copy = {
     positionLabel: (id: string, fee: string) => `Position #${id} · ${fee}`,
   },
 
+  /** Revnet-specific copy */
+  revnet: {
+    eyebrow: "Revnet Treasury",
+    headline: "Backed by the press.",
+    body: "Revenue flows through the Juicebox V6 revnet on Base. Payments mint $JUICE. Revenue deposits back existing holders. Cash-outs are backed by real surplus.",
+    payTitle: "Pay the treasury",
+    payBody: "Send ETH to mint $JUICE tokens from the revnet. The beneficiary receives project tokens based on the current issuance rate.",
+    payCta: "Pay",
+    addBalanceTitle: "Add to balance",
+    addBalanceBody: "Deposit revenue that backs existing holders without minting new tokens. Increases the surplus available for cash-outs.",
+    addBalanceCta: "Add to balance",
+    cashOutTitle: "Cash out",
+    cashOutBody: "Redeem your $JUICE tokens for a share of the treasury surplus. Cash-out value depends on supply, surplus, and the revnet's cash-out rules.",
+    cashOutCta: "Cash out",
+    surplusLabel: "Treasury surplus",
+    tokenBalanceLabel: "Your $JUICE",
+    notDeployed: "Revnet not deployed yet. Set NEXT_PUBLIC_REVNET_PROJECT_ID and NEXT_PUBLIC_JB_MULTI_TERMINAL.",
+  },
+
+  /** NFT container copy */
+  nft: {
+    eyebrow: "Containers",
+    headline: "Seeds grow into containers.",
+    body: "Your seeds fill containers of juice. Mint your container NFT on Base to claim your tier. Each container is an ERC-721 that proves your squeeze history.",
+    mintCta: "Mint container",
+    minting: "Minting…",
+    minted: "Container minted.",
+    notEligible: "Earn more seeds to unlock a container.",
+    notDeployed: "Container NFTs coming soon.",
+    tiers: {
+      juiceBox: "Juice Box (4 oz)",
+      bottle: "Bottle (8 oz)",
+      masonJar: "Mason Jar (16 oz)",
+      growler: "Growler (32 oz)",
+    },
+  },
+
   footer: {
     disclaimer:
-      "$BITE is a deflationary memecoin on Robinhood Chain. Every transaction burns supply. That is not financial advice. That is fruit.",
+      "$JUICE is a revnet-backed token on Base powered by Juicebox V6. Every transaction squeezes supply through the press. That is not financial advice. That is fruit.",
     privacy: "Privacy",
     terms: "Terms",
-    colophon: `$BITE × AAPL · Robinhood Chain · ${CHAIN_ID}`,
+    colophon: `$JUICE × Revnet · Base · ${CHAIN_ID}`,
   },
 
   toasts: {
     loading: "Loading...",
-    raceLive: "The race is live. Tap the apple to eat.",
+    raceLive: "The press is live. Tap the press to squeeze.",
     burned: (n: string, pct: string) =>
-      `You burned ${n} $BITE. ${pct}% to the core.`,
-    skin: "The skin is breaking.",
-    quarter: "Quarter eaten. The core is showing.",
+      `You squeezed ${n} $JUICE. ${pct}% to the last drop.`,
+    skin: "The rind is breaking.",
+    quarter: "Quarter squeezed. The core is showing.",
     almost: "Almost there. Ten percent to go.",
-    onePercent: "One percent. The whole orchard is watching.",
-    core: "🔥 Core reached. Payout incoming.",
-    rot: "🪱 The apple has rotted. Farmer paid.",
-    eaterRank: (n: number) => `You're eater #${n}.`,
-    comeBack: "Come back hungry.",
-    previewNibble: "A quiet nibble. Launch the kitchen for real burns.",
+    onePercent: "One percent. The whole grove is watching.",
+    core: "🍊 Last drop reached. Payout incoming.",
+    rot: "🪱 The fruit has dried. Grower paid.",
+    eaterRank: (n: number) => `You're squeezer #${n}.`,
+    comeBack: "Come back thirsty.",
+    previewNibble: "A quiet sip. Launch the press for real squeezes.",
   },
 
   messages: {
     preview:
-      "Preview — launch $BITE on pons vs AAPL, then set NEXT_PUBLIC_BITE_TOKEN.",
+      "Preview — deploy the revnet on Base, then set NEXT_PUBLIC_JUICE_TOKEN.",
     prologue:
-      "Prologue — $BITE is not live yet. Set NEXT_PUBLIC_BITE_TOKEN (and clear NEXT_PUBLIC_SITE_ACT=0) to enter Act I.",
+      "Prologue — $JUICE is not live yet. Set NEXT_PUBLIC_JUICE_TOKEN to enter Act I.",
     kitchenWire:
-      "Token is set. Wire AppleKitchen and the indexer will replace demo eaters with live burns and trades.",
+      "Token is set. Wire the revnet and the indexer will replace demo data with live trades and squeezes.",
     racing: (pct: string) =>
-      `The race is live. ${pct}% eaten. Tap the apple to eat.`,
-    core: "🔥 Core reached. The pot pays eaters.",
-    rot: "🪱 The apple has rotted. The farmer collects.",
+      `The press is live. ${pct}% squeezed. Tap to squeeze.`,
+    core: "🍊 Last drop reached. The pot pays squeezers.",
+    rot: "🪱 The fruit has dried. The grower collects.",
     liveFailed: (err: string) =>
       `Live read failed — showing preview numbers. ${err}`,
   },
 
   scene: {
     proceduralNote:
-      "Procedural frames — bake Eydeet glTFs into /public/apple/frames/",
+      "Procedural frames — bake fruit glTFs into /public/apple/frames/",
   },
 } as const;
 
 export const socialLinks = {
-  twitter: process.env.NEXT_PUBLIC_TWITTER_URL ?? "https://x.com/biteparty_",
-  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me/biteparty",
-  chart: process.env.NEXT_PUBLIC_CHART_URL ?? PONS_TOKEN_URL,
+  twitter: process.env.NEXT_PUBLIC_TWITTER_URL ?? "https://x.com/juiceparty_",
+  telegram: process.env.NEXT_PUBLIC_TELEGRAM_URL ?? "https://t.me/juiceparty",
+  chart: process.env.NEXT_PUBLIC_CHART_URL ?? SWAP_OPEN_URL,
 };
 
 export function contractAddressDisplay(): string {
-  return BITE_TOKEN ?? "Deploy pending";
+  return JUICE_TOKEN && JUICE_TOKEN !== "0x0000000000000000000000000000000000000000"
+    ? JUICE_TOKEN
+    : "Deploy pending";
 }
 
 export function formatTokenAmount(wei: string, digits = 0): string {
