@@ -253,8 +253,8 @@ export type ClientSwapLog = {
 };
 
 export function sideFromTokens(tokenIn: SwapSide, tokenOut: SwapSide): "buy" | "sell" {
-  if (tokenOut === "juice") return "buy";
-  if (tokenIn === "juice") return "sell";
+  if (tokenOut === "bite") return "buy";
+  if (tokenIn === "bite") return "sell";
   return "buy";
 }
 

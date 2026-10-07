@@ -12,8 +12,8 @@ import {
 import type { Connector } from "wagmi";
 import { formatEther, parseEther } from "viem";
 import { appleKitchenAbi, erc20Abi } from "@/lib/abis";
-import { baseChain, robinhoodChain } from "@/lib/chain";
-import { APPLE_KITCHEN, JUICE_TOKEN as BITE_TOKEN, KITCHEN_READY } from "@/lib/config";
+import { robinhoodChain } from "@/lib/chain";
+import { APPLE_KITCHEN, BITE_TOKEN, KITCHEN_READY } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import { progressToFrame, scoreTap, type Eater } from "@/lib/race";
 import { rankAfterExtraScore } from "@/lib/leaderboard-rank";

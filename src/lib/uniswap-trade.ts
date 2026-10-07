@@ -1,14 +1,16 @@
 import { isAddress, isHex, parseUnits } from "viem";
 import {
-  USDC_TOKEN,
-  JB_MULTI_TERMINAL,
-  JUICE_TOKEN,
+  AAPL_TOKEN,
+  APPLE_KITCHEN,
+  BITE_TOKEN,
   CHAIN_ID,
   NATIVE_ETH_ADDRESS,
   SWAP_OPS_RECIPIENT,
+  USDG_TOKEN,
   WETH_TOKEN,
 } from "./config";
 
+/** Robinhood has Universal Router 2.1.1 only — 2.0 is not deployed. */
 export const UNISWAP_ROUTER_VERSION = "2.1.1";
 export const UNISWAP_TRADE_CHAIN_ID = CHAIN_ID;
 export const SWAP_SLIPPAGE_PERCENT = 2;
@@ -21,14 +23,20 @@ const SHELL_META_RE = /[;|&$`><\\'"()\n\r]/;
 
 /**
  * Output skim via Trading API `integratorFees` → PAY_PORTION.
- * 50 bips (0.5%) of the *output* token, sent to the treasury.
+ * 50 bips (0.5%) of the *output* token. Swapper keeps 9950 bps.
+ * Buy routes send $BITE; sell ($BITE→AAPL) sends AAPL.
+ * The API allows at most one `integratorFees` item, so the intended 25/25
+ * kitchen+ops split is parked on kitchen until a splitter contract exists.
+ * MetaWager's 10% is entry-only — never reuse it here. Cap is 500 bips.
+ * UR 2.1.1 command is PAY_PORTION 0x07 (not the legacy 0x06 / portionBips fields).
  */
 export const SWAP_PORTION_SUPPORTED = true;
 export const SWAP_KITCHEN_FEE_MAX_BIPS = 500;
 export const SWAP_KITCHEN_PORTION_BIPS = 50;
+/** Kept for the intended ops split; Trading API rejects a second integratorFees item. */
 export const SWAP_OPS_PORTION_BIPS = 0;
 export const SWAP_TOTAL_FEE_BIPS = SWAP_KITCHEN_PORTION_BIPS + SWAP_OPS_PORTION_BIPS;
-export const SWAP_KITCHEN_FEE_RECIPIENT = JB_MULTI_TERMINAL;
+export const SWAP_KITCHEN_FEE_RECIPIENT = APPLE_KITCHEN;
 export const SWAP_OPS_FEE_DEFAULT = SWAP_OPS_RECIPIENT;
 
 export type IntegratorFee = {
@@ -40,6 +48,7 @@ function clampFeeBips(bips: number, remaining: number): number {
   return Math.min(Math.max(0, Math.floor(bips)), remaining, SWAP_KITCHEN_FEE_MAX_BIPS);
 }
 
+/** Server-only `SWAP_OPS_RECIPIENT` wins; else NEXT_PUBLIC ops recipient if set. */
 export function swapOpsRecipient(): `0x${string}` | undefined {
   const server = process.env.SWAP_OPS_RECIPIENT?.trim();
   if (server && ADDRESS_RE.test(server) && isAddress(server)) {
@@ -67,15 +76,16 @@ export function formatSwapFeePercent(bips: number): string {
   return `${bips / 100}%`;
 }
 
+/** e.g. `0.5% to kitchen in $BITE` — split line only if ops bips are live. */
 export function swapFeeDisclosure(outSymbol: string): string {
   if (SWAP_OPS_PORTION_BIPS > 0) {
-    return `${formatSwapFeePercent(SWAP_TOTAL_FEE_BIPS)} (${formatSwapFeePercent(SWAP_KITCHEN_PORTION_BIPS)} treasury · ${formatSwapFeePercent(SWAP_OPS_PORTION_BIPS)} ops) in ${outSymbol}`;
+    return `${formatSwapFeePercent(SWAP_TOTAL_FEE_BIPS)} (${formatSwapFeePercent(SWAP_KITCHEN_PORTION_BIPS)} kitchen · ${formatSwapFeePercent(SWAP_OPS_PORTION_BIPS)} ops) in ${outSymbol}`;
   }
-  return `${formatSwapFeePercent(SWAP_TOTAL_FEE_BIPS)} to treasury in ${outSymbol}`;
+  return `${formatSwapFeePercent(SWAP_TOTAL_FEE_BIPS)} to kitchen in ${outSymbol}`;
 }
 
-export type BuySide = "usdc" | "weth" | "eth";
-export type SwapSide = BuySide | "juice";
+export type BuySide = "aapl" | "usdg" | "weth" | "eth";
+export type SwapSide = BuySide | "bite";
 
 export type SwapTokenMeta = {
   address: `0x${string}`;
@@ -84,10 +94,11 @@ export type SwapTokenMeta = {
   native?: boolean;
 };
 
-export const BUY_SIDES: readonly BuySide[] = ["usdc", "weth", "eth"] as const;
+export const BUY_SIDES: readonly BuySide[] = ["aapl", "usdg", "weth", "eth"] as const;
 
 export const SWAP_TOKENS: Record<SwapSide, SwapTokenMeta> = {
-  usdc: { address: USDC_TOKEN, symbol: "USDC", decimals: 6 },
+  aapl: { address: AAPL_TOKEN, symbol: "AAPL", decimals: 18 },
+  usdg: { address: USDG_TOKEN, symbol: "USDG", decimals: 6 },
   weth: { address: WETH_TOKEN, symbol: "WETH", decimals: 18 },
   eth: {
     address: NATIVE_ETH_ADDRESS,
@@ -95,25 +106,26 @@ export const SWAP_TOKENS: Record<SwapSide, SwapTokenMeta> = {
     decimals: 18,
     native: true,
   },
-  juice: { address: JUICE_TOKEN, symbol: "$JUICE", decimals: 18 },
+  bite: { address: BITE_TOKEN, symbol: "$BITE", decimals: 18 },
 };
 
 export function isBuySide(side: SwapSide): side is BuySide {
-  return side !== "juice";
+  return side !== "bite";
 }
 
 export function isNativeSwapToken(token: SwapTokenMeta): boolean {
   return Boolean(token.native) || token.address.toLowerCase() === NATIVE_ETH_ADDRESS.toLowerCase();
 }
 
+/** Resolve the fixed pair for a given pay-side selection. */
 export function resolveSwapPair(tokenInSide: SwapSide): {
   tokenIn: SwapTokenMeta;
   tokenOut: SwapTokenMeta;
 } {
-  if (tokenInSide === "juice") {
-    return { tokenIn: SWAP_TOKENS.juice, tokenOut: SWAP_TOKENS.eth };
+  if (tokenInSide === "bite") {
+    return { tokenIn: SWAP_TOKENS.bite, tokenOut: SWAP_TOKENS.aapl };
   }
-  return { tokenIn: SWAP_TOKENS[tokenInSide], tokenOut: SWAP_TOKENS.juice };
+  return { tokenIn: SWAP_TOKENS[tokenInSide], tokenOut: SWAP_TOKENS.bite };
 }
 
 export type AggregatedOutput = {
@@ -207,8 +219,8 @@ export function parseAllowedToken(value: string): `0x${string}` {
 
 /**
  * Allowed pairs only:
- * - buy: USDC | WETH | ETH → $JUICE
- * - sell: $JUICE → ETH
+ * - buy: AAPL | USDG | WETH | ETH → $BITE
+ * - sell: $BITE → AAPL
  */
 export function assertAllowedSwapPair(
   tokenIn: `0x${string}`,
@@ -216,11 +228,11 @@ export function assertAllowedSwapPair(
 ): void {
   const inL = tokenIn.toLowerCase();
   const outL = tokenOut.toLowerCase();
-  const juice = JUICE_TOKEN.toLowerCase();
-  const eth = NATIVE_ETH_ADDRESS.toLowerCase();
+  const bite = BITE_TOKEN.toLowerCase();
+  const aapl = AAPL_TOKEN.toLowerCase();
 
-  if (BUY_INPUT_ADDRESSES.has(inL) && outL === juice) return;
-  if (inL === juice && (outL === eth || outL === WETH_TOKEN.toLowerCase())) return;
+  if (BUY_INPUT_ADDRESSES.has(inL) && outL === bite) return;
+  if (inL === bite && outL === aapl) return;
   throw new Error("Pair not allowed");
 }
 
@@ -260,8 +272,9 @@ export function sideByAddress(address: string): SwapSide {
   throw new Error("Token not allowed");
 }
 
+/** @deprecated Prefer resolveSwapPair — kept for AAPL↔$BITE flip callers. */
 export function otherSide(side: SwapSide): SwapSide {
-  return side === "juice" ? "eth" : "juice";
+  return side === "bite" ? "aapl" : "bite";
 }
 
 function isIntegratorOutput(output: AggregatedOutput): boolean {
@@ -290,6 +303,7 @@ export function getInputAmount(q: QuoteResponse): string {
   return q.quote.input.amount;
 }
 
+/** CLASSIC: signature+permitData together or neither. UniswapX: signature only. */
 export function prepareSwapRequest(
   quoteResponse: QuoteResponse,
   signature?: string,

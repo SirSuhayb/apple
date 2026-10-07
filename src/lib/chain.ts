@@ -1,13 +1,21 @@
-import { base } from "viem/chains";
-import { RPC_URL } from "./config";
+import { defineChain } from "viem";
+import { CHAIN_ID, RPC_URL } from "./config";
 
-export const baseChain = {
-  ...base,
+export const robinhoodChain = defineChain({
+  id: CHAIN_ID,
+  name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: {
-    ...base.rpcUrls,
     default: { http: [RPC_URL] },
   },
-} as const;
-
-/** @deprecated Alias kept during migration — prefer `baseChain`. */
-export const robinhoodChain = baseChain;
+  blockExplorers: {
+    default: {
+      name: "Etherscan",
+      url: "https://robin.etherscan.io",
+    },
+    blockscout: {
+      name: "Blockscout",
+      url: "https://robinhoodchain.blockscout.com",
+    },
+  },
+});

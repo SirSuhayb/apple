@@ -216,9 +216,8 @@ function nearestUsableTick(tick: number, tickSpacing: number): number {
 
 export function parseLpIndependent(value: string): `0x${string}` {
   const key = value.trim().toLowerCase();
-  if (key === "juice") return SWAP_TOKENS.juice.address;
-  if (key === "eth") return SWAP_TOKENS.eth.address;
-  if (key === "usdc") return SWAP_TOKENS.usdc.address;
+  if (key === "bite") return SWAP_TOKENS.bite.address;
+  if (key === "aapl") return SWAP_TOKENS.aapl.address;
   return parseAllowedToken(value);
 }
 
