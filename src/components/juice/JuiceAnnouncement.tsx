@@ -16,7 +16,7 @@
  *  9. Phase 2 complete — congrats
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Connector } from "wagmi";
 import { useAccount, useConnect, useSwitchChain } from "wagmi";
 import { JuicerSVG, type JuicerState } from "./svg/JuicerSVG";
@@ -25,6 +25,132 @@ import { AssemblyLineSVG, type AssemblyStage } from "./svg/AssemblyLineSVG";
 import { bestContainer, CONTAINER_TIERS, seedsToOz, seedPulp } from "@/lib/seeds";
 import { baseChain } from "@/lib/juice-config";
 import type { SeedMap } from "@/lib/use-leaderboard";
+
+/**
+ * Inline juicing animation that starts its timer from a click handler
+ * (same pattern as the working /juice/test page).
+ */
+function JuicingInline({
+  seeds,
+  pulpScoops,
+  containerTier,
+  labelName,
+  onComplete,
+}: {
+  seeds: number;
+  pulpScoops: number;
+  containerTier: string;
+  labelName?: string;
+  onComplete: () => void;
+}) {
+  const [phase, setPhase] = useState("ready");
+  const [elapsed, setElapsed] = useState(0);
+  const [juicerState, setJuicerState] = useState<JuicerState>("filling");
+  const [assemblyStage, setAssemblyStage] = useState<AssemblyStage>("idle");
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startRef = useRef(0);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
+  useEffect(() => {
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, []);
+
+  const startAnimation = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    startRef.current = Date.now();
+    setPhase("filling");
+    setElapsed(0);
+
+    intervalRef.current = setInterval(() => {
+      const ms = Date.now() - startRef.current;
+      setElapsed(ms);
+
+      if (ms >= 14200) {
+        setPhase("done");
+        clearInterval(intervalRef.current!);
+        intervalRef.current = null;
+        onCompleteRef.current();
+      } else if (ms >= 7700) {
+        setPhase("assembly-filling");
+        setAssemblyStage("filling");
+      } else if (ms >= 6500) {
+        setPhase("assembly");
+        setJuicerState("dispensing");
+        setAssemblyStage("dispensing");
+      } else if (ms >= 2500) {
+        setPhase("blending");
+        setJuicerState("blending");
+      }
+    }, 100);
+  };
+
+  if (phase === "ready") {
+    return (
+      <div className="flex flex-col items-center">
+        <JuicerSVG
+          state="open"
+          seedCount={seeds}
+          pulpLevel={pulpScoops}
+          className="w-[280px] h-[280px]"
+        />
+        <button
+          type="button"
+          onClick={startAnimation}
+          className="mt-6 rounded-full bg-[#f97316] px-10 py-3.5 text-[16px] font-bold text-white hover:bg-[#ea580c]"
+        >
+          🍊 Begin juicing
+        </button>
+      </div>
+    );
+  }
+
+  const isAssembly = phase.startsWith("assembly");
+
+  return (
+    <div className="flex flex-col items-center w-full">
+      {!isAssembly ? (
+        <>
+          <JuicerSVG
+            state={juicerState}
+            seedCount={seeds}
+            pulpLevel={pulpScoops}
+            className="w-[300px] h-[300px] sm:w-[360px] sm:h-[360px]"
+          />
+          <p className="mt-4 text-[15px] font-semibold text-[#f97316] animate-pulse">
+            {phase === "filling" && "Dropping in seeds & apple chunks…"}
+            {phase === "blending" && "Blending your juice…"}
+          </p>
+        </>
+      ) : (
+        <>
+          <h2 className="text-[20px] font-bold tracking-tight text-[#1d1d1f] mb-2">
+            Filling your {containerTier}…
+          </h2>
+          <AssemblyLineSVG
+            containerTier={containerTier}
+            stage={assemblyStage}
+            label={labelName}
+            className="w-full max-w-[560px]"
+          />
+          <p className="mt-2 text-[13px] text-[#6e6e73] animate-pulse">
+            {assemblyStage === "dispensing" && "Preparing the line…"}
+            {assemblyStage === "filling" && "Juice is flowing…"}
+          </p>
+        </>
+      )}
+      {/* Progress bar */}
+      <div className="mt-4 w-full max-w-[300px]">
+        <div className="h-1.5 rounded-full bg-[#e5e5ea] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[#f97316] transition-all duration-200"
+            style={{ width: `${Math.min((elapsed / 14200) * 100, 100)}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type Step =
   | "lid"
@@ -35,7 +161,6 @@ type Step =
   | "label"
   | "cost"
   | "juicing"
-  | "dispensing"
   | "congrats";
 
 const LABEL_PRESETS = [
@@ -79,8 +204,8 @@ export function JuiceAnnouncement() {
   const [selectedContainer, setSelectedContainer] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<LabelPreset>(LABEL_PRESETS[0]);
   const [juicerState, setJuicerState] = useState<JuicerState>("closed");
-  const [assemblyStage, setAssemblyStage] = useState<AssemblyStage>("idle");
   const [fadeClass, setFadeClass] = useState("opacity-100");
+  const [animSignal, setAnimSignal] = useState(0);
 
   const { address, isConnected } = useAccount();
   const { connect, connectors: rawConnectors, isPending: connecting } = useConnect();
@@ -118,13 +243,13 @@ export function JuiceAnnouncement() {
     }
   }, [step, isConnected, testMode]);
 
-  const transition = (to: Step) => {
+  const transition = useCallback((to: Step) => {
     setFadeClass("opacity-0 scale-95");
     setTimeout(() => {
       setStep(to);
       setFadeClass("opacity-100 scale-100");
     }, 300);
-  };
+  }, []);
 
   const handleOpenLid = () => {
     setJuicerState("open");
@@ -160,20 +285,18 @@ export function JuiceAnnouncement() {
   };
 
   const handleStartJuicing = () => {
-    transition("juicing");
-    setJuicerState("filling");
-    setTimeout(() => setJuicerState("blending"), 1500);
-    setTimeout(() => {
-      setJuicerState("dispensing");
-      transition("dispensing");
-      setAssemblyStage("dispensing");
-      setTimeout(() => setAssemblyStage("filling"), 800);
-      setTimeout(() => {
-        setAssemblyStage("done");
-        setTimeout(() => transition("congrats"), 1500);
-      }, 3500);
-    }, 4000);
+    setStep("juicing");
+    setFadeClass("opacity-100 scale-100");
+    setAnimSignal((s) => s + 1);
   };
+
+  const handleAnimationComplete = useCallback(() => {
+    setFadeClass("opacity-0 scale-95");
+    setTimeout(() => {
+      setStep("congrats");
+      setFadeClass("opacity-100 scale-100");
+    }, 400);
+  }, []);
 
   const stepContent = () => {
     switch (step) {
@@ -522,39 +645,14 @@ export function JuiceAnnouncement() {
 
       case "juicing":
         return (
-          <div className="flex flex-col items-center">
-            <JuicerSVG
-              state={juicerState}
-              seedCount={seeds}
-              pulpLevel={pulpScoops}
-              className="w-[300px] h-[300px] sm:w-[360px] sm:h-[360px]"
-            />
-            <p className="mt-4 text-[15px] font-semibold text-[#f97316] animate-pulse">
-              {juicerState === "filling" && "Dropping in seeds & apple chunks…"}
-              {juicerState === "blending" && "Blending your juice…"}
-              {juicerState === "dispensing" && "Dispensing…"}
-            </p>
-          </div>
-        );
-
-      case "dispensing":
-        return (
-          <div className="flex flex-col items-center w-full">
-            <h2 className="text-[20px] font-bold tracking-tight text-[#1d1d1f] mb-2">
-              Filling your {selectedContainer}…
-            </h2>
-            <AssemblyLineSVG
-              containerTier={selectedContainer ?? "Juice Box"}
-              stage={assemblyStage}
-              label={selectedLabel.id !== "none" ? selectedLabel.name : undefined}
-              className="w-full max-w-[560px]"
-            />
-            <p className="mt-2 text-[13px] text-[#6e6e73] animate-pulse">
-              {assemblyStage === "dispensing" && "Preparing the line…"}
-              {assemblyStage === "filling" && "Juice is flowing…"}
-              {assemblyStage === "done" && "Container filled!"}
-            </p>
-          </div>
+          <JuicingInline
+            key={`anim-${animSignal}`}
+            seeds={seeds}
+            pulpScoops={pulpScoops}
+            containerTier={selectedContainer ?? "Juice Box"}
+            labelName={selectedLabel.id !== "none" ? selectedLabel.name : undefined}
+            onComplete={handleAnimationComplete}
+          />
         );
 
       case "congrats":
@@ -618,7 +716,6 @@ export function JuiceAnnouncement() {
                 onClick={() => {
                   setStep("lid");
                   setJuicerState("closed");
-                  setAssemblyStage("idle");
                   setPulpScoops(0);
                   setSelectedLabel(LABEL_PRESETS[0]);
                 }}
@@ -643,8 +740,8 @@ export function JuiceAnnouncement() {
       {/* Step indicator */}
       {step !== "lid" && step !== "congrats" && (
         <div className="mb-8 flex items-center gap-1.5">
-          {(["connect", "seeds", "container", "pulp", "label", "cost", "juicing", "dispensing"] as Step[]).map((s, i) => {
-            const steps: Step[] = ["connect", "seeds", "container", "pulp", "label", "cost", "juicing", "dispensing"];
+          {(["connect", "seeds", "container", "pulp", "label", "cost", "juicing"] as Step[]).map((s, i) => {
+            const steps: Step[] = ["connect", "seeds", "container", "pulp", "label", "cost", "juicing"];
             const currentIdx = steps.indexOf(step);
             const thisIdx = i;
             return (
