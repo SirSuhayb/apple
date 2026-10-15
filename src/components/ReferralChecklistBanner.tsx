@@ -12,7 +12,7 @@ import {
 } from "wagmi";
 import { referralEscrowAbi } from "@/lib/abis";
 import { robinhoodChain } from "@/lib/chain";
-import { REFERRAL_ESCROW } from "@/lib/config";
+import { REFERRAL_ESCROW, REFERRALS_CLOSED } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import { sameWallet } from "@/lib/leaderboard-rank";
 import type { Eater } from "@/lib/race";
@@ -193,7 +193,7 @@ export function ReferralChecklistBanner({
     onActiveChange?.(active);
   }, [active, onActiveChange]);
 
-  if (!active) return null;
+  if (REFERRALS_CLOSED || !active) return null;
 
   const showBind =
     isConnected &&

@@ -103,6 +103,22 @@ export const REFERRAL_ESCROW_FROM_BLOCK = 68_894_675n;
 /** Display fallback when chain read is loading (live reward is 250_000 BITE). */
 export const REFERRAL_REWARD_BITE = 250_000;
 
+/**
+ * Windfall / ReferralEscrow closed — escrow $BITE reclaimed after the timed race.
+ * Set NEXT_PUBLIC_REFERRALS_CLOSED=false to re-open the invite UI.
+ */
+export const REFERRALS_CLOSED = (() => {
+  const raw = process.env.NEXT_PUBLIC_REFERRALS_CLOSED?.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") {
+    return false;
+  }
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") {
+    return true;
+  }
+  // Default closed once the race is in players-won aftermath.
+  return true;
+})();
+
 /** Minimum swap value (USD) for a referral to qualify. Matches bot REFERRAL_MIN_SWAP_USD. */
 export const REFERRAL_MIN_SWAP_USD = 25;
 

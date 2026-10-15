@@ -511,6 +511,10 @@ export const copy = {
       eyebrow: "Referrals",
       headline: "Invite the orchard.",
       body: "Share your link. When they connect, they bind you on-chain. Once their in-app swaps total at least $25 and they burn at least $5, you earn 250,000 $BITE from escrow — while seats last.",
+      closedEyebrow: "Windfall",
+      closedHeadline: "Referral escrow reclaimed.",
+      closedBody:
+        "The timed race is over. The 1M $BITE Windfall pool is being pulled back from escrow — new invites are closed. Past payouts still stand.",
       linkLabel: "Your link",
       copyLink: "Copy link",
       copied: "Copied.",
@@ -524,6 +528,7 @@ export const copy = {
       remainingCount: (n: number) =>
         n === 1 ? "1 Windfall left" : `${n} Windfalls left`,
       remainingEmpty: "Escrow empty — no Windfalls left.",
+      remainingClosed: "Escrow reclaimed — Windfall closed.",
       stubZero: "0",
       needWallet: "Connect a wallet to bind a pending invite on-chain.",
       pendingNote: (short: string) =>

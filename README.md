@@ -77,6 +77,9 @@ cd contracts
 ./scripts/fund-referral-escrow.sh   # set reward only
 # Top up to 5M (example: escrow already holds 1M → deposit 4M):
 DEPOSIT_AMOUNT=4000000000000000000000000 ./scripts/fund-referral-escrow.sh
+
+# Reclaim leftover escrow (pause + withdraw full balance to owner):
+./scripts/withdraw-referral-escrow.sh
 ```
 
 

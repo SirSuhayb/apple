@@ -10,7 +10,7 @@ import {
 } from "wagmi";
 import { referralEscrowAbi } from "@/lib/abis";
 import { robinhoodChain } from "@/lib/chain";
-import { REFERRAL_ESCROW } from "@/lib/config";
+import { REFERRAL_ESCROW, REFERRALS_CLOSED } from "@/lib/config";
 import { sameWallet } from "@/lib/leaderboard-rank";
 import {
   bindReferralOnConnect,
@@ -27,6 +27,7 @@ import {
 export function ReferralCapture() {
   const { address, isConnected } = useAccount();
   const attemptedFor = useRef<string | null>(null);
+  const referralsOpen = !REFERRALS_CLOSED;
 
   const {
     writeContract,
@@ -40,16 +41,18 @@ export function ReferralCapture() {
   });
 
   useEffect(() => {
+    if (!referralsOpen) return;
     const raw = new URLSearchParams(window.location.search).get("ref");
     if (raw) capturePendingReferral(raw);
-  }, []);
+  }, [referralsOpen]);
 
   useEffect(() => {
-    if (!isConnected || !address) return;
+    if (!referralsOpen || !isConnected || !address) return;
     bindReferralOnConnect(address);
-  }, [isConnected, address]);
+  }, [referralsOpen, isConnected, address]);
 
-  const pending = isConnected && address ? readPendingReferral() : null;
+  const pending =
+    referralsOpen && isConnected && address ? readPendingReferral() : null;
   const referrerCandidate =
     pending && isAddress(pending) && address && !sameWallet(pending, address)
       ? pending
@@ -62,7 +65,9 @@ export function ReferralCapture() {
     args: address && isAddress(address) ? [address] : undefined,
     chainId: robinhoodChain.id,
     query: {
-      enabled: Boolean(isConnected && address && REFERRAL_ESCROW),
+      enabled: Boolean(
+        referralsOpen && isConnected && address && REFERRAL_ESCROW,
+      ),
     },
   });
 

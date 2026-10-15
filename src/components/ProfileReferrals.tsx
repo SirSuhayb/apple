@@ -16,6 +16,7 @@ import {
   REFERRAL_ESCROW,
   REFERRAL_ESCROW_FROM_BLOCK,
   REFERRAL_REWARD_BITE,
+  REFERRALS_CLOSED,
 } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import { formatCompactAmount, sameWallet } from "@/lib/leaderboard-rank";
@@ -240,6 +241,49 @@ export function ProfileReferrals({ address }: { address: string }) {
     }
     return null;
   })();
+
+  if (REFERRALS_CLOSED) {
+    return (
+      <section className="mt-10">
+        <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+          {copy.profile.referrals.closedEyebrow}
+        </p>
+        <h2 className="mt-1 text-[28px] font-bold leading-tight tracking-[-0.03em] text-[#1d1d1f]">
+          {copy.profile.referrals.closedHeadline}
+        </h2>
+        <p className="mt-2 max-w-[480px] text-[13px] leading-relaxed text-[#6e6e73]">
+          {copy.profile.referrals.closedBody}
+        </p>
+        <p className="mt-2 text-[13px] font-semibold text-[#e53935]">
+          {copy.profile.referrals.remainingClosed}
+        </p>
+        <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-2">
+          <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">
+            <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
+              {copy.profile.referrals.countLabel}
+            </div>
+            <div className="mt-0.5 text-[17px] font-bold tabular-nums text-[#1d1d1f]">
+              {paidLoading
+                ? "…"
+                : paidCount != null
+                  ? formatCompactAmount(paidCount)
+                  : copy.profile.referrals.stubZero}
+            </div>
+          </div>
+          <div className="rounded-[14px] border border-[#d2d2d7] bg-[#fafafa] px-3 py-3 text-center">
+            <div className="text-[10px] font-semibold tracking-[1px] text-[#6e6e73] uppercase">
+              {copy.profile.referrals.earningsLabel}
+            </div>
+            <div className="mt-0.5 text-[17px] font-bold tabular-nums text-[#1d1d1f]">
+              {earnings != null
+                ? `${formatCompactAmount(earnings)} $BITE`
+                : copy.profile.referrals.stubZero}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mt-10">

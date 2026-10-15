@@ -45,7 +45,17 @@ Trading API (integratorFees kitchen skim) + `kitchen.bite`, then `qualify(refere
 1. **Fund** — `approve` + `deposit` on the **proxy**
 2. **Bind** — referee `bind(referrer)` once (site: `?ref=` → wallet connect → wagmi sign)
 3. **Qualify** — attester `qualify(referee)` → pays referrer `rewardPerReferral`
-4. **Leftover** — owner `withdraw`
+4. **Leftover / reclaim** — owner pause + `withdraw` (pull unused escrow back)
+
+```bash
+cd contracts
+# PRIVATE_KEY must be escrow owner (0x36B5…11Ca)
+./scripts/withdraw-referral-escrow.sh
+# Optional: WITHDRAW_TO=0x… WITHDRAW_AMOUNT=<wei> SKIP_PAUSE=1
+```
+
+Site defaults to `NEXT_PUBLIC_REFERRALS_CLOSED=true` after the timed race so
+Windfall invite UI stays shut while escrow is reclaimed.
 
 ## Site / bot env
 
