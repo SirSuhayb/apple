@@ -7,6 +7,7 @@ import {
   BITE_TOKEN,
   CORE_TARGET_FRACTION,
   DEFAULT_DEADLINE_DAYS,
+  RACE_OUTCOME_OVERRIDE,
   RPC_URL,
   TOTAL_SUPPLY,
   isLive,
@@ -28,9 +29,12 @@ const client = createPublicClient({
 });
 
 function phaseFromKitchen(phase: number, progress: number, secondsLeft: number): RacePhase {
+  if (RACE_OUTCOME_OVERRIDE === "core") return "core";
+  if (RACE_OUTCOME_OVERRIDE === "rot") return "rot";
   if (phase === 1) return "core";
   if (phase === 2) return "rot";
   if (secondsLeft <= 0 && progress < 1) return "rot";
+  if (progress >= 1) return "core";
   return "racing";
 }
 

@@ -1,6 +1,7 @@
 import {
   CORE_TARGET_FRACTION,
   DEFAULT_DEADLINE_DAYS,
+  RACE_OUTCOME_OVERRIDE,
   TOTAL_SUPPLY,
   isLive,
 } from "./config";
@@ -116,11 +117,13 @@ export function buildDemoRaceState(): RaceState {
     reserved,
     CORE_TARGET_FRACTION,
   );
-  const progress = demoProgress();
+  const playersWonPreview = RACE_OUTCOME_OVERRIDE === "core";
+  const progress = playersWonPreview ? 1 : demoProgress();
   const burned =
     (coreTarget * BigInt(Math.floor(progress * 10_000))) / BigInt(10_000);
-  const deadline =
-    Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60;
+  const deadline = playersWonPreview
+    ? Math.floor(Date.now() / 1000) - 60
+    : Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_DAYS * 24 * 60 * 60;
   const now = Math.floor(Date.now() / 1000);
   const lastEatAt = now - 12 * 60;
   const weekly = rollWeeklyFloors(null, now * 1000, DECAY_WEEK_ATH_SEED_USD);
@@ -138,7 +141,7 @@ export function buildDemoRaceState(): RaceState {
   const nextFloor = Math.max(weekly.weekAthMcapUsd, DECAY_WEEK_ATH_SEED_USD);
 
   return {
-    phase: "preview",
+    phase: playersWonPreview ? "core" : "preview",
     live: false,
     burned: burned.toString(),
     coreTarget: coreTarget.toString(),
@@ -151,7 +154,7 @@ export function buildDemoRaceState(): RaceState {
     secondsLeft: Math.max(0, deadline - now),
     lastEatAt,
     quietRotPreview: weather.quietRotPreview,
-    decay: weather.decay,
+    decay: playersWonPreview ? 20 : weather.decay,
     decayBreakdown: weather.breakdown,
     decayFloors: {
       weekId: weekly.weekId,
@@ -190,7 +193,7 @@ export function buildDemoRaceState(): RaceState {
         at: lastEatAt - 95,
       },
     ],
-    message: copy.messages.preview,
+    message: playersWonPreview ? copy.messages.core : copy.messages.preview,
   };
 }
 
