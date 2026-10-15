@@ -237,6 +237,18 @@ export const copy = {
     infoTitle: "The Meta Wager",
     infoBody:
       "A side bet on the outcome. Stake $BITE on CORE (50% reached before deadline) or ROT (deadline first). Odds shift with every wager. Winners split the pot proportionally.",
+    settledEyebrow: "The meta wager — settled",
+    settledTitle: "CORE won.",
+    settledTitleRot: "ROT won.",
+    settledBody:
+      "Eaters took the apple. Side bets on CORE take the pot. Claim if you were on the winning side.",
+    settledBodyRot:
+      "The apple rotted. Side bets on ROT take the pot. Claim if you were on the winning side.",
+    resolvedCore: "Resolved — 🍎 CORE wins",
+    resolvedRot: "Resolved — 🪱 ROT wins",
+    claim: "Claim winnings",
+    claiming: "Claiming…",
+    claimed: "✓ Claimed",
   },
 
   core: {

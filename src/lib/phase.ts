@@ -166,9 +166,9 @@ export function resolvePhaseFlags(input: {
     tradingOpen: act >= 1,
     showProgress: act >= 2 || raceResolved,
     showWager: act >= 2,
-    // Side bet closes once the race resolves.
-    showMetaWager: act >= 2 && !raceResolved,
-    metaWagerLive: act >= 3 && metaWagerLive && !raceResolved,
+    // Keep the meta wager visible after resolve so the winner can be shown.
+    showMetaWager: act >= 2,
+    metaWagerLive: (act >= 3 && metaWagerLive) || raceResolved,
     // Trades and burns keep running after the timed race — seeds still grow.
     burnsOpen: act >= 2 && !DAY_ONE_PLAYTHROUGH,
     howLocked: act <= 1,

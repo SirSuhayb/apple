@@ -1092,18 +1092,30 @@ export function RaceApp({
         </section>
       )}
 
-      {/* Meta wager — Act II+ (hidden once race resolves) */}
+      {/* Meta wager — live while racing; settled winner after resolve */}
       {flags.showMetaWager && (
-        <section className="page-gutter bg-[#fbfbfd] pb-[60px]">
+        <section
+          id="meta-wager"
+          className={[
+            "page-gutter bg-[#fbfbfd]",
+            playersWon || raceResolved ? "py-16" : "pb-[60px]",
+          ].join(" ")}
+        >
           <div className="mx-auto max-w-[480px]">
             <div className="mb-3 flex items-center gap-2">
               <p className="text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-                {copy.metaWager.eyebrow}
+                {playersWon || raceResolved
+                  ? copy.metaWager.settledEyebrow
+                  : copy.metaWager.eyebrow}
               </p>
               <MetaWagerInfo />
             </div>
-            {flags.metaWagerLive ? (
-              <MetaWagerLive />
+            {flags.metaWagerLive || playersWon || raceResolved ? (
+              <MetaWagerLive
+                forcedWinner={
+                  playersWon ? "core" : state.phase === "rot" ? "rot" : null
+                }
+              />
             ) : (
               <MetaWagerEmpty progress={state.progress} />
             )}
