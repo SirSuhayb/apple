@@ -444,23 +444,33 @@ function PrizePoolBento({
           )}
         </div>
 
-        <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
-          <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-            {playersWon && totalSeeds != null && totalSeeds > 0
-              ? copy.aftermath.seedsLabel
-              : copy.aftermath.playersLabel}
-          </p>
-          <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums">
-            {playersWon && totalSeeds != null && totalSeeds > 0
-              ? fmtCompact(totalSeeds)
-              : holderCount.toLocaleString()}
-          </p>
-          <p className="mt-2 text-[13px] text-[#6e6e73]">
-            {playersWon && totalSeeds != null && totalSeeds > 0
-              ? copy.aftermath.seedsHint
-              : `${fmtCompact(wallets)} held`}
-          </p>
-        </div>
+        {playersWon ? (
+          <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+            <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+              {copy.aftermath.seedsLabel}
+            </p>
+            <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums text-[#34c759]">
+              {totalSeeds != null && totalSeeds > 0
+                ? fmtCompact(totalSeeds)
+                : "—"}
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              {copy.aftermath.seedsHint}
+            </p>
+          </div>
+        ) : (
+          <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+            <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+              {copy.aftermath.playersLabel}
+            </p>
+            <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums">
+              {holderCount.toLocaleString()}
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              {fmtCompact(wallets)} held
+            </p>
+          </div>
+        )}
       </div>
 
       {playersWon && (
@@ -496,10 +506,12 @@ function PrizePoolBento({
 export function RaceApp({
   initial,
   act1Eaters = [],
+  initialSeedMap = {},
 }: {
   initial: RaceState;
   /** Act I trades + points board (from bot state / public export) */
   act1Eaters?: Eater[];
+  initialSeedMap?: Record<string, number>;
 }) {
   const [state, setState] = useState(initial);
   const {
@@ -512,6 +524,7 @@ export function RaceApp({
     act1Eaters,
     initial.supplyStats,
     weiToTokens(initial.coreTarget),
+    initialSeedMap,
   );
   const [supplyStats, setSupplyStats] = useState<SupplyStats | null>(
     initial.supplyStats ?? null,
