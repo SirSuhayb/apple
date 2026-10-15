@@ -7,6 +7,7 @@ import { injected, walletConnect, coinbaseWallet } from "wagmi/connectors";
 import { ReferralCapture } from "@/components/ReferralCapture";
 import { robinhoodChain } from "@/lib/chain";
 import { RPC_URL, SITE_URL as CONFIG_SITE_URL } from "@/lib/config";
+import { baseChain, JUICE_RPC_URL } from "@/lib/juice-config";
 
 const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID?.trim() ?? "";
 
@@ -22,7 +23,7 @@ if (!WC_PROJECT_ID && typeof window !== "undefined") {
 }
 
 const config = createConfig({
-  chains: [robinhoodChain],
+  chains: [robinhoodChain, baseChain],
   connectors: [
     injected({ shimDisconnect: true }),
     ...(WC_PROJECT_ID
@@ -46,6 +47,7 @@ const config = createConfig({
   ],
   transports: {
     [robinhoodChain.id]: http(RPC_URL),
+    [baseChain.id]: http(JUICE_RPC_URL),
   },
   ssr: true,
 });
