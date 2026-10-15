@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { Eater, SupplyStats } from "@/lib/race";
+import { RACE_OUTCOME_OVERRIDE } from "@/lib/config";
 import { copy } from "@/lib/copy";
 import { useLeaderboardLive } from "@/lib/use-leaderboard";
 import { resolveAppleTotal } from "@/lib/leaderboard-rank";
@@ -89,6 +90,7 @@ export function LeaderboardPage({
     coreTarget,
     supplyStats?.totalSupply,
   );
+  const playersWon = RACE_OUTCOME_OVERRIDE === "core";
 
   return (
     <div className="flex min-h-screen flex-col bg-[#fbfbfd] text-[#1d1d1f]">
@@ -121,14 +123,18 @@ export function LeaderboardPage({
           {copy.leaderboard.title}
         </p>
         <h1 className="text-[clamp(32px,8vw,56px)] font-bold leading-[1.05] tracking-[-0.03em]">
-          {isAct1
-            ? copy.leaderboard.headlineAct1
-            : copy.leaderboard.headline}
+          {playersWon
+            ? copy.aftermath.boardHeadline
+            : isAct1
+              ? copy.leaderboard.headlineAct1
+              : copy.leaderboard.headline}
         </h1>
         <p className="mx-auto mt-2 max-w-[440px] text-[17px] leading-relaxed text-[#6e6e73]">
-          {isAct1
-            ? copy.leaderboard.subtitleAct1
-            : copy.leaderboard.subtitle}
+          {playersWon
+            ? copy.aftermath.boardBody
+            : isAct1
+              ? copy.leaderboard.subtitleAct1
+              : copy.leaderboard.subtitle}
         </p>
         <p className="mx-auto mt-3 max-w-[440px] text-[15px] font-semibold leading-snug text-[#1d1d1f]">
           {copy.eaters.prizeEligible}

@@ -107,8 +107,16 @@ export function MetaWagerEmpty({ progress }: { progress: number }) {
   );
 }
 
-/** Live odds UI — connected to the MetaWager contract */
-export function MetaWagerLive() {
+/**
+ * Live / settled odds UI — connected to the MetaWager contract.
+ * Pass `forcedWinner` when the site has declared the race outcome so the
+ * board shows who won even if on-chain resolve() has not been called yet.
+ */
+export function MetaWagerLive({
+  forcedWinner = null,
+}: {
+  forcedWinner?: "core" | "rot" | null;
+}) {
   const wagerReady = Boolean(META_WAGER && BITE_TOKEN);
 
   // ── Contract reads ──
@@ -152,14 +160,24 @@ export function MetaWagerLive() {
     contractData?.[1]?.status === "success"
       ? (contractData[1].result as bigint)
       : BigInt(0);
-  const isResolved =
+  const onChainResolved =
     contractData?.[2]?.status === "success"
       ? (contractData[2].result as boolean)
       : false;
-  const winningSide =
+  const onChainWinningSide =
     contractData?.[3]?.status === "success"
       ? Number(contractData[3].result)
       : 0;
+
+  // Site-declared outcome wins for display; on-chain resolve still gates claims.
+  const winningSide =
+    forcedWinner === "core"
+      ? 1
+      : forcedWinner === "rot"
+        ? 2
+        : onChainWinningSide;
+  const isResolved = Boolean(forcedWinner) || onChainResolved;
+  const canClaimOnChain = onChainResolved;
 
   const totalStaked = totalCore + totalRot;
   const corePct =
@@ -167,6 +185,7 @@ export function MetaWagerLive() {
       ? Number((totalCore * BigInt(10000)) / totalStaked) / 100
       : 50;
   const rotPct = 100 - corePct;
+  const hasStakes = totalStaked > BigInt(0);
 
   // ── Wallet ──
   const { address, isConnected, chainId } = useAccount();
@@ -259,56 +278,154 @@ export function MetaWagerLive() {
 
   const busy = isPending || confirming;
 
-  // Winner label
-  const winnerLabel =
-    winningSide === 1 ? "🍎 CORE" : winningSide === 2 ? "🪱 ROT" : "";
+  const settledCore = winningSide === 1;
+  const settledRot = winningSide === 2;
 
   return (
-    <div className="rounded-[18px] border border-[#d2d2d7] bg-white px-5 py-[22px]">
-      {/* Odds bar */}
-      <div className="mb-2.5 flex justify-between">
-        <span className="text-[15px] font-bold text-[#34c759]">
-          🍎 CORE {corePct.toFixed(1)}%
-        </span>
-        <span className="text-[15px] font-bold text-[#6e6e73]">
-          ROT {rotPct.toFixed(1)}% 🪱
-        </span>
-      </div>
-      <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#f5f5f7]">
+    <div
+      className={[
+        "rounded-[18px] border bg-white px-5 py-[22px]",
+        isResolved && settledCore
+          ? "border-[#34c759]/35"
+          : isResolved && settledRot
+            ? "border-[#d4a04a]/40"
+            : "border-[#d2d2d7]",
+      ].join(" ")}
+    >
+      {isResolved && (
         <div
-          className="bg-[#34c759] transition-[width] duration-500"
-          style={{ width: `${corePct}%` }}
-        />
-        <div
-          className="bg-[#d4a04a] transition-[width] duration-500"
-          style={{ width: `${rotPct}%` }}
-        />
-      </div>
+          className={[
+            "mb-4 rounded-[12px] px-4 py-3.5 text-center",
+            settledCore ? "bg-[#34c759]/10" : "bg-[#f5f5f7]",
+          ].join(" ")}
+        >
+          <p
+            className={[
+              "text-[22px] font-bold tracking-[-0.02em]",
+              settledCore ? "text-[#1d7a3a]" : "text-[#1d1d1f]",
+            ].join(" ")}
+          >
+            {settledCore
+              ? copy.metaWager.settledTitle
+              : settledRot
+                ? copy.metaWager.settledTitleRot
+                : copy.metaWager.resolvedCore}
+          </p>
+          <p className="mx-auto mt-1.5 max-w-[320px] text-[13px] leading-relaxed text-[#6e6e73]">
+            {settledCore
+              ? copy.metaWager.settledBody
+              : settledRot
+                ? copy.metaWager.settledBodyRot
+                : null}
+          </p>
+          <p className="mx-auto mt-2.5 max-w-[320px] text-[12px] font-semibold text-[#1d7a3a]">
+            {copy.aftermath.claimsSoon}
+          </p>
+        </div>
+      )}
 
-      {/* Staked totals */}
-      <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
-        <span>{fmtBite(totalCore)} $BITE on Core</span>
-        <span>{fmtBite(totalRot)} $BITE on Rot</span>
-      </div>
+      {/* Odds bar — only meaningful when someone staked */}
+      {hasStakes ? (
+        <>
+          <div className="mb-2.5 flex justify-between">
+            <span
+              className={[
+                "text-[15px] font-bold",
+                settledCore ? "text-[#34c759]" : "text-[#6e6e73]",
+              ].join(" ")}
+            >
+              🍎 CORE {corePct.toFixed(1)}%
+              {settledCore ? " · won" : ""}
+            </span>
+            <span
+              className={[
+                "text-[15px] font-bold",
+                settledRot ? "text-[#d4a04a]" : "text-[#6e6e73]",
+              ].join(" ")}
+            >
+              {settledRot ? "won · " : ""}
+              ROT {rotPct.toFixed(1)}% 🪱
+            </span>
+          </div>
+          <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#f5f5f7]">
+            <div
+              className="bg-[#34c759] transition-[width] duration-500"
+              style={{ width: `${corePct}%` }}
+            />
+            <div
+              className="bg-[#d4a04a] transition-[width] duration-500"
+              style={{ width: `${rotPct}%` }}
+            />
+          </div>
+          <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
+            <span>{fmtBite(totalCore)} $BITE on Core</span>
+            <span>{fmtBite(totalRot)} $BITE on Rot</span>
+          </div>
+        </>
+      ) : isResolved ? (
+        <div className="flex items-center justify-center gap-6 text-[15px] font-bold">
+          <span className={settledCore ? "text-[#34c759]" : "text-[#6e6e73]"}>
+            🍎 CORE{settledCore ? " · won" : ""}
+          </span>
+          <span className="font-normal text-[#d2d2d7]">vs</span>
+          <span className={settledRot ? "text-[#d4a04a]" : "text-[#6e6e73]"}>
+            {settledRot ? "won · " : ""}ROT 🪱
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="mb-2.5 flex justify-between">
+            <span className="text-[15px] font-bold text-[#34c759]">
+              🍎 CORE {corePct.toFixed(1)}%
+            </span>
+            <span className="text-[15px] font-bold text-[#6e6e73]">
+              ROT {rotPct.toFixed(1)}% 🪱
+            </span>
+          </div>
+          <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#f5f5f7]">
+            <div
+              className="bg-[#34c759] transition-[width] duration-500"
+              style={{ width: `${corePct}%` }}
+            />
+            <div
+              className="bg-[#d4a04a] transition-[width] duration-500"
+              style={{ width: `${rotPct}%` }}
+            />
+          </div>
+          <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
+            <span>{fmtBite(totalCore)} $BITE on Core</span>
+            <span>{fmtBite(totalRot)} $BITE on Rot</span>
+          </div>
+        </>
+      )}
 
-      {/* Resolved state */}
+      {/* Claim when on-chain resolve is live */}
       {isResolved && (
         <div className="mt-3 rounded-[10px] bg-[#f5f5f7] p-3 text-center">
           <p className="text-sm font-bold text-[#1d1d1f]">
-            Resolved — {winnerLabel} wins
+            {settledCore
+              ? copy.metaWager.resolvedCore
+              : settledRot
+                ? copy.metaWager.resolvedRot
+                : "Resolved"}
           </p>
-          {address && (userCore > BigInt(0) || userRot > BigInt(0)) && !userClaimed && (
-            <button
-              type="button"
-              onClick={doClaim}
-              disabled={busy}
-              className="mt-2 rounded-[10px] bg-[#1d1d1f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {busy ? "Claiming…" : "Claim winnings"}
-            </button>
-          )}
+          {canClaimOnChain &&
+            address &&
+            (userCore > BigInt(0) || userRot > BigInt(0)) &&
+            !userClaimed && (
+              <button
+                type="button"
+                onClick={doClaim}
+                disabled={busy}
+                className="mt-2 rounded-[10px] bg-[#1d1d1f] px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {busy ? copy.metaWager.claiming : copy.metaWager.claim}
+              </button>
+            )}
           {userClaimed && (
-            <p className="mt-1 text-xs text-[#34c759]">✓ Claimed</p>
+            <p className="mt-1 text-xs text-[#34c759]">
+              {copy.metaWager.claimed}
+            </p>
           )}
         </div>
       )}

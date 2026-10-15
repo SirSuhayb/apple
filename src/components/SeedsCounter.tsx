@@ -114,8 +114,7 @@ export function SeedsEmpty({ className = "" }: { className?: string }) {
         No seeds yet
       </p>
       <p className="mt-1 text-[13px] leading-relaxed text-[#6e6e73]">
-        Every trade and burn earns seeds. Seeds determine what happens after the
-        game ends.
+        Every trade and burn earns seeds. Seeds are how Phase 2 finds you.
       </p>
     </div>
   );

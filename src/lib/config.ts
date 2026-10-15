@@ -182,6 +182,23 @@ export const META_WAGER_THRESHOLD = parseNumber(
 );
 
 /**
+ * Declared race outcome for the public site.
+ * - `core` — eaters won (players-won aftermath). Default while unset.
+ * - `rot` — farmer wins.
+ * - `auto` / `kitchen` — follow on-chain kitchen phase + deadline rules.
+ *
+ * Kitchen may still read as rot after the deadline; publish `core` when the
+ * product decision is that players won on supply burned.
+ */
+export const RACE_OUTCOME_OVERRIDE = (() => {
+  const raw = process.env.NEXT_PUBLIC_RACE_OUTCOME?.trim().toLowerCase();
+  if (raw === "auto" || raw === "kitchen") return null;
+  if (raw === "rot") return "rot" as const;
+  if (raw === "core") return "core" as const;
+  return "core" as const;
+})();
+
+/**
  * Localhost QA only — force visual decay 0–100 (or `fresh` / `quiet`).
  * Query `?decay=` wins. Never use this for kitchen revealRot / wager resolve.
  */

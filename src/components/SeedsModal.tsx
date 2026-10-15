@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Connector } from "wagmi";
 import { useAccount, useConnect } from "wagmi";
+import { copy } from "@/lib/copy";
 import { bestContainer, seedsToNextTier, seedsToOz } from "@/lib/seeds";
 import type { SeedMap } from "@/lib/use-leaderboard";
 
@@ -46,7 +47,13 @@ function dedupeConnectors(connectors: readonly Connector[]): Connector[] {
   return result;
 }
 
-export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
+export function SeedsModal({
+  seedMap,
+  playersWon = false,
+}: {
+  seedMap: SeedMap;
+  playersWon?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [showWallets, setShowWallets] = useState(false);
   const { address, isConnected } = useAccount();
@@ -86,14 +93,17 @@ export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
       <div className="relative mx-4 mb-4 w-full max-w-[420px] overflow-hidden rounded-[22px] bg-white shadow-2xl sm:mb-0">
         <div className="px-6 pt-7 pb-6">
           <p className="text-[10px] font-semibold tracking-[1.5px] text-[#34c759] uppercase">
-            Phase 2 preview
+            {copy.seeds.modalEyebrow}
           </p>
           <h2 className="mt-2 text-[24px] font-bold leading-tight tracking-[-0.02em] text-[#1d1d1f]">
-            Something grows from what remains.
+            {playersWon
+              ? copy.seeds.modalTitle
+              : copy.aftermath.phase2Headline}
           </h2>
           <p className="mt-2 text-[15px] leading-relaxed text-[#6e6e73]">
-            Every trade, hold, and burn earns seeds. Your seeds determine what
-            happens after the game ends. Connect your wallet to see yours.
+            {playersWon
+              ? copy.seeds.modalBody
+              : copy.seeds.modalBodyRacing}
           </p>
 
           {!isConnected ? (
@@ -104,7 +114,7 @@ export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
                   onClick={() => setShowWallets(true)}
                   className="w-full rounded-full bg-[#34c759] px-5 py-3 text-[15px] font-semibold text-white hover:bg-[#2db84e]"
                 >
-                  Check your seeds
+                  {copy.seeds.checkCta}
                 </button>
               ) : (
                 <div className="flex flex-col gap-2">
@@ -128,7 +138,7 @@ export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] font-semibold tracking-[1px] text-[#34c759] uppercase">
-                      Your seeds
+                      {copy.seeds.yourSeeds}
                     </p>
                     <p className="mt-0.5 text-[28px] font-black tabular-nums leading-none text-[#1d1d1f]">
                       {seeds.toLocaleString()}
@@ -152,7 +162,7 @@ export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
                 href="/me"
                 className="mt-3 block w-full rounded-full bg-[#1d1d1f] px-5 py-3 text-center text-[15px] font-semibold text-white hover:bg-black"
               >
-                View full profile
+                {copy.seeds.viewProfile}
               </a>
             </div>
           ) : (
@@ -160,10 +170,10 @@ export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
               <div className="rounded-[14px] border border-dashed border-[#d2d2d7] bg-[#fafafa] px-4 py-4 text-center">
                 <span className="text-[28px] opacity-30">🌱</span>
                 <p className="mt-1 text-[14px] font-semibold text-[#1d1d1f]">
-                  No seeds yet
+                  {copy.seeds.noSeeds}
                 </p>
                 <p className="mt-1 text-[12px] text-[#6e6e73]">
-                  Buy $BITE and burn to start earning seeds.
+                  {copy.seeds.noSeedsHint}
                 </p>
               </div>
               <button
@@ -171,7 +181,7 @@ export function SeedsModal({ seedMap }: { seedMap: SeedMap }) {
                 onClick={close}
                 className="mt-3 w-full rounded-full bg-[#1d1d1f] px-5 py-3 text-[15px] font-semibold text-white hover:bg-black"
               >
-                Start earning
+                {copy.seeds.startEarning}
               </button>
             </div>
           )}

@@ -15,6 +15,7 @@ export function useLeaderboardLive(
   initialEaters: Eater[],
   initialStats?: SupplyStats | null,
   initialCoreTarget = 0,
+  initialSeedMap?: SeedMap | null,
 ) {
   const [eaters, setEaters] = useState(initialEaters);
   const [supplyStats, setSupplyStats] = useState<SupplyStats | undefined>(
@@ -22,7 +23,7 @@ export function useLeaderboardLive(
   );
   const [coreTarget, setCoreTarget] = useState(initialCoreTarget);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [seedMap, setSeedMap] = useState<SeedMap>({});
+  const [seedMap, setSeedMap] = useState<SeedMap>(initialSeedMap ?? {});
   const mountedRef = useRef(true);
 
   const refresh = useCallback(async () => {

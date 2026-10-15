@@ -29,6 +29,7 @@ export const copy = {
       preparing: "Preparing",
       live: "Live",
       racing: "Racing",
+      won: "Won",
     },
   },
 
@@ -51,7 +52,7 @@ export const copy = {
         `🍎 ${pct}% eaten. ${days} days left. The whole orchard is watching.`,
       browning: "The apple is browning.",
       minutes: "Minutes remain.",
-      core: "🔥 Core reached. Payouts processing.",
+      core: "🍎 Players won. The timed race is over — Phase 2 is forming.",
       rot: "🪱 Deadline passed. The farmer collects.",
     },
   },
@@ -69,6 +70,7 @@ export const copy = {
     support: {
       0: "Eat to the core before time runs out — winners split the pot. Lose, and the farmer takes it.",
       1: "Eat to the core before time runs out — winners split the pot.",
+      core: "Eaters won on supply burned — ATH was never the wager. Trades and burns still run. Your seeds count for Phase 2.",
     } as const,
     ctaPrimary: "Trade on bite.party",
     /** Act 2+: no bags — open native swap, then bite. */
@@ -103,6 +105,33 @@ export const copy = {
     eyebrow: "The game",
     headline: "The game is simple—eat the apple.",
     body: "Buy. Sell. Transfer. Every time $BITE moves, supply is burned forever. The apple gets smaller. Your share gets bigger.",
+    aftermathEyebrow: "Still chewing",
+    aftermathHeadline: "The timed race is over. The orchard isn't.",
+    aftermathBody:
+      "Trades and burns still destroy supply. Points and seeds keep moving. What that means for players lands in Phase 2.",
+  },
+
+  aftermath: {
+    eyebrow: "Act complete",
+    statsEyebrow: "Final stats",
+    burnedLabel: "Burned",
+    prizeLabel: "Prize pool",
+    playersLabel: "Players",
+    seedsLabel: "Seeds grown",
+    seedsHint: "Across every wallet that played.",
+    /** Shared timing for main prize + meta wager payouts */
+    claimsSoon: "Claims go live within the next 7 days.",
+    boardEyebrow: "The board",
+    boardHeadline: "Who ate the most.",
+    boardBody: "The leaderboard stands. Burns still climb the ranks.",
+    phase2Eyebrow: "Phase 2",
+    phase2Headline: "Something grows from what remains.",
+    phase2Body:
+      "Every trade and burn earned seeds. Seeds become juice — containers, pulp, and whatever we press next. Check yours while we figure out the rules.",
+    phase2Cta: "Check your seeds",
+    phase2Soon: "Phase 2 details soon.",
+    continueTrade: "Keep trading",
+    continueBurn: "Keep burning",
   },
 
   line: {
@@ -152,6 +181,10 @@ export const copy = {
     body: "Burn 50% of the burnable supply before the deadline. Reach the core and the prize pot pays eaters. Miss it, and the apple rots. Only the farmer is paid.",
     clarifier:
       "The farmer is the deployer. The eaters are you. This is not a metaphor. It is fruit.",
+    aftermathEyebrow: "The wager — settled",
+    aftermathHeadline: ["Half the supply.", "Eaters took it."],
+    aftermathBody:
+      "Players won on burns. Price ATH was weather — not the wager. The pot belongs to eaters.",
   },
 
   decay: {
@@ -206,6 +239,18 @@ export const copy = {
     infoTitle: "The Meta Wager",
     infoBody:
       "A side bet on the outcome. Stake $BITE on CORE (50% reached before deadline) or ROT (deadline first). Odds shift with every wager. Winners split the pot proportionally.",
+    settledEyebrow: "The meta wager — settled",
+    settledTitle: "CORE won.",
+    settledTitleRot: "ROT won.",
+    settledBody:
+      "Eaters took the apple. Side bets on CORE take the pot.",
+    settledBodyRot:
+      "The apple rotted. Side bets on ROT take the pot.",
+    resolvedCore: "Resolved — 🍎 CORE wins",
+    resolvedRot: "Resolved — 🪱 ROT wins",
+    claim: "Claim winnings",
+    claiming: "Claiming…",
+    claimed: "✓ Claimed",
   },
 
   core: {
@@ -324,6 +369,10 @@ export const copy = {
     eyebrow: "Tap the apple",
     headline: "The only real burn.",
     body: "Trades write the tape — they move the price and burn a little. Tapping destroys your $BITE permanently and pushes the whole race toward the core.",
+    aftermathEyebrow: "Keep eating",
+    aftermathHeadline: "Burns still count.",
+    aftermathBody:
+      "The timed race is settled. Kitchen burns still destroy $BITE and grow your seeds for Phase 2.",
     cta: "Burn $BITE",
     ctaLocked: "Burns open in Act II. Accumulate now.",
     ctaLockedPrologue: "Burns open after mint. Stay hungry.",
@@ -553,6 +602,7 @@ export const copy = {
     pair: "AAPL",
     mechanism: "Burn on\nevery tx",
     phase: (act: SiteAct) => (act === 0 ? "Prologue" : `Act ${act} of 3`),
+    phaseWon: "Players won",
     burned: (pct: string) => `${pct}%`,
   },
 
@@ -732,10 +782,25 @@ export const copy = {
       "Token is set. Wire AppleKitchen and the indexer will replace demo eaters with live burns and trades.",
     racing: (pct: string) =>
       `The race is live. ${pct}% eaten. Tap the apple to eat.`,
-    core: "🔥 Core reached. The pot pays eaters.",
+    core: "🍎 Players won. The timed race is over. Seeds are counting.",
     rot: "🪱 The apple has rotted. The farmer collects.",
     liveFailed: (err: string) =>
       `Live read failed — showing preview numbers. ${err}`,
+  },
+
+  seeds: {
+    modalEyebrow: "Phase 2",
+    modalTitle: "Your seeds are growing.",
+    modalBody:
+      "The race is over for the clock — not for seeds. Every trade, hold, and burn still earns them. Connect to see yours.",
+    modalBodyRacing:
+      "Every trade, hold, and burn earns seeds. Your seeds determine what happens after the game ends. Connect your wallet to see yours.",
+    checkCta: "Check your seeds",
+    yourSeeds: "Your seeds",
+    noSeeds: "No seeds yet",
+    noSeedsHint: "Buy $BITE and burn to start earning seeds.",
+    viewProfile: "View full profile",
+    startEarning: "Keep playing",
   },
 
   scene: {

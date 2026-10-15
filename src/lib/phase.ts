@@ -13,7 +13,7 @@ import type { RacePhase } from "./race";
  */
 export type SiteAct = 0 | 1 | 2 | 3;
 
-export type NavBadge = "Soon" | "Preparing" | "Live" | "Racing";
+export type NavBadge = "Soon" | "Preparing" | "Live" | "Racing" | "Won";
 
 export type PhaseFlags = {
   act: SiteAct;
@@ -40,6 +40,10 @@ export type PhaseFlags = {
   urgencyBanner: boolean;
   /** Countdown turns red */
   countdownUrgent: boolean;
+  /** Timed race resolved — leaderboard / seeds / phase-2 tease */
+  raceResolved: boolean;
+  /** Eaters won (core). Distinct from rot. */
+  playersWon: boolean;
 };
 
 const META_THRESHOLD = Number(
@@ -139,11 +143,16 @@ export function resolvePhaseFlags(input: {
   }
 
   const daysLeft = input.secondsLeft / 86_400;
-  const urgencyBanner = act === 3 && daysLeft < 7 && daysLeft > 0;
-  const countdownUrgent = act >= 2 && daysLeft < 3;
+  const playersWon = input.racePhase === "core";
+  const raceResolved =
+    input.racePhase === "core" || input.racePhase === "rot";
+  const urgencyBanner =
+    act === 3 && !raceResolved && daysLeft < 7 && daysLeft > 0;
+  const countdownUrgent = act >= 2 && !raceResolved && daysLeft < 3;
 
-  const badge: NavBadge =
-    act === 0
+  const badge: NavBadge = playersWon
+    ? "Won"
+    : act === 0
       ? "Soon"
       : act === 1
         ? "Preparing"
@@ -155,16 +164,20 @@ export function resolvePhaseFlags(input: {
     act,
     badge,
     tradingOpen: act >= 1,
-    showProgress: act >= 2,
+    showProgress: act >= 2 || raceResolved,
     showWager: act >= 2,
+    // Keep the meta wager visible after resolve so the winner can be shown.
     showMetaWager: act >= 2,
-    metaWagerLive: act >= 3 && metaWagerLive,
+    metaWagerLive: (act >= 3 && metaWagerLive) || raceResolved,
+    // Trades and burns keep running after the timed race — seeds still grow.
     burnsOpen: act >= 2 && !DAY_ONE_PLAYTHROUGH,
     howLocked: act <= 1,
-    earlyEaterActive,
-    earlyEaterSecondsLeft,
+    earlyEaterActive: earlyEaterActive && !raceResolved,
+    earlyEaterSecondsLeft: raceResolved ? 0 : earlyEaterSecondsLeft,
     urgencyBanner,
     countdownUrgent,
+    raceResolved,
+    playersWon,
   };
 }
 

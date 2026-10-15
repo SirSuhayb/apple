@@ -93,7 +93,7 @@ function PhaseBanner({
 }) {
   if (racePhase === "core") {
     return (
-      <div className="page-gutter border-b border-[#e53935]/20 bg-[#e53935]/10 py-2.5 text-center text-[13px] font-semibold text-[#e53935]">
+      <div className="page-gutter border-b border-[#34c759]/25 bg-[#34c759]/10 py-2.5 text-center text-[13px] font-semibold text-[#1d7a3a]">
         {copy.phases.banners.core}
       </div>
     );
@@ -297,6 +297,8 @@ function PrizePoolBento({
   burnedDisplay,
   progressPct,
   progress,
+  playersWon,
+  totalSeeds,
 }: {
   stats: SupplyStats | null;
   showProgress: boolean;
@@ -306,6 +308,8 @@ function PrizePoolBento({
   burnedDisplay: string;
   progressPct: string;
   progress: number;
+  playersWon?: boolean;
+  totalSeeds?: number;
 }) {
   const total = stats?.totalSupply ?? 0;
   const burned = Math.max(0, stats?.totalBurned ?? 0);
@@ -313,6 +317,7 @@ function PrizePoolBento({
   // LP is whatever supply is left after wallets and burns, so the three parts sum to supply.
   const contracts = Math.max(0, total - wallets - burned);
   const pctOf = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+  const burnPctOfSupply = pctOf(burned);
   const segments = [
     {
       label: "Burned",
@@ -351,7 +356,7 @@ function PrizePoolBento({
     <div className="grid gap-3">
       <div className={`${tile} px-6 py-7 text-center sm:px-8 sm:py-8`}>
         <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-          Prize pool
+          {playersWon ? copy.aftermath.prizeLabel : "Prize pool"}
         </p>
         <p className="mt-2 text-[clamp(40px,5vw,64px)] font-bold leading-none tracking-[-0.04em] text-[#e53935] tabular-nums">
           {prizeLabel}
@@ -359,6 +364,11 @@ function PrizePoolBento({
         {prizeUsd && (
           <p className="mt-2 text-[17px] tabular-nums text-[#6e6e73]">
             {prizeUsd}
+          </p>
+        )}
+        {playersWon && (
+          <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-snug text-[#6e6e73]">
+            {copy.aftermath.claimsSoon}
           </p>
         )}
         <div className="mt-6 text-left">
@@ -391,7 +401,21 @@ function PrizePoolBento({
 
       <div className="grid grid-cols-2 gap-3">
         <div className={`${tile} flex flex-col px-4 py-5 sm:px-5`}>
-          {showProgress ? (
+          {playersWon ? (
+            <>
+              <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+                {copy.aftermath.burnedLabel}
+              </p>
+              <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums text-[#e53935]">
+                {burnPctOfSupply > 0
+                  ? `${burnPctOfSupply.toFixed(1)}%`
+                  : `${progressPct}%`}
+              </p>
+              <p className="mt-2 text-[13px] text-[#6e6e73]">
+                {copy.core.burned(burnedDisplay)}
+              </p>
+            </>
+          ) : showProgress ? (
             <Countdown
               secondsLeft={secondsLeft}
               deadline={deadline}
@@ -403,38 +427,83 @@ function PrizePoolBento({
               {copy.core.notStarted}
             </p>
           )}
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-baseline justify-between gap-2">
-              <span className="text-[11px] text-[#6e6e73]">
-                {copy.core.burned(showProgress ? burnedDisplay : "0")}
-              </span>
-              <span className="text-[15px] font-bold tabular-nums text-[#e53935]">
-                {showProgress ? progressPct : "0.0"}%
-              </span>
+          {!playersWon && (
+            <div className="mt-4">
+              <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                <span className="text-[11px] text-[#6e6e73]">
+                  {copy.core.burned(showProgress ? burnedDisplay : "0")}
+                </span>
+                <span className="text-[15px] font-bold tabular-nums text-[#e53935]">
+                  {showProgress ? progressPct : "0.0"}%
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-[#d2d2d7]">
+                <div
+                  className="progress-fill h-full rounded-full bg-gradient-to-r from-[#66bb6a] to-[#e53935] transition-[width] duration-1000"
+                  style={{
+                    width: `${showProgress ? Math.min(100, progress * 100) : 0}%`,
+                  }}
+                />
+              </div>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#d2d2d7]">
-              <div
-                className="progress-fill h-full rounded-full bg-gradient-to-r from-[#66bb6a] to-[#e53935] transition-[width] duration-1000"
-                style={{
-                  width: `${showProgress ? Math.min(100, progress * 100) : 0}%`,
-                }}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
-        <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
-          <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-            Players
-          </p>
-          <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums">
-            {holderCount.toLocaleString()}
-          </p>
-          <p className="mt-2 text-[13px] text-[#6e6e73]">
-            {fmtCompact(wallets)} held
-          </p>
-        </div>
+        {playersWon ? (
+          <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+            <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+              {copy.aftermath.seedsLabel}
+            </p>
+            <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums text-[#34c759]">
+              {totalSeeds != null && totalSeeds > 0
+                ? fmtCompact(totalSeeds)
+                : "—"}
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              {copy.aftermath.seedsHint}
+            </p>
+          </div>
+        ) : (
+          <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+            <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+              {copy.aftermath.playersLabel}
+            </p>
+            <p className="mt-3 text-[clamp(32px,4vw,48px)] font-bold leading-none tracking-[-0.03em] tabular-nums">
+              {holderCount.toLocaleString()}
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              {fmtCompact(wallets)} held
+            </p>
+          </div>
+        )}
       </div>
+
+      {playersWon && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+            <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+              {copy.aftermath.playersLabel}
+            </p>
+            <p className="mt-3 text-[clamp(28px,3.5vw,40px)] font-bold leading-none tracking-[-0.03em] tabular-nums">
+              {holderCount.toLocaleString()}
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              {fmtCompact(wallets)} held
+            </p>
+          </div>
+          <div className={`${tile} px-4 py-5 text-center sm:px-5`}>
+            <p className="text-[11px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+              Outcome
+            </p>
+            <p className="mt-3 text-[clamp(28px,3.5vw,40px)] font-bold leading-none tracking-[-0.03em] text-[#34c759]">
+              Won
+            </p>
+            <p className="mt-2 text-[13px] text-[#6e6e73]">
+              Eaters took the apple
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -442,10 +511,12 @@ function PrizePoolBento({
 export function RaceApp({
   initial,
   act1Eaters = [],
+  initialSeedMap = {},
 }: {
   initial: RaceState;
   /** Act I trades + points board (from bot state / public export) */
   act1Eaters?: Eater[];
+  initialSeedMap?: Record<string, number>;
 }) {
   const [state, setState] = useState(initial);
   const {
@@ -458,6 +529,7 @@ export function RaceApp({
     act1Eaters,
     initial.supplyStats,
     weiToTokens(initial.coreTarget),
+    initialSeedMap,
   );
   const [supplyStats, setSupplyStats] = useState<SupplyStats | null>(
     initial.supplyStats ?? null,
@@ -604,7 +676,8 @@ export function RaceApp({
   const burnedDisplay = formatTokenAmount(state.burned);
   const daysLeft = state.secondsLeft / 86_400;
   const tagline = heroTagline(flags.act, state.phase);
-  const raceEnded = state.phase === "core" || state.phase === "rot";
+  const playersWon = flags.playersWon;
+  const raceResolved = flags.raceResolved;
 
   // Same live rows as /leaderboard — mini board is just the top of that list.
   const boardEaters = liveEaters;
@@ -612,6 +685,10 @@ export function RaceApp({
   const appleTotal = resolveAppleTotal(
     liveCoreTarget || weiToTokens(state.coreTarget),
     supplyStats?.totalSupply,
+  );
+  const totalSeeds = useMemo(
+    () => Object.values(seedMap).reduce((sum, n) => sum + (n || 0), 0),
+    [seedMap],
   );
 
   /** Default: in-site AAPL↔$BITE swap. NEXT_PUBLIC_SWAP_PROVIDER=pons keeps the launchpad deep-link. */
@@ -625,7 +702,7 @@ export function RaceApp({
   };
 
   const openBite = () => {
-    if (!flags.burnsOpen || raceEnded) return;
+    if (!flags.burnsOpen) return;
     setModalOpen(true);
   };
 
@@ -651,7 +728,7 @@ export function RaceApp({
   type HeroPrimary = "soon" | "trade" | "buyThenBite" | "firstBite" | "burn";
   const heroPrimary: HeroPrimary = (() => {
     if (!flags.tradingOpen) return "soon";
-    if (!flags.burnsOpen || raceEnded) return "trade";
+    if (!flags.burnsOpen) return "trade";
     if (!holdingBite) return "buyThenBite";
     if (!hasTakenBite) return "firstBite";
     return "burn";
@@ -661,12 +738,18 @@ export function RaceApp({
     heroPrimary === "soon"
       ? copy.hero.ctaPrimarySoon
       : heroPrimary === "buyThenBite"
-        ? copy.hero.ctaBuyThenBite
+        ? playersWon
+          ? copy.aftermath.continueTrade
+          : copy.hero.ctaBuyThenBite
         : heroPrimary === "firstBite"
           ? copy.hero.ctaFirstBite
           : heroPrimary === "burn"
-            ? copy.hero.ctaBurn
-            : copy.hero.ctaPrimary;
+            ? playersWon
+              ? copy.aftermath.continueBurn
+              : copy.hero.ctaBurn
+            : playersWon
+              ? copy.aftermath.continueTrade
+              : copy.hero.ctaPrimary;
 
   const heroPrimaryAction =
     heroPrimary === "buyThenBite" || heroPrimary === "trade"
@@ -701,11 +784,13 @@ export function RaceApp({
             <span
               className={[
                 "rounded-full border px-2.5 py-0.5 text-[11px] font-semibold tracking-wide uppercase",
-                flags.act === 0 || flags.act === 1
-                  ? "border-[#d2d2d7] bg-[#f5f5f7] text-[#6e6e73]"
-                  : flags.act === 2
-                    ? "border-[#34c759]/40 bg-[#34c759]/15 text-[#34c759]"
-                    : "border-[#e53935]/40 bg-[#e53935]/15 text-[#e53935]",
+                playersWon
+                  ? "border-[#34c759]/40 bg-[#34c759]/15 text-[#1d7a3a]"
+                  : flags.act === 0 || flags.act === 1
+                    ? "border-[#d2d2d7] bg-[#f5f5f7] text-[#6e6e73]"
+                    : flags.act === 2
+                      ? "border-[#34c759]/40 bg-[#34c759]/15 text-[#34c759]"
+                      : "border-[#e53935]/40 bg-[#e53935]/15 text-[#e53935]",
               ].join(" ")}
             >
               {flags.badge}
@@ -731,7 +816,9 @@ export function RaceApp({
         </div>
       </header>
 
-      <AppleConditionBanner decay={displayDecay} floors={state.decayFloors} />
+      {!playersWon && (
+        <AppleConditionBanner decay={displayDecay} floors={state.decayFloors} />
+      )}
 
       <PhaseBanner
         act={flags.act}
@@ -748,13 +835,13 @@ export function RaceApp({
         onBuy={openBuy}
         onBite={openBite}
         tradingOpen={flags.tradingOpen}
-        burnsOpen={flags.burnsOpen && !raceEnded}
+        burnsOpen={flags.burnsOpen}
         onActiveChange={setReferralChecklistActive}
       />
       <FirstBiteQuestBanner
         eaters={boardEaters}
         onBite={openBite}
-        burnsOpen={flags.burnsOpen && !raceEnded}
+        burnsOpen={flags.burnsOpen}
         suppressed={referralChecklistActive}
       />
 
@@ -771,9 +858,13 @@ export function RaceApp({
         <p className="animate-rise-delay-1 mt-2 text-[clamp(19px,4vw,28px)] font-normal text-[#6e6e73]">
           {tagline}
         </p>
-        {(flags.act === 0 || flags.act === 1) && (
+        {(flags.act === 0 || flags.act === 1 || playersWon) && (
           <p className="animate-rise-delay-1 mx-auto mt-3 max-w-[420px] text-[15px] leading-relaxed text-[#6e6e73]">
-            {flags.act === 0 ? copy.hero.support[0] : copy.hero.support[1]}
+            {playersWon
+              ? copy.hero.support.core
+              : flags.act === 0
+                ? copy.hero.support[0]
+                : copy.hero.support[1]}
           </p>
         )}
 
@@ -781,11 +872,11 @@ export function RaceApp({
           <div
             className={[
               "relative aspect-square w-[min(100%,min(48svh,420px))]",
-              flags.burnsOpen && !raceEnded ? "cursor-pointer" : "",
+              flags.burnsOpen ? "cursor-pointer" : "",
             ].join(" ")}
-            onClick={flags.burnsOpen && !raceEnded ? openBite : undefined}
+            onClick={flags.burnsOpen ? openBite : undefined}
             onKeyDown={
-              flags.burnsOpen && !raceEnded
+              flags.burnsOpen
                 ? (e) => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
@@ -794,10 +885,10 @@ export function RaceApp({
                   }
                 : undefined
             }
-            role={flags.burnsOpen && !raceEnded ? "button" : undefined}
-            tabIndex={flags.burnsOpen && !raceEnded ? 0 : undefined}
+            role={flags.burnsOpen ? "button" : undefined}
+            tabIndex={flags.burnsOpen ? 0 : undefined}
             aria-label={
-              flags.burnsOpen && !raceEnded
+              flags.burnsOpen
                 ? `${copy.hero.sticker.action} ${copy.hero.sticker.detail}`
                 : undefined
             }
@@ -805,7 +896,7 @@ export function RaceApp({
             <AppleScene
               frame={displayFrame}
               rot={legalRot}
-              decay={displayDecay}
+              decay={playersWon ? Math.min(displayDecay, 35) : displayDecay}
               juicePulse={juicePulse}
               enableOrbit={flags.act >= 2 && !DAY_ONE_PLAYTHROUGH}
             />
@@ -832,7 +923,14 @@ export function RaceApp({
               {heroPrimaryLabel}
             </button>
           )}
-          {heroSecondaryIsTrade ? (
+          {playersWon ? (
+            <a
+              href="#eaters"
+              className="flex items-center text-[15px] text-[#2997ff] no-underline"
+            >
+              {copy.nav.leaderboard} ↓
+            </a>
+          ) : heroSecondaryIsTrade ? (
             <button
               type="button"
               onClick={openBuy}
@@ -873,21 +971,95 @@ export function RaceApp({
           burnedDisplay={burnedDisplay}
           progressPct={pct}
           progress={displayProgress}
+          playersWon={playersWon}
+          totalSeeds={totalSeeds}
         />
         </div>
       </section>
+
+      {/* Leaderboard — first after hero when players won */}
+      {playersWon && (
+        <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
+          <div className="mx-auto max-w-[580px]">
+            <div className="mb-6 text-center">
+              <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+                {copy.aftermath.boardEyebrow}
+              </p>
+              <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+                {copy.aftermath.boardHeadline}
+              </h2>
+              <p className="mt-3 text-[15px] leading-snug text-[#6e6e73]">
+                {copy.aftermath.boardBody}
+              </p>
+              <p className="mt-2 text-[15px] font-semibold leading-snug text-[#1d1d1f]">
+                {copy.eaters.prizeEligible}
+              </p>
+            </div>
+            <EatersBoard
+              eaters={boardEaters}
+              mode={boardMode}
+              appleTotal={appleTotal}
+            />
+            <div className="mt-5 text-center">
+              <Link
+                href="/leaderboard"
+                className="inline-flex text-[15px] font-medium text-[#2997ff]"
+              >
+                {copy.leaderboard.viewAll} →
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Phase 2 / seeds tease */}
+      {playersWon && (
+        <section
+          id="phase2"
+          className="page-gutter bg-[#fbfbfd] py-20 text-center"
+        >
+          <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#34c759] uppercase">
+            {copy.aftermath.phase2Eyebrow}
+          </p>
+          <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+            {copy.aftermath.phase2Headline}
+          </h2>
+          <p className="mx-auto mt-3.5 max-w-[460px] text-[17px] leading-relaxed text-[#6e6e73]">
+            {copy.aftermath.phase2Body}
+          </p>
+          {totalSeeds > 0 && (
+            <p className="mx-auto mt-5 text-[28px] font-bold tabular-nums tracking-[-0.02em] text-[#1d1d1f]">
+              {totalSeeds.toLocaleString()}{" "}
+              <span className="text-[15px] font-semibold tracking-[1px] text-[#34c759] uppercase">
+                seeds
+              </span>
+            </p>
+          )}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
+            <Link
+              href="/me"
+              className="rounded-full bg-[#34c759] px-7 py-3.5 text-[15px] font-semibold text-white transition hover:bg-[#2db84e]"
+            >
+              {copy.aftermath.phase2Cta}
+            </Link>
+            <p className="text-[13px] text-[#6e6e73]">
+              {copy.aftermath.phase2Soon}
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* Game */}
       <section id="game" className="bg-[#f5f5f7] py-16 text-center">
         <div className="page-gutter mx-auto max-w-[980px]">
           <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-            {copy.game.eyebrow}
+            {playersWon ? copy.game.aftermathEyebrow : copy.game.eyebrow}
           </p>
           <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
-            {copy.game.headline}
+            {playersWon ? copy.game.aftermathHeadline : copy.game.headline}
           </h2>
           <p className="mx-auto mt-3.5 max-w-[440px] text-[17px] leading-relaxed text-[#6e6e73]">
-            {copy.game.body}
+            {playersWon ? copy.game.aftermathBody : copy.game.body}
           </p>
           <p className="mt-10 mb-5 text-[17px] font-bold text-[#1d1d1f]">
             {copy.how.intro}
@@ -903,34 +1075,56 @@ export function RaceApp({
           className="page-gutter bg-[#fbfbfd] py-20 text-center"
         >
           <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-            {copy.wager.eyebrow}
+            {playersWon ? copy.wager.aftermathEyebrow : copy.wager.eyebrow}
           </p>
           <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
-            {copy.wager.headline[0]}
+            {playersWon
+              ? copy.wager.aftermathHeadline[0]
+              : copy.wager.headline[0]}
             <br />
-            {copy.wager.headline[1]}
+            {playersWon
+              ? copy.wager.aftermathHeadline[1]
+              : copy.wager.headline[1]}
           </h2>
           <p className="mx-auto mt-3.5 max-w-[460px] text-[17px] leading-relaxed text-[#6e6e73]">
-            {copy.wager.body}
+            {playersWon ? copy.wager.aftermathBody : copy.wager.body}
           </p>
-          <p className="mt-2.5 text-[13px] text-[#6e6e73] italic">
-            {copy.wager.clarifier}
-          </p>
+          {playersWon ? (
+            <p className="mx-auto mt-4 max-w-[420px] rounded-full border border-[#34c759]/25 bg-[#34c759]/10 px-4 py-2 text-[13px] font-semibold text-[#1d7a3a]">
+              {copy.aftermath.claimsSoon}
+            </p>
+          ) : (
+            <p className="mt-2.5 text-[13px] text-[#6e6e73] italic">
+              {copy.wager.clarifier}
+            </p>
+          )}
         </section>
       )}
 
-      {/* Meta wager — Act II+ */}
+      {/* Meta wager — live while racing; settled winner after resolve */}
       {flags.showMetaWager && (
-        <section className="page-gutter bg-[#fbfbfd] pb-[60px]">
+        <section
+          id="meta-wager"
+          className={[
+            "page-gutter bg-[#fbfbfd]",
+            playersWon || raceResolved ? "py-16" : "pb-[60px]",
+          ].join(" ")}
+        >
           <div className="mx-auto max-w-[480px]">
             <div className="mb-3 flex items-center gap-2">
               <p className="text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-                {copy.metaWager.eyebrow}
+                {playersWon || raceResolved
+                  ? copy.metaWager.settledEyebrow
+                  : copy.metaWager.eyebrow}
               </p>
               <MetaWagerInfo />
             </div>
-            {flags.metaWagerLive ? (
-              <MetaWagerLive />
+            {flags.metaWagerLive || playersWon || raceResolved ? (
+              <MetaWagerLive
+                forcedWinner={
+                  playersWon ? "core" : state.phase === "rot" ? "rot" : null
+                }
+              />
             ) : (
               <MetaWagerEmpty progress={state.progress} />
             )}
@@ -938,34 +1132,36 @@ export function RaceApp({
         </section>
       )}
 
-      {/* Biggest eaters */}
-      <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
-        <div className="mx-auto max-w-[580px]">
-          <div className="mb-6 text-center">
-            <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
-              {copy.eaters.introAct2[0]} {copy.eaters.introAct2[1]}
-            </h2>
-            <p className="mt-3 text-[15px] font-semibold leading-snug text-[#1d1d1f]">
-              {copy.eaters.prizeEligible}
-            </p>
+      {/* Biggest eaters — racing layout */}
+      {!playersWon && (
+        <section id="eaters" className="page-gutter bg-[#f5f5f7] py-[60px]">
+          <div className="mx-auto max-w-[580px]">
+            <div className="mb-6 text-center">
+              <h2 className="text-[clamp(26px,6vw,40px)] font-bold leading-[1.12] tracking-[-0.02em]">
+                {copy.eaters.introAct2[0]} {copy.eaters.introAct2[1]}
+              </h2>
+              <p className="mt-3 text-[15px] font-semibold leading-snug text-[#1d1d1f]">
+                {copy.eaters.prizeEligible}
+              </p>
+            </div>
+            <EatersBoard
+              eaters={boardEaters}
+              mode={boardMode}
+              appleTotal={appleTotal}
+            />
+            {flags.act === 0 && boardEaters.length === 0 && (
+              <p className="mt-3 text-center text-[13px] text-[#6e6e73] italic">
+                {copy.eaters.emptyHintPrologue}
+              </p>
+            )}
+            {flags.act === 1 && boardEaters.length === 0 && (
+              <p className="mt-3 text-center text-[13px] text-[#6e6e73] italic">
+                {copy.leaderboard.emptyHintAct1}
+              </p>
+            )}
           </div>
-          <EatersBoard
-            eaters={boardEaters}
-            mode={boardMode}
-            appleTotal={appleTotal}
-          />
-          {flags.act === 0 && boardEaters.length === 0 && (
-            <p className="mt-3 text-center text-[13px] text-[#6e6e73] italic">
-              {copy.eaters.emptyHintPrologue}
-            </p>
-          )}
-          {flags.act === 1 && boardEaters.length === 0 && (
-            <p className="mt-3 text-center text-[13px] text-[#6e6e73] italic">
-              {copy.leaderboard.emptyHintAct1}
-            </p>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Why AAPL */}
       <section id="pairing" className="page-gutter bg-[#fbfbfd] py-20">
@@ -997,10 +1193,15 @@ export function RaceApp({
                 ["Standard", copy.finePrint.standard],
                 ["Pair", copy.finePrint.pair],
                 ["Mechanism", copy.finePrint.mechanism],
-                ["Phase", copy.finePrint.phase(flags.act)],
+                [
+                  "Phase",
+                  playersWon
+                    ? copy.finePrint.phaseWon
+                    : copy.finePrint.phase(flags.act),
+                ],
                 [
                   "Burned",
-                  copy.finePrint.burned(flags.act <= 1 ? "0" : pct),
+                  copy.finePrint.burned(flags.act <= 1 && !playersWon ? "0" : pct),
                 ],
               ] as const
             ).map(([label, value]) => (
@@ -1023,27 +1224,27 @@ export function RaceApp({
       {/* Tap / Burn section */}
       <section id="burn" className="page-gutter bg-[#fbfbfd] py-20 text-center">
         <p className="mb-2.5 text-xs font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-          {copy.tap.eyebrow}
+          {playersWon ? copy.tap.aftermathEyebrow : copy.tap.eyebrow}
         </p>
         <h2 className="text-[clamp(26px,6vw,40px)] font-bold tracking-[-0.02em]">
-          {copy.tap.headline}
+          {playersWon ? copy.tap.aftermathHeadline : copy.tap.headline}
         </h2>
         <p className="mx-auto mt-3.5 max-w-[440px] text-[15px] leading-relaxed text-[#6e6e73]">
-          {copy.tap.body}
+          {playersWon ? copy.tap.aftermathBody : copy.tap.body}
         </p>
         <div className="mt-8">
-          {raceEnded ? (
-            <p className="text-[15px] font-medium text-[#6e6e73]">
-              {copy.tap.raceOver}
-            </p>
-          ) : flags.burnsOpen ? (
+          {flags.burnsOpen ? (
             <button
               type="button"
               onClick={openBite}
               className="rounded-full bg-[#1d1d1f] px-7 py-3.5 text-[15px] font-semibold text-white transition hover:bg-black"
             >
-              {copy.tap.cta}
+              {playersWon ? copy.aftermath.continueBurn : copy.tap.cta}
             </button>
+          ) : raceResolved && !playersWon ? (
+            <p className="text-[15px] font-medium text-[#6e6e73]">
+              {copy.tap.raceOver}
+            </p>
           ) : (
             <p className="text-[15px] font-medium text-[#6e6e73]">
               {flags.act === 0
@@ -1071,9 +1272,9 @@ export function RaceApp({
 
       <SiteFooter />
 
-      <SeedsModal seedMap={seedMap} />
+      <SeedsModal seedMap={seedMap} playersWon={playersWon} />
 
-      {flags.burnsOpen && !raceEnded && (
+      {flags.burnsOpen && (
         <BiteModal
           open={modalOpen}
           onClose={() => setModalOpen(false)}
