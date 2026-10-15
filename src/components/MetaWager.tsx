@@ -183,12 +183,9 @@ export function MetaWagerLive({
   const corePct =
     totalStaked > BigInt(0)
       ? Number((totalCore * BigInt(10000)) / totalStaked) / 100
-      : forcedWinner === "core"
-        ? 100
-        : forcedWinner === "rot"
-          ? 0
-          : 50;
+      : 50;
   const rotPct = 100 - corePct;
+  const hasStakes = totalStaked > BigInt(0);
 
   // ── Wallet ──
   const { address, isConnected, chainId } = useAccount();
@@ -324,43 +321,80 @@ export function MetaWagerLive({
         </div>
       )}
 
-      {/* Odds bar */}
-      <div className="mb-2.5 flex justify-between">
-        <span
-          className={[
-            "text-[15px] font-bold",
-            settledCore ? "text-[#34c759]" : "text-[#6e6e73]",
-          ].join(" ")}
-        >
-          🍎 CORE {corePct.toFixed(1)}%
-          {settledCore ? " · won" : ""}
-        </span>
-        <span
-          className={[
-            "text-[15px] font-bold",
-            settledRot ? "text-[#d4a04a]" : "text-[#6e6e73]",
-          ].join(" ")}
-        >
-          {settledRot ? "won · " : ""}
-          ROT {rotPct.toFixed(1)}% 🪱
-        </span>
-      </div>
-      <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#f5f5f7]">
-        <div
-          className="bg-[#34c759] transition-[width] duration-500"
-          style={{ width: `${corePct}%` }}
-        />
-        <div
-          className="bg-[#d4a04a] transition-[width] duration-500"
-          style={{ width: `${rotPct}%` }}
-        />
-      </div>
-
-      {/* Staked totals */}
-      <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
-        <span>{fmtBite(totalCore)} $BITE on Core</span>
-        <span>{fmtBite(totalRot)} $BITE on Rot</span>
-      </div>
+      {/* Odds bar — only meaningful when someone staked */}
+      {hasStakes ? (
+        <>
+          <div className="mb-2.5 flex justify-between">
+            <span
+              className={[
+                "text-[15px] font-bold",
+                settledCore ? "text-[#34c759]" : "text-[#6e6e73]",
+              ].join(" ")}
+            >
+              🍎 CORE {corePct.toFixed(1)}%
+              {settledCore ? " · won" : ""}
+            </span>
+            <span
+              className={[
+                "text-[15px] font-bold",
+                settledRot ? "text-[#d4a04a]" : "text-[#6e6e73]",
+              ].join(" ")}
+            >
+              {settledRot ? "won · " : ""}
+              ROT {rotPct.toFixed(1)}% 🪱
+            </span>
+          </div>
+          <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#f5f5f7]">
+            <div
+              className="bg-[#34c759] transition-[width] duration-500"
+              style={{ width: `${corePct}%` }}
+            />
+            <div
+              className="bg-[#d4a04a] transition-[width] duration-500"
+              style={{ width: `${rotPct}%` }}
+            />
+          </div>
+          <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
+            <span>{fmtBite(totalCore)} $BITE on Core</span>
+            <span>{fmtBite(totalRot)} $BITE on Rot</span>
+          </div>
+        </>
+      ) : isResolved ? (
+        <div className="flex items-center justify-center gap-6 text-[15px] font-bold">
+          <span className={settledCore ? "text-[#34c759]" : "text-[#6e6e73]"}>
+            🍎 CORE{settledCore ? " · won" : ""}
+          </span>
+          <span className="font-normal text-[#d2d2d7]">vs</span>
+          <span className={settledRot ? "text-[#d4a04a]" : "text-[#6e6e73]"}>
+            {settledRot ? "won · " : ""}ROT 🪱
+          </span>
+        </div>
+      ) : (
+        <>
+          <div className="mb-2.5 flex justify-between">
+            <span className="text-[15px] font-bold text-[#34c759]">
+              🍎 CORE {corePct.toFixed(1)}%
+            </span>
+            <span className="text-[15px] font-bold text-[#6e6e73]">
+              ROT {rotPct.toFixed(1)}% 🪱
+            </span>
+          </div>
+          <div className="flex h-2.5 overflow-hidden rounded-[5px] bg-[#f5f5f7]">
+            <div
+              className="bg-[#34c759] transition-[width] duration-500"
+              style={{ width: `${corePct}%` }}
+            />
+            <div
+              className="bg-[#d4a04a] transition-[width] duration-500"
+              style={{ width: `${rotPct}%` }}
+            />
+          </div>
+          <div className="mt-2 flex justify-between text-[11px] text-[#6e6e73]">
+            <span>{fmtBite(totalCore)} $BITE on Core</span>
+            <span>{fmtBite(totalRot)} $BITE on Rot</span>
+          </div>
+        </>
+      )}
 
       {/* Claim when on-chain resolve is live */}
       {isResolved && (
