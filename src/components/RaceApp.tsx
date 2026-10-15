@@ -366,6 +366,11 @@ function PrizePoolBento({
             {prizeUsd}
           </p>
         )}
+        {playersWon && (
+          <p className="mx-auto mt-3 max-w-[280px] text-[13px] leading-snug text-[#6e6e73]">
+            {copy.aftermath.claimsSoon}
+          </p>
+        )}
         <div className="mt-6 text-left">
           <div className="flex h-1.5 overflow-hidden rounded-full bg-[#d2d2d7]">
             {segments.map((segment) => (
@@ -1084,7 +1089,11 @@ export function RaceApp({
           <p className="mx-auto mt-3.5 max-w-[460px] text-[17px] leading-relaxed text-[#6e6e73]">
             {playersWon ? copy.wager.aftermathBody : copy.wager.body}
           </p>
-          {!playersWon && (
+          {playersWon ? (
+            <p className="mx-auto mt-4 max-w-[420px] rounded-full border border-[#34c759]/25 bg-[#34c759]/10 px-4 py-2 text-[13px] font-semibold text-[#1d7a3a]">
+              {copy.aftermath.claimsSoon}
+            </p>
+          ) : (
             <p className="mt-2.5 text-[13px] text-[#6e6e73] italic">
               {copy.wager.clarifier}
             </p>

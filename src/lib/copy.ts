@@ -119,6 +119,8 @@ export const copy = {
     playersLabel: "Players",
     seedsLabel: "Seeds grown",
     seedsHint: "Across every wallet that played.",
+    /** Shared timing for main prize + meta wager payouts */
+    claimsSoon: "Claims go live within the next 7 days.",
     boardEyebrow: "The board",
     boardHeadline: "Who ate the most.",
     boardBody: "The leaderboard stands. Burns still climb the ranks.",
@@ -241,9 +243,9 @@ export const copy = {
     settledTitle: "CORE won.",
     settledTitleRot: "ROT won.",
     settledBody:
-      "Eaters took the apple. Side bets on CORE take the pot. Claim if you were on the winning side.",
+      "Eaters took the apple. Side bets on CORE take the pot.",
     settledBodyRot:
-      "The apple rotted. Side bets on ROT take the pot. Claim if you were on the winning side.",
+      "The apple rotted. Side bets on ROT take the pot.",
     resolvedCore: "Resolved — 🍎 CORE wins",
     resolvedRot: "Resolved — 🪱 ROT wins",
     claim: "Claim winnings",

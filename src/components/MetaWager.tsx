@@ -318,6 +318,9 @@ export function MetaWagerLive({
                 ? copy.metaWager.settledBodyRot
                 : null}
           </p>
+          <p className="mx-auto mt-2.5 max-w-[320px] text-[12px] font-semibold text-[#1d7a3a]">
+            {copy.aftermath.claimsSoon}
+          </p>
         </div>
       )}
 
@@ -422,11 +425,6 @@ export function MetaWagerLive({
           {userClaimed && (
             <p className="mt-1 text-xs text-[#34c759]">
               {copy.metaWager.claimed}
-            </p>
-          )}
-          {!canClaimOnChain && forcedWinner && (
-            <p className="mt-1.5 text-[11px] text-[#6e6e73]">
-              On-chain claims open once the wager contract is resolved.
             </p>
           )}
         </div>
