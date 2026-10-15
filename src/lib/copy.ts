@@ -52,7 +52,7 @@ export const copy = {
         `🍎 ${pct}% eaten. ${days} days left. The whole orchard is watching.`,
       browning: "The apple is browning.",
       minutes: "Minutes remain.",
-      core: "🍎 Players won. More than half the supply is gone — Phase 2 is forming.",
+      core: "🍎 Players won. The timed race is over — Phase 2 is forming.",
       rot: "🪱 Deadline passed. The farmer collects.",
     },
   },
