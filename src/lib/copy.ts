@@ -768,7 +768,7 @@ export const copy = {
       "Token is set. Wire AppleKitchen and the indexer will replace demo eaters with live burns and trades.",
     racing: (pct: string) =>
       `The race is live. ${pct}% eaten. Tap the apple to eat.`,
-    core: "🍎 Players won. More than half the supply is gone. Seeds are counting.",
+    core: "🍎 Players won. The timed race is over. Seeds are counting.",
     rot: "🪱 The apple has rotted. The farmer collects.",
     liveFailed: (err: string) =>
       `Live read failed — showing preview numbers. ${err}`,
