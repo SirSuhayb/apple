@@ -91,6 +91,14 @@ export const CAMPAIGN_OF_DOLLAR = 0.4;
 export const DIVIDEND_OF_DOLLAR = 0.6;
 export const BOTTLE_COGS = 1.45;
 
+/** Pressed Juicery juice shelf, checked October 2026. VIP here is a poured container. */
+export const REGULAR_PRICE = 6.95;
+export const NFT_PRICE = 5.5;
+
+export function companyBeforeLabor(price: number): number {
+  return Math.round((price - BOTTLE_COGS - TREASURY_PER_BOTTLE) * 100) / 100;
+}
+
 export function oneContainerShare(oz: number): number {
   return oz / TOTAL_OZ;
 }

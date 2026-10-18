@@ -11,12 +11,16 @@ import {
   AS_OF,
   BITE_MC_USD,
   CONTAINERS,
+  BOTTLE_COGS,
   DIVIDEND_OF_DOLLAR,
   JUICE_SUPPLY,
+  NFT_PRICE,
   OPENS,
+  REGULAR_PRICE,
   SEED_WALLETS,
   TOTAL_OZ,
   WALLET_BITE,
+  companyBeforeLabor,
   juicePrice,
   openFdv,
 } from "@/lib/whitepaper";
@@ -276,20 +280,27 @@ export default function WhitepaperPage() {
               One dollar leaves every bottle.
             </h2>
             <p className="mt-4 max-w-[64ch] text-[17px] leading-relaxed text-[#6e6e73]">
-              At a $4.50 bottle and a $1.45 cost, $3.05 is gross. One dollar
-              is set aside. Forty cents of that dollar can fund campaigns.
-              Sixty cents is the container dividend. A vote can move the
+              Pressed Juicery lists a juice at {usd(REGULAR_PRICE, 2)}, and{" "}
+              {usd(NFT_PRICE, 2)} for VIP. Regular here is {usd(REGULAR_PRICE, 2)}.
+              A poured container pays {usd(NFT_PRICE, 2)}. Pulp and raw $JUICE
+              pay regular. Cost stays {usd(BOTTLE_COGS, 2)}. One dollar is set
+              aside at both prices. Forty cents of that dollar can fund
+              campaigns. Sixty cents is the container dividend. The{" "}
+              {usd(REGULAR_PRICE - NFT_PRICE, 2)} discount comes out of the
+              company, so the dollar does not shrink. A vote can move the
               split. The buys do not mint new $JUICE.
             </p>
-            <div className="mt-10 max-w-[760px]">
+            <div className="mt-10 max-w-[820px]">
               <BottleSplit />
             </div>
             <p className="mt-8 max-w-[68ch] text-[15px] leading-relaxed text-[#6e6e73]">
-              A $6 bottle leaves $3.55 in the company after the same dollar.
-              Published bottled costs, once packaging and cold freight are
-              in, often run $1.55 to $3.50, and shelf prices often run $7
-              to $12. At a true $3 cost, a $4.50 bottle cannot spare a
-              dollar. The dollar is safe on the $1.45 figure.
+              After the dollar, the company keeps{" "}
+              {usd(companyBeforeLabor(REGULAR_PRICE), 2)} on a regular bottle
+              and {usd(companyBeforeLabor(NFT_PRICE), 2)} on an NFT bottle,
+              before labor. Published bottled costs, once packaging and cold
+              freight are in, often run $1.55 to $3.50. At a $3 cost the
+              regular bottle still keeps $2.95 and the NFT bottle keeps $1.50.
+              The dollar still leaves both.
             </p>
           </div>
         </section>
@@ -306,6 +317,7 @@ export default function WhitepaperPage() {
               <li>The liquidity position is locked. The fee is 1%. Other LPs can join.</li>
               <li>Seeds cap the press. A wallet that did not play cannot push $BITE through on day one.</li>
               <li>Container weight is ounces. That ratio is 8, 4, 2, 1.</li>
+              <li>A poured container pays {usd(NFT_PRICE, 2)}. Everyone else pays {usd(REGULAR_PRICE, 2)}.</li>
             </ul>
             <p className="mt-8 text-[14px] leading-relaxed text-[#6e6e73]">
               This page is a draft for reading on a local machine. It is
