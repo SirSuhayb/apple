@@ -87,6 +87,17 @@ function Bottle({ id, price }: { id: string; price: number }) {
   );
 }
 
+function Figures({ amount, pct }: { amount: number; pct?: number }) {
+  return (
+    <span className="inline-grid grid-cols-[4.25rem_2.25rem] items-baseline gap-x-2 font-mono tabular-nums">
+      <span className="text-right">{money(amount)}</span>
+      <span className="text-right text-[#6e6e73]">
+        {pct == null ? "" : `${pct}%`}
+      </span>
+    </span>
+  );
+}
+
 export function BottleSplit() {
   const regularParts = percentParts(REGULAR_PRICE);
   const nftParts = percentParts(NFT_PRICE);
@@ -117,39 +128,41 @@ export function BottleSplit() {
           </article>
         ))}
       </div>
-      <div className="mt-8">
-        <div className="grid grid-cols-[1fr_6.5rem_6.5rem] gap-x-4 pb-2 text-[12px] tracking-[0.08em] text-[#6e6e73] uppercase">
-          <span />
-          <span className="text-right">Regular</span>
+      <div className="mt-8 text-[15px]">
+        <div className="grid grid-cols-2 gap-x-6 pb-2 text-[12px] tracking-[0.08em] text-[#6e6e73] uppercase sm:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem]">
+          <span className="hidden sm:block" />
+          <span className="pl-5 text-right sm:pl-0">Regular</span>
           <span className="text-right">NFT</span>
         </div>
-        <ul className="space-y-3">
+        <ul>
           {rows.map(([label, regularAmount, nftAmount, fill], index) => (
             <li
               key={label}
-              className="grid grid-cols-[1fr_6.5rem_6.5rem] items-baseline gap-x-4 border-b border-[#d2d2d7] pb-3 text-[15px]"
+              className="grid grid-cols-2 gap-x-6 gap-y-1 border-b border-[#d2d2d7] py-3 sm:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem] sm:items-center sm:gap-y-0"
             >
-              <span className="flex items-center gap-3">
+              <span className="col-span-2 flex items-center gap-2.5 sm:col-span-1">
                 <span
                   className="inline-block h-3 w-3 shrink-0 rounded-full"
                   style={{ background: fill }}
                 />
                 {label}
               </span>
-              <span className="text-right font-mono">
-                {money(regularAmount)}
-                <span className="ml-2 text-[#6e6e73]">{regularParts[index]}%</span>
+              <span className="flex justify-end pl-5 sm:pl-0">
+                <Figures amount={regularAmount} pct={regularParts[index]} />
               </span>
-              <span className="text-right font-mono">
-                {money(nftAmount)}
-                <span className="ml-2 text-[#6e6e73]">{nftParts[index]}%</span>
+              <span className="flex justify-end">
+                <Figures amount={nftAmount} pct={nftParts[index]} />
               </span>
             </li>
           ))}
-          <li className="grid grid-cols-[1fr_6.5rem_6.5rem] items-baseline gap-x-4 text-[15px] font-semibold">
-            <span>Shelf</span>
-            <span className="text-right font-mono">{money(REGULAR_PRICE)}</span>
-            <span className="text-right font-mono">{money(NFT_PRICE)}</span>
+          <li className="grid grid-cols-2 gap-x-6 gap-y-1 py-3 font-semibold sm:grid-cols-[minmax(0,1fr)_9.5rem_9.5rem] sm:items-center sm:gap-y-0">
+            <span className="col-span-2 pl-5 sm:col-span-1 sm:pl-0">Shelf</span>
+            <span className="flex justify-end pl-5 sm:pl-0">
+              <Figures amount={REGULAR_PRICE} />
+            </span>
+            <span className="flex justify-end">
+              <Figures amount={NFT_PRICE} />
+            </span>
           </li>
         </ul>
       </div>
