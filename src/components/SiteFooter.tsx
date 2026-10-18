@@ -24,6 +24,9 @@ export function SiteFooter() {
         >
           {copy.take.social.telegram}
         </a>
+        <Link href="/whitepaper" className="text-[13px] text-[#2997ff]">
+          {copy.footer.whitepaper}
+        </Link>
         <Link href="/privacy" className="text-[13px] text-[#2997ff]">
           {copy.footer.privacy}
         </Link>

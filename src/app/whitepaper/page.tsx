@@ -30,10 +30,9 @@ import {
 } from "@/lib/whitepaper";
 
 export const metadata: Metadata = {
-  title: "Draft — $JUICE",
+  title: "$JUICE",
   description:
-    "Draft notes for the $JUICE press. Not published. Not an offer.",
-  robots: { index: false, follow: false, nocache: true },
+    "How $JUICE is pressed from $BITE. Supply, the book, containers, the bottle, and the year 1 payout.",
 };
 
 function usd(n: number, digits = 0): string {
@@ -66,8 +65,8 @@ export default function WhitepaperPage() {
           <Link href="/" className="text-[17px] font-semibold tracking-[-0.02em]">
             $BITE
           </Link>
-          <p className="text-[12px] font-medium tracking-[0.14em] text-[#e53935] uppercase">
-            Draft · local only
+          <p className="text-[12px] font-medium tracking-[0.14em] text-[#6e6e73] uppercase">
+            Whitepaper
           </p>
         </div>
       </header>
@@ -356,9 +355,8 @@ export default function WhitepaperPage() {
               <li>Year 1 is {YEAR1_BOTTLES_PER_QUARTER.toLocaleString("en-US")} bottles a quarter.</li>
             </ul>
             <p className="mt-8 text-[14px] leading-relaxed text-[#6e6e73]">
-              This page is a draft for reading on a local machine. It is
-              not an offer, a listing, or a promise that these figures ship.
-              Pool math uses the Robinhood $BITE/AAPL pool on {AS_OF}.
+              This is not an offer, a listing, or a promise that these figures
+              ship. Pool math uses the Robinhood $BITE/AAPL pool on {AS_OF}.
             </p>
           </div>
         </section>

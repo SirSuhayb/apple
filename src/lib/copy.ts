@@ -754,6 +754,7 @@ export const copy = {
       "$BITE is a deflationary memecoin on Robinhood Chain. Every transaction burns supply. That is not financial advice. That is fruit.",
     privacy: "Privacy",
     terms: "Terms",
+    whitepaper: "Whitepaper",
     colophon: `$BITE × AAPL · Robinhood Chain · ${CHAIN_ID}`,
   },
 
