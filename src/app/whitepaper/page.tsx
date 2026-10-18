@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AppleAllocation } from "@/components/whitepaper/AppleAllocation";
 import { BottleSplit } from "@/components/whitepaper/BottleSplit";
 import { ContainerWeights } from "@/components/whitepaper/ContainerWeights";
+import { PayoutEstimator } from "@/components/whitepaper/PayoutEstimator";
 import { PoolApple } from "@/components/whitepaper/PoolApples";
 import { WhitepaperApple } from "@/components/whitepaper/WhitepaperApple";
 import { SiteFooter } from "@/components/SiteFooter";
@@ -20,7 +21,10 @@ import {
   SEED_WALLETS,
   TOTAL_OZ,
   WALLET_BITE,
+  YEAR1_BOTTLES,
+  YEAR1_BOTTLES_PER_QUARTER,
   companyBeforeLabor,
+  containerPayout,
   juicePrice,
   openFdv,
 } from "@/lib/whitepaper";
@@ -51,6 +55,7 @@ const SECTIONS = [
   ["open", "The open"],
   ["containers", "Containers"],
   ["bottle", "The bottle"],
+  ["payout", "Year 1"],
 ] as const;
 
 export default function WhitepaperPage() {
@@ -305,6 +310,36 @@ export default function WhitepaperPage() {
           </div>
         </section>
 
+        <section id="payout" className="scroll-mt-16 border-t border-[#d2d2d7] bg-white py-16 md:py-20">
+          <div className="page-gutter mx-auto max-w-[1120px]">
+            <p className="text-[13px] font-medium tracking-[0.12em] text-[#6e6e73] uppercase">
+              Year 1
+            </p>
+            <h2 className="mt-3 max-w-[16ch] text-[clamp(32px,4vw,48px)] leading-[1.05] font-semibold tracking-[-0.04em]">
+              Ten thousand bottles a quarter.
+            </h2>
+            <p className="mt-4 max-w-[66ch] text-[17px] leading-relaxed text-[#6e6e73]">
+              That is the year 1 target. {YEAR1_BOTTLES.toLocaleString("en-US")} bottles
+              in the year, about {Math.round(YEAR1_BOTTLES / 365)} a day. At 60¢,
+              the quarter pays{" "}
+              {usd((YEAR1_BOTTLES_PER_QUARTER * 0.6), 0)}. A Bottle holder
+              receives {usd(containerPayout(8, YEAR1_BOTTLES) / 4, 2)}. The
+              list is the containers already issued. January mints are not in
+              it.
+            </p>
+            <div className="mt-10">
+              <PayoutEstimator />
+            </div>
+            <p className="mt-8 max-w-[68ch] text-[15px] leading-relaxed text-[#6e6e73]">
+              Pressed Juicery does not publish a bottle count. Five million is
+              the middle of a few million, from about 100 cafes and $14.7
+              million of tracked US grocery sales in the year ended 3 July
+              2025. Red Bull sold 13.969 billion cans in 2025. Those are cans,
+              not juice bottles. They are on the bar so the distance is visible.
+            </p>
+          </div>
+        </section>
+
         <section className="border-t border-[#d2d2d7] bg-white py-16">
           <div className="page-gutter mx-auto max-w-[760px]">
             <h2 className="text-[28px] font-semibold tracking-[-0.03em]">
@@ -318,6 +353,7 @@ export default function WhitepaperPage() {
               <li>Seeds cap the press. A wallet that did not play cannot push $BITE through on day one.</li>
               <li>Container weight is ounces. That ratio is 8, 4, 2, 1.</li>
               <li>A poured container pays {usd(NFT_PRICE, 2)}. Everyone else pays {usd(REGULAR_PRICE, 2)}.</li>
+              <li>Year 1 is {YEAR1_BOTTLES_PER_QUARTER.toLocaleString("en-US")} bottles a quarter.</li>
             </ul>
             <p className="mt-8 text-[14px] leading-relaxed text-[#6e6e73]">
               This page is a draft for reading on a local machine. It is

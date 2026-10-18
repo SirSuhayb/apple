@@ -111,3 +111,26 @@ export function tierShare(oz: number, count: number): number {
 export function dividendPerThousand(oz: number): number {
   return oneContainerShare(oz) * 1000 * DIVIDEND_OF_DOLLAR;
 }
+
+/** Year 1 is a real payout: 10,000 bottles a quarter, on the closed ounce list. */
+export const YEAR1_BOTTLES_PER_QUARTER = 10_000;
+export const YEAR1_BOTTLES = YEAR1_BOTTLES_PER_QUARTER * 4;
+
+/**
+ * Pressed does not publish unit sales. Five million is the middle of a
+ * few million, from ~100 cafes plus $14.7 million of tracked US grocery
+ * sales in the year ended 3 July 2025.
+ */
+export const PRESSED_BOTTLES_ESTIMATE = 5_000_000;
+
+/** Red Bull company figure for 2025. Cans, not juice bottles. */
+export const RED_BULL_CANS_2025 = 13_969_000_000;
+
+export function dividendPool(bottles: number): number {
+  return bottles * DIVIDEND_OF_DOLLAR;
+}
+
+/** One container's dollars from a given number of bottles sold. */
+export function containerPayout(oz: number, bottles: number): number {
+  return dividendPool(bottles) * (oz / TOTAL_OZ);
+}
