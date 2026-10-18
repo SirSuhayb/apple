@@ -24,7 +24,7 @@ export const SLICES: {
     tokens: 650_000_000,
     hue: "#e53935",
     flesh: "#ff6b63",
-    line: "Pro-rata to the $BITE a wallet presses. A claim until the book opens.",
+    line: "Pro-rata to the $BITE a wallet presses, claimed until the book opens.",
   },
   {
     id: "liquidity",
@@ -33,7 +33,7 @@ export const SLICES: {
     tokens: 200_000_000,
     hue: "#f0c7a0",
     flesh: "#f8e0c8",
-    line: "Paired with the AAPL the press catches. Locked. 1% Uniswap fee. Other people can LP beside it.",
+    line: "Paired with the AAPL the press raises, locked in a 1% Uniswap pool. Other LPs can join.",
   },
   {
     id: "otc",
@@ -42,7 +42,7 @@ export const SLICES: {
     tokens: 100_000_000,
     hue: "#7da85a",
     flesh: "#a8c98a",
-    line: "A claim until graduation, then linear over 12 months. The check goes into the same escrow.",
+    line: "Claimed until graduation, then linear over 12 months into the same escrow.",
   },
   {
     id: "dev",
@@ -51,7 +51,7 @@ export const SLICES: {
     tokens: 50_000_000,
     hue: "#8d6e63",
     flesh: "#b08980",
-    line: "Nothing at the open. Linear monthly for 24 months. A dev wallet can still press into the player slice.",
+    line: "None at the open, then linear monthly for 24 months. The dev wallet can also press into the player slice.",
   },
 ];
 
@@ -117,9 +117,9 @@ export const YEAR1_BOTTLES_PER_QUARTER = 10_000;
 export const YEAR1_BOTTLES = YEAR1_BOTTLES_PER_QUARTER * 4;
 
 /**
- * Pressed does not publish unit sales. Five million is the middle of a
- * few million, from ~100 cafes plus $14.7 million of tracked US grocery
- * sales in the year ended 3 July 2025.
+ * Pressed does not publish unit sales. Five million is an inference
+ * from about 100 cafes and $14.7 million of tracked US grocery sales
+ * in 2025.
  */
 export const PRESSED_BOTTLES_ESTIMATE = 5_000_000;
 

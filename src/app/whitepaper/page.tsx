@@ -32,7 +32,7 @@ import {
 export const metadata: Metadata = {
   title: "$JUICE",
   description:
-    "How $JUICE is pressed from $BITE. Supply, the book, containers, the bottle, and the year 1 payout.",
+    "Supply, the book, containers, the bottle, and the year 1 payout for $JUICE.",
 };
 
 function usd(n: number, digits = 0): string {
@@ -78,12 +78,12 @@ export default function WhitepaperPage() {
               From the apple
             </p>
             <h1 className="mt-3 max-w-[14ch] text-[clamp(40px,6vw,68px)] leading-[0.98] font-semibold tracking-[-0.045em]">
-              A billion tokens, pressed from what was eaten.
+              One billion $JUICE.
             </h1>
             <p className="mt-6 max-w-[46ch] text-[19px] leading-relaxed text-[#6e6e73]">
-              The game on Robinhood Chain is over. $BITE stays there.
-              $JUICE is a new token on Base, paired with Coinbase Apple
-              stock. Until the book opens, the only way in is to press.
+              $BITE stays on Robinhood Chain. $JUICE is a new token on
+              Base, paired with Coinbase Apple stock. It is not
+              transferable until the book opens.
             </p>
           </div>
           <div>
@@ -115,19 +115,17 @@ export default function WhitepaperPage() {
               Cut the apple into four slices.
             </h2>
             <p className="mt-4 max-w-[58ch] text-[17px] leading-relaxed text-[#6e6e73]">
-              {JUICE_SUPPLY.toLocaleString("en-US")} $JUICE. The slices are
-              the allocation. Hover a wedge, or pick one. A Growler later
-              does not come out of this apple. Containers are a claim on
-              the bottle, not a fifth slice of the token.
+              {JUICE_SUPPLY.toLocaleString("en-US")} $JUICE. Hover a wedge,
+              or pick one. Containers are a claim on the bottle, not a
+              slice of this supply.
             </p>
             <div className="mt-10">
               <AppleAllocation />
             </div>
             <p className="mt-8 max-w-[62ch] text-[15px] leading-relaxed text-[#6e6e73]">
-              If all {WALLET_BITE.toLocaleString("en-US")} $BITE sitting in
-              wallets were pressed into the 650 million player tokens, that
-              is about 2.1 $JUICE per $BITE. Press less, and each token
-              pressed is worth a larger share of that slice. It is not 1:1.
+              If all {WALLET_BITE.toLocaleString("en-US")} $BITE in wallets
+              were pressed into the 650 million player tokens, that is
+              about 2.1 $JUICE per $BITE. It is not 1:1.
             </p>
           </div>
         </section>
@@ -138,7 +136,7 @@ export default function WhitepaperPage() {
               The book
             </p>
             <h2 className="mt-3 max-w-[16ch] text-[clamp(32px,4vw,48px)] leading-[1.05] font-semibold tracking-[-0.04em]">
-              Seven days, or forty apples.
+              Seven days, or 40 AAPL.
             </h2>
             <ol className="mt-10 grid gap-4 md:grid-cols-4">
               {[
@@ -159,12 +157,10 @@ export default function WhitepaperPage() {
               ))}
             </ol>
             <p className="mt-8 max-w-[68ch] text-[17px] leading-relaxed text-[#6e6e73]">
-              $JUICE is not a token anyone can transfer during the book, so
-              a side pool has nothing to list. The book lasts 7 days. It
-              opens early if the escrow catches 40 AAPL. On day 7 it opens
-              on whatever was actually pressed. Forty is a soft target, the
-              same size as the $BITE launch, not a second game the players
-              have to win.
+              $JUICE cannot be transferred during the book. It lasts 7
+              days, and opens early if the escrow reaches 40 AAPL. On day
+              7 it opens on whatever was pressed. 40 AAPL is a soft target,
+              the same size as the $BITE launch.
             </p>
           </div>
         </section>
@@ -212,10 +208,8 @@ export default function WhitepaperPage() {
             </div>
             <p className="mt-8 max-w-[68ch] text-[15px] leading-relaxed text-[#6e6e73]">
               Forty AAPL is about {usd(40 * AAPL_USD)} in the pool. That
-              open sits near {usd(openFdv(40))}, about six times today’s
-              $BITE. The cheaper open is the 7-day path, when the press
-              catches less than about 6.4 AAPL. Players are in before that
-              price exists. Their cost is the $BITE they pressed.
+              open is about {usd(openFdv(40))}, about six times $BITE
+              today. Below about 6.4 AAPL, the open is lower than $BITE.
             </p>
           </div>
         </section>
@@ -266,11 +260,9 @@ export default function WhitepaperPage() {
               </table>
             </div>
             <p className="mt-6 max-w-[68ch] text-[15px] leading-relaxed text-[#6e6e73]">
-              Bottles take most of the pool because 304 wallets land there.
-              Each Bottle still earns half a Mason Jar and a quarter of a
-              Growler. The {Math.round(DIVIDEND_OF_DOLLAR * 100)}¢ dividend
-              inside each treasury dollar is bought as $JUICE and AAPL and
-              paid by these weights.
+              304 wallets land on a Bottle, so that tier is most of the
+              pool. The {Math.round(DIVIDEND_OF_DOLLAR * 100)}¢ in each
+              dollar is bought as $JUICE and AAPL and paid by these weights.
             </p>
           </div>
         </section>
@@ -284,15 +276,12 @@ export default function WhitepaperPage() {
               One dollar leaves every bottle.
             </h2>
             <p className="mt-4 max-w-[64ch] text-[17px] leading-relaxed text-[#6e6e73]">
-              Pressed Juicery lists a juice at {usd(REGULAR_PRICE, 2)}, and{" "}
-              {usd(NFT_PRICE, 2)} for VIP. Regular here is {usd(REGULAR_PRICE, 2)}.
-              A poured container pays {usd(NFT_PRICE, 2)}. Pulp and raw $JUICE
-              pay regular. Cost stays {usd(BOTTLE_COGS, 2)}. One dollar is set
-              aside at both prices. Forty cents of that dollar can fund
-              campaigns. Sixty cents is the container dividend. The{" "}
+              Regular is {usd(REGULAR_PRICE, 2)}. A poured container pays{" "}
+              {usd(NFT_PRICE, 2)}. Pulp and raw $JUICE pay regular. Cost is{" "}
+              {usd(BOTTLE_COGS, 2)}. One dollar is set aside at both prices,
+              40¢ for campaigns and 60¢ for the container dividend. The{" "}
               {usd(REGULAR_PRICE - NFT_PRICE, 2)} discount comes out of the
-              company, so the dollar does not shrink. A vote can move the
-              split. The buys do not mint new $JUICE.
+              company.
             </p>
             <div className="mt-10 max-w-[820px]">
               <BottleSplit />
@@ -303,8 +292,7 @@ export default function WhitepaperPage() {
               and {usd(companyBeforeLabor(NFT_PRICE), 2)} on an NFT bottle,
               before labor. Published bottled costs, once packaging and cold
               freight are in, often run $1.55 to $3.50. At a $3 cost the
-              regular bottle still keeps $2.95 and the NFT bottle keeps $1.50.
-              The dollar still leaves both.
+              regular bottle keeps $2.95 and the NFT bottle keeps $1.50.
             </p>
           </div>
         </section>
@@ -318,23 +306,21 @@ export default function WhitepaperPage() {
               Ten thousand bottles a quarter.
             </h2>
             <p className="mt-4 max-w-[66ch] text-[17px] leading-relaxed text-[#6e6e73]">
-              That is the year 1 target. {YEAR1_BOTTLES.toLocaleString("en-US")} bottles
-              in the year, about {Math.round(YEAR1_BOTTLES / 365)} a day. At 60¢,
-              the quarter pays{" "}
-              {usd((YEAR1_BOTTLES_PER_QUARTER * 0.6), 0)}. A Bottle holder
-              receives {usd(containerPayout(8, YEAR1_BOTTLES) / 4, 2)}. The
-              list is the containers already issued. January mints are not in
-              it.
+              {YEAR1_BOTTLES.toLocaleString("en-US")} bottles in the year,
+              about {Math.round(YEAR1_BOTTLES / 365)} a day. At 60¢, the
+              quarter pays {usd(YEAR1_BOTTLES_PER_QUARTER * 0.6, 0)}. A
+              Bottle holder receives {usd(containerPayout(8, YEAR1_BOTTLES) / 4, 2)}.
+              January mints are not in this list.
             </p>
             <div className="mt-10">
               <PayoutEstimator />
             </div>
             <p className="mt-8 max-w-[68ch] text-[15px] leading-relaxed text-[#6e6e73]">
-              Pressed Juicery does not publish a bottle count. Five million is
-              the middle of a few million, from about 100 cafes and $14.7
-              million of tracked US grocery sales in the year ended 3 July
-              2025. Red Bull sold 13.969 billion cans in 2025. Those are cans,
-              not juice bottles. They are on the bar so the distance is visible.
+              Pressed Juicery doesn&apos;t publish their numbers so we are
+              inferring an estimate of 5 million, from about 100 cafes and
+              $14.7 million of tracked US grocery sales in 2025. Red Bull
+              sold 13.969 billion cans in 2025. The slider shows the scale
+              potential of the dividend.
             </p>
           </div>
         </section>
@@ -342,7 +328,7 @@ export default function WhitepaperPage() {
         <section className="border-t border-[#d2d2d7] bg-white py-16">
           <div className="page-gutter mx-auto max-w-[760px]">
             <h2 className="text-[28px] font-semibold tracking-[-0.03em]">
-              What stays fixed while the dials move
+              What stays fixed
             </h2>
             <ul className="mt-6 space-y-3 text-[16px] leading-relaxed text-[#6e6e73]">
               <li>No transferable $JUICE before the book opens.</li>
