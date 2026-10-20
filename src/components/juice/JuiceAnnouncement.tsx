@@ -10,10 +10,10 @@
  *  4. Choose container (based on eligible tiers)
  *  5. Add pulp (0–3 scoops of razzle dazzle)
  *  6. Customize label (from preset images / NFT credits)
- *  7. Cost to mint in $BITE (bridge seeds+BITE → JUICE)
- *  8. Juicing animation: seeds go in, blender spins, camera pulls back
- *     to eye-level assembly line, containers fill
- *  9. Phase 2 complete — congrats
+ *  7. Cost to mint in $BITE (user side of bridge → $JUICE)
+ *     AAPLc pool seeding is treasury ops at $JUICE launch — not a juicer click
+ *  8. Juicing animation
+ *  9. Shelf — filled jars, empty jars if seeds remain, launch countdown, buy $BITE
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,7 +23,14 @@ import { JuicerSVG, type JuicerState } from "./svg/JuicerSVG";
 import { ContainerForTier } from "./svg/ContainerSVG";
 import { AssemblyLineSVG, type AssemblyStage } from "./svg/AssemblyLineSVG";
 import { bestContainer, CONTAINER_TIERS, seedsToOz, seedPulp } from "@/lib/seeds";
-import { baseChain } from "@/lib/juice-config";
+import { baseChain, JUICE_LAUNCH_AT } from "@/lib/juice-config";
+import {
+  PONS_TOKEN_URL,
+  SWAP_OPEN_URL,
+  SWAP_PROVIDER,
+} from "@/lib/config";
+import { Countdown } from "@/components/Countdown";
+import { SwapModal } from "@/components/SwapModal";
 import type { SeedMap } from "@/lib/use-leaderboard";
 
 /**
@@ -194,37 +201,68 @@ function dedupeConnectors(connectors: readonly Connector[]): Connector[] {
   });
 }
 
-const TEST_SEEDS = 1400;
+/** Enough for Mason Jar + Bottle so the post-mint shelf can show empty jars. */
+const TEST_SEEDS = 2000;
+
+type ShelfJar = {
+  id: string;
+  tier: string;
+  pulpScoops: number;
+  label: LabelPreset;
+  filled: boolean;
+};
 
 export function JuiceAnnouncement() {
   const [step, setStep] = useState<Step>("lid");
   const [testMode, setTestMode] = useState(false);
   const [seedMap, setSeedMap] = useState<SeedMap>({});
+  const [remainingSeeds, setRemainingSeeds] = useState<number | null>(null);
+  const [shelf, setShelf] = useState<ShelfJar[]>([]);
   const [pulpScoops, setPulpScoops] = useState(0);
   const [selectedContainer, setSelectedContainer] = useState<string | null>(null);
   const [selectedLabel, setSelectedLabel] = useState<LabelPreset>(LABEL_PRESETS[0]);
   const [juicerState, setJuicerState] = useState<JuicerState>("closed");
   const [fadeClass, setFadeClass] = useState("opacity-100");
   const [animSignal, setAnimSignal] = useState(0);
+  const [swapOpen, setSwapOpen] = useState(false);
 
   const { address, isConnected } = useAccount();
   const { connect, connectors: rawConnectors, isPending: connecting } = useConnect();
   const { switchChain } = useSwitchChain();
   const connectors = useMemo(() => dedupeConnectors(rawConnectors), [rawConnectors]);
 
-  const seeds = testMode
+  const baseSeeds = testMode
     ? TEST_SEEDS
     : address
       ? (seedMap[address.toLowerCase()] ?? 0)
       : 0;
+  const seeds = remainingSeeds ?? baseSeeds;
 
   const container = bestContainer(seeds);
   const oz = seedsToOz(seeds);
   const pulp = seedPulp(seeds);
   const eligibleTiers = CONTAINER_TIERS.filter((t) => seeds >= t.seeds);
-  const mintCostBite = selectedContainer
-    ? (CONTAINER_TIERS.find((t) => t.name === selectedContainer)?.seeds ?? 0) * 100
+  const selectedTier = selectedContainer
+    ? CONTAINER_TIERS.find((t) => t.name === selectedContainer)
+    : undefined;
+  const mintCostBite = selectedTier ? selectedTier.seeds * 100 : 0;
+  const emptyEligible = CONTAINER_TIERS.filter((t) => seeds >= t.seeds);
+  const canFillAnother = emptyEligible.length > 0;
+  const nextMintCost = canFillAnother
+    ? (bestContainer(seeds)?.seeds ?? 0) * 100
     : 0;
+  const launchSecondsLeft = Math.max(
+    0,
+    JUICE_LAUNCH_AT - Math.floor(Date.now() / 1000),
+  );
+
+  const openBuyBite = () => {
+    if (SWAP_PROVIDER === "pons") {
+      window.open(PONS_TOKEN_URL, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setSwapOpen(true);
+  };
 
   const fetchSeeds = useCallback(async () => {
     try {
@@ -237,12 +275,6 @@ export function JuiceAnnouncement() {
 
   useEffect(() => { void fetchSeeds(); }, [fetchSeeds]);
 
-  useEffect(() => {
-    if (step === "connect" && isConnected && !testMode) {
-      setTimeout(() => transition("seeds"), 600);
-    }
-  }, [step, isConnected, testMode]);
-
   const transition = useCallback((to: Step) => {
     setFadeClass("opacity-0 scale-95");
     setTimeout(() => {
@@ -251,6 +283,22 @@ export function JuiceAnnouncement() {
     }, 300);
   }, []);
 
+  useEffect(() => {
+    if (step === "connect" && isConnected && !testMode) {
+      if (remainingSeeds === null && baseSeeds > 0) {
+        setRemainingSeeds(baseSeeds);
+      }
+      setTimeout(() => transition("seeds"), 600);
+    }
+  }, [step, isConnected, testMode, remainingSeeds, baseSeeds, transition]);
+
+  // Once leaderboard seeds load for a connected wallet, seed the balance once.
+  useEffect(() => {
+    if (!testMode && isConnected && remainingSeeds === null && baseSeeds > 0) {
+      setRemainingSeeds(baseSeeds);
+    }
+  }, [testMode, isConnected, remainingSeeds, baseSeeds]);
+
   const handleOpenLid = () => {
     setJuicerState("open");
     setTimeout(() => transition("connect"), 800);
@@ -258,11 +306,14 @@ export function JuiceAnnouncement() {
 
   const handleTestMode = () => {
     setTestMode(true);
+    setRemainingSeeds(TEST_SEEDS);
+    setShelf([]);
     transition("seeds");
   };
 
   const handleSeedsContinue = () => {
     if (seeds === 0) return;
+    if (remainingSeeds === null) setRemainingSeeds(baseSeeds);
     if (container) setSelectedContainer(container.name);
     transition("container");
   };
@@ -290,13 +341,45 @@ export function JuiceAnnouncement() {
     setAnimSignal((s) => s + 1);
   };
 
+  const handleFillAnother = () => {
+    if (!canFillAnother) return;
+    setPulpScoops(0);
+    setSelectedLabel(LABEL_PRESETS[0]);
+    setSelectedContainer(bestContainer(seeds)?.name ?? null);
+    setJuicerState("open");
+    transition("container");
+  };
+
+  const handleStartOver = () => {
+    setStep("lid");
+    setJuicerState("closed");
+    setPulpScoops(0);
+    setSelectedLabel(LABEL_PRESETS[0]);
+    setSelectedContainer(null);
+    setShelf([]);
+    setRemainingSeeds(testMode ? TEST_SEEDS : baseSeeds || null);
+    setFadeClass("opacity-100 scale-100");
+  };
+
   const handleAnimationComplete = useCallback(() => {
+    const tierName = selectedContainer ?? "Juice Box";
+    const used =
+      CONTAINER_TIERS.find((t) => t.name === tierName)?.seeds ?? 0;
+    const jar: ShelfJar = {
+      id: `jar-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      tier: tierName,
+      pulpScoops,
+      label: selectedLabel,
+      filled: true,
+    };
+    setShelf((prev) => [...prev, jar]);
+    setRemainingSeeds((prev) => Math.max(0, (prev ?? baseSeeds) - used));
     setFadeClass("opacity-0 scale-95");
     setTimeout(() => {
       setStep("congrats");
       setFadeClass("opacity-100 scale-100");
     }, 400);
-  }, []);
+  }, [selectedContainer, pulpScoops, selectedLabel, baseSeeds]);
 
   const stepContent = () => {
     switch (step) {
@@ -581,8 +664,8 @@ export function JuiceAnnouncement() {
               Ready to squeeze.
             </h2>
             <p className="mt-2 text-[14px] text-[#6e6e73] text-center max-w-[360px]">
-              Your seeds and $BITE go into the juicer. Out comes your container
-              NFT filled with $JUICE on Base.
+              Your seeds reserve the jar. Your $BITE pays the mint and bridges
+              into $JUICE on Base.
             </p>
 
             {/* Cost breakdown */}
@@ -591,8 +674,7 @@ export function JuiceAnnouncement() {
                 <div className="flex justify-between items-center">
                   <span className="text-[13px] text-[#6e6e73]">Container</span>
                   <span className="text-[14px] font-semibold text-[#1d1d1f]">
-                    {CONTAINER_TIERS.find((t) => t.name === selectedContainer)?.emoji}{" "}
-                    {selectedContainer}
+                    {selectedTier?.emoji} {selectedContainer}
                   </span>
                 </div>
               </div>
@@ -600,7 +682,7 @@ export function JuiceAnnouncement() {
                 <div className="flex justify-between items-center">
                   <span className="text-[13px] text-[#6e6e73]">Seeds used</span>
                   <span className="text-[14px] font-semibold tabular-nums text-[#1d1d1f]">
-                    {CONTAINER_TIERS.find((t) => t.name === selectedContainer)?.seeds.toLocaleString()}
+                    {selectedTier?.seeds.toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -628,9 +710,31 @@ export function JuiceAnnouncement() {
                   </span>
                 </div>
                 <p className="mt-1 text-[11px] text-[#6e6e73]">
-                  Seeds + $BITE bridge to $JUICE on Base
+                  Your side of the bridge — $BITE → $JUICE
                 </p>
               </div>
+            </div>
+
+            {/* Tokenomics: where AAPLc pooling happens */}
+            <div className="mt-4 w-full max-w-[380px] rounded-[22px] border border-dashed border-[#d2d2d7] bg-[#fafafa] px-5 py-4 text-left">
+              <p className="text-[10px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
+                Where AAPL gets pooled
+              </p>
+              <ul className="mt-3 space-y-2.5 text-[13px] text-[#6e6e73]">
+                <li className="flex gap-2">
+                  <span className="font-semibold text-[#f97316] shrink-0">You</span>
+                  <span>
+                    Pay $BITE at mint. That value bridges into $JUICE supply on Base.
+                  </span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-[#1d1d1f] shrink-0">Treasury</span>
+                  <span>
+                    Seeds the AAPLc side of the Uniswap pool at $JUICE launch —
+                    not a step inside this juicer.
+                  </span>
+                </li>
+              </ul>
             </div>
 
             <button
@@ -640,6 +744,23 @@ export function JuiceAnnouncement() {
             >
               🍊 Start juicing
             </button>
+            <button
+              type="button"
+              onClick={openBuyBite}
+              className="mt-3 text-[13px] font-medium text-[#6e6e73] underline-offset-2 hover:text-[#f97316] hover:underline"
+            >
+              Need $BITE for the mint? Buy here →
+            </button>
+            {SWAP_PROVIDER !== "pons" && (
+              <a
+                href={SWAP_OPEN_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 text-[11px] text-[#d2d2d7] hover:text-[#6e6e73]"
+              >
+                Or open Uniswap
+              </a>
+            )}
           </div>
         );
 
@@ -655,70 +776,146 @@ export function JuiceAnnouncement() {
           />
         );
 
-      case "congrats":
+      case "congrats": {
+        const emptyPreview = bestContainer(seeds);
         return (
-          <div className="flex flex-col items-center text-center">
-            <div className="relative h-[180px] w-[140px] mb-4">
-              <ContainerForTier
-                tier={selectedContainer ?? "Juice Box"}
-                fillLevel={0.9}
-                label={selectedLabel.id !== "none" ? selectedLabel.name : undefined}
-                selected
-                className="h-full w-auto drop-shadow-lg"
-              />
-            </div>
+          <div className="flex flex-col items-center text-center w-full">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#34c759]/10 px-4 py-1.5 mb-4">
               <svg viewBox="0 0 16 16" className="w-4 h-4 text-[#34c759]" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="3,8 7,12 13,4" />
               </svg>
               <span className="text-[13px] font-semibold text-[#34c759]">
-                Phase 2 complete
+                Juiced
               </span>
             </div>
-            <h2 className="text-[32px] font-black tracking-tight text-[#1d1d1f]">
+            <h2 className="text-[28px] sm:text-[32px] font-black tracking-tight text-[#1d1d1f]">
               Congrats, you just juiced it.
             </h2>
-            <p className="mt-3 text-[15px] leading-relaxed text-[#6e6e73] max-w-[380px]">
-              Your {selectedContainer} is filled with{" "}
-              {pulpScoops > 0 ? `${pulpScoops}-scoop pulpy` : "smooth"} juice
-              {selectedLabel.id !== "none" ? ` with a ${selectedLabel.name} label` : ""}.
-              When the contracts go live on Base, you'll mint this as an NFT
-              and start earning rev share from real-world juice brand sales.
+            <p className="mt-2 text-[14px] leading-relaxed text-[#6e6e73] max-w-[380px]">
+              {shelf.length === 1
+                ? "Your first jar is on the shelf."
+                : `${shelf.length} jars on your shelf.`}
+              {canFillAnother
+                ? ` ${seeds.toLocaleString()} seeds left — empty jars waiting.`
+                : seeds > 0
+                  ? ` ${seeds.toLocaleString()} seeds left (not enough for another jar yet).`
+                  : " Seeds spent."}
             </p>
 
-            <div className="mt-6 w-full max-w-[380px] rounded-[22px] border border-[#d2d2d7] bg-white px-6 py-5">
-              <p className="text-[10px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase">
-                What happens next
+            {/* Shelf — filled + empty jars */}
+            <div className="mt-6 w-full max-w-[420px] rounded-[22px] border border-[#d2d2d7] bg-white px-4 pt-5 pb-4">
+              <p className="text-[10px] font-semibold tracking-[1.5px] text-[#6e6e73] uppercase mb-4">
+                Your shelf
               </p>
-              <ul className="mt-3 space-y-2 text-left text-[13px] text-[#6e6e73]">
-                <li className="flex gap-2">
-                  <span className="text-[#f97316]">●</span>
-                  $JUICE token deploys on Base, paired with Coinbase AAPLc
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-[#f97316]">●</span>
-                  NFT container contracts go live — mint your {selectedContainer}
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-[#f97316]">●</span>
-                  Real-world juice brand sales start flowing into the revnet
-                </li>
-                <li className="flex gap-2">
-                  <span className="text-[#f97316]">●</span>
-                  Container holders earn rev share from every sale
-                </li>
-              </ul>
+              <div className="flex gap-3 overflow-x-auto pb-2 justify-center items-end min-h-[160px]">
+                {shelf.map((jar) => (
+                  <div
+                    key={jar.id}
+                    className="flex flex-col items-center shrink-0 w-[100px]"
+                  >
+                    <div className="h-[130px] flex items-end justify-center">
+                      <ContainerForTier
+                        tier={jar.tier}
+                        fillLevel={0.85 + jar.pulpScoops * 0.03}
+                        label={jar.label.id !== "none" ? jar.label.name : undefined}
+                        selected
+                        className="h-full w-auto drop-shadow-md"
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold text-[#1d1d1f] truncate w-full">
+                      {jar.tier}
+                    </p>
+                    <p className="text-[10px] text-[#34c759]">Filled</p>
+                  </div>
+                ))}
+                {canFillAnother && emptyPreview && (
+                  <button
+                    type="button"
+                    onClick={handleFillAnother}
+                    className="flex flex-col items-center shrink-0 w-[100px] group"
+                  >
+                    <div className="h-[130px] flex items-end justify-center opacity-45 group-hover:opacity-70 transition border border-dashed border-[#d2d2d7] rounded-xl px-2 py-1">
+                      <ContainerForTier
+                        tier={emptyPreview.name}
+                        fillLevel={0}
+                        className="h-full w-auto"
+                      />
+                    </div>
+                    <p className="mt-2 text-[11px] font-semibold text-[#6e6e73] truncate w-full">
+                      {emptyPreview.name}
+                    </p>
+                    <p className="text-[10px] text-[#f97316]">Empty · tap to fill</p>
+                  </button>
+                )}
+              </div>
+              {/* Shelf plank */}
+              <div className="mx-2 h-2 rounded-full bg-gradient-to-b from-[#d2d2d7] to-[#b0b0b8] shadow-sm" />
+              {canFillAnother && emptyEligible.length > 1 && (
+                <p className="mt-3 text-[11px] text-[#6e6e73]">
+                  Also eligible:{" "}
+                  {emptyEligible
+                    .filter((t) => t.name !== emptyPreview?.name)
+                    .map((t) => t.name)
+                    .join(", ")}
+                </p>
+              )}
+            </div>
+
+            {/* Fill another + buy $BITE */}
+            <div className="mt-5 flex flex-col sm:flex-row gap-2 w-full max-w-[420px]">
+              {canFillAnother ? (
+                <button
+                  type="button"
+                  onClick={handleFillAnother}
+                  className="flex-1 rounded-full bg-[#f97316] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#ea580c]"
+                >
+                  Fill another container
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="flex-1 rounded-full bg-[#e5e5ea] px-6 py-3 text-[14px] font-semibold text-[#6e6e73] cursor-not-allowed"
+                >
+                  No empty jars left
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={openBuyBite}
+                className="flex-1 rounded-full border border-[#d2d2d7] bg-white px-6 py-3 text-[14px] font-semibold text-[#1d1d1f] hover:border-[#f97316] hover:text-[#f97316]"
+              >
+                Buy $BITE
+                {canFillAnother && nextMintCost > 0
+                  ? ` · next mint ${nextMintCost.toLocaleString()}`
+                  : ""}
+              </button>
+            </div>
+
+            {/* Time to $JUICE launch + AAPLc pool note */}
+            <div className="mt-5 w-full max-w-[420px] rounded-[22px] border border-[#d2d2d7] bg-[#1d1d1f] px-6 py-5 text-white">
+              <p className="text-[10px] font-semibold tracking-[1.5px] text-white/55 uppercase">
+                Time to $JUICE launch
+              </p>
+              <div className="mt-3">
+                <Countdown
+                  secondsLeft={launchSecondsLeft}
+                  deadline={JUICE_LAUNCH_AT}
+                  compact
+                  onDark
+                />
+              </div>
+              <p className="mt-4 text-[12px] leading-relaxed text-white/65 text-left">
+                At launch the treasury seeds the AAPLc side of the Base pool and
+                pairs it with $JUICE. Your mint $BITE is already on the bridge —
+                AAPLc pooling is that launch event, not a juicer step.
+              </p>
             </div>
 
             <div className="mt-6 flex gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setStep("lid");
-                  setJuicerState("closed");
-                  setPulpScoops(0);
-                  setSelectedLabel(LABEL_PRESETS[0]);
-                }}
+                onClick={handleStartOver}
                 className="rounded-full border border-[#d2d2d7] bg-white px-6 py-2.5 text-[14px] font-medium text-[#1d1d1f] hover:bg-[#f5f5f7]"
               >
                 Start over
@@ -732,6 +929,7 @@ export function JuiceAnnouncement() {
             </div>
           </div>
         );
+      }
     }
   };
 
@@ -766,6 +964,10 @@ export function JuiceAnnouncement() {
       <p className="mt-12 text-[11px] text-[#d2d2d7]">
         powered by Juicebox V6 · Base
       </p>
+
+      {SWAP_PROVIDER !== "pons" && (
+        <SwapModal open={swapOpen} onClose={() => setSwapOpen(false)} />
+      )}
     </div>
   );
 }

@@ -81,3 +81,19 @@ export const NFT_READY = JUICE_NFT_CONTRACT !== zeroAddress;
 
 /** True when the $JUICE token is deployed. */
 export const JUICE_LIVE = JUICE_TOKEN !== zeroAddress;
+
+/**
+ * Unix timestamp for the public $JUICE / AAPLc pool launch on Base.
+ * Override with NEXT_PUBLIC_JUICE_LAUNCH_AT. Until then the post-mint
+ * shelf shows a countdown; AAPLc treasury seeding is an ops step at this time
+ * (not a click inside the juicer flow).
+ */
+export const JUICE_LAUNCH_AT = (() => {
+  const raw = process.env.NEXT_PUBLIC_JUICE_LAUNCH_AT?.trim();
+  if (raw) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return Math.floor(n);
+  }
+  // Preview default — Nov 11, 2026 16:00 UTC
+  return Math.floor(Date.UTC(2026, 10, 11, 16, 0, 0) / 1000);
+})();
