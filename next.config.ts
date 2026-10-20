@@ -9,8 +9,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "127.0.0.1",
     "localhost",
-    "little-cloths-wait.loca.lt",
-    "brave-string-reynolds-smooth.trycloudflare.com",
+    "*.loca.lt",
+    "*.trycloudflare.com",
   ],
   async headers() {
     return [
