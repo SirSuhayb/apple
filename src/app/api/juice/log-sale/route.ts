@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { JUICE_ENABLED } from "@/lib/juice-config";
 
 /**
  * POST /api/juice/log-sale
@@ -30,6 +31,11 @@ export const dynamic = "force-dynamic";
 
 const API_SECRET = process.env.JUICE_SALES_API_SECRET?.trim();
 
+function gatedOff() {
+  if (JUICE_ENABLED) return null;
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
+}
+
 type SaleItem = { name: string; qty: number; priceUsd: number };
 
 type SalePayload = {
@@ -55,6 +61,9 @@ type SaleRecord = SalePayload & {
 const sales: SaleRecord[] = [];
 
 export async function POST(request: Request) {
+  const off = gatedOff();
+  if (off) return off;
+
   const authHeader = request.headers.get("authorization");
   if (API_SECRET && authHeader !== `Bearer ${API_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -104,6 +113,9 @@ export async function POST(request: Request) {
 
 /** GET /api/juice/log-sale — list all logged sales (public read). */
 export async function GET() {
+  const off = gatedOff();
+  if (off) return off;
+
   const totalSalesUsd = sales.reduce((sum, s) => sum + s.amountUsd, 0);
   const totalDepositsUsd = sales.reduce((sum, s) => sum + s.depositAmountUsd, 0);
   const confirmedDepositsUsd = sales

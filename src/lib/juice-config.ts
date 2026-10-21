@@ -83,6 +83,23 @@ export const NFT_READY = JUICE_NFT_CONTRACT !== zeroAddress;
 export const JUICE_LIVE = JUICE_TOKEN !== zeroAddress;
 
 /**
+ * Public juice surface gate. Production stays off until we flip
+ * NEXT_PUBLIC_JUICE_ENABLED=true. Preview + local stay on so the
+ * draft PR / share link can be tested without going live on bite.party.
+ *
+ * Kill switch: NEXT_PUBLIC_JUICE_ENABLED=false always disables.
+ */
+export const JUICE_ENABLED = (() => {
+  const raw = process.env.NEXT_PUBLIC_JUICE_ENABLED?.trim().toLowerCase();
+  if (raw === "1" || raw === "true" || raw === "yes") return true;
+  if (raw === "0" || raw === "false" || raw === "no") return false;
+  if (process.env.VERCEL_ENV === "production") return false;
+  // Vercel preview deployments + local `next dev`
+  if (process.env.VERCEL_ENV === "preview") return true;
+  return process.env.NODE_ENV !== "production";
+})();
+
+/**
  * Unix timestamp for the public $JUICE / AAPLc pool launch on Base.
  * Override with NEXT_PUBLIC_JUICE_LAUNCH_AT. Until then the post-mint
  * shelf shows a countdown; AAPLc treasury seeding is an ops step at this time
