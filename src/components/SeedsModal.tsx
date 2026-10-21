@@ -5,6 +5,7 @@ import type { Connector } from "wagmi";
 import { useAccount, useConnect } from "wagmi";
 import { copy } from "@/lib/copy";
 import { bestContainer, seedsToNextTier, seedsToOz } from "@/lib/seeds";
+import { JUICE_ENABLED } from "@/lib/juice-config";
 import type { SeedMap } from "@/lib/use-leaderboard";
 
 const DISMISSED_KEY = "bite:seeds-modal-dismissed";
@@ -68,6 +69,8 @@ export function SeedsModal({
     : 0;
 
   useEffect(() => {
+    // Keep Phase 2 teaser off production until juice is explicitly enabled.
+    if (!JUICE_ENABLED) return;
     if (wasDismissed()) return;
     const timer = setTimeout(() => setOpen(true), 2000);
     return () => clearTimeout(timer);
@@ -78,7 +81,7 @@ export function SeedsModal({
     markDismissed();
   }, []);
 
-  if (!open) return null;
+  if (!JUICE_ENABLED || !open) return null;
 
   const container = bestContainer(seeds);
   const next = seedsToNextTier(seeds);

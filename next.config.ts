@@ -4,6 +4,14 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Dev-only: tunnels + 127.0.0.1 must be allowed or Next blocks /_next
+  // resources and client components never hydrate (juicer tap is a no-op).
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "localhost",
+    "*.loca.lt",
+    "*.trycloudflare.com",
+  ],
   async headers() {
     return [
       {
